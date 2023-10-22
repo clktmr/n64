@@ -11,73 +11,57 @@ const (
 	HEIGHT = 240
 )
 
-var Buf = [WIDTH * HEIGHT]uint32{}
+var Buf = [WIDTH * HEIGHT * 4]uint8{}
 
 // Represents an image that the DAC can read and output on a screen. Implements
 // draw.Image, so all the drawing tools from the standard library can be used.
-// But be aware that all rendering done this way is withoug hardware
-// acceleration and currently not optimized.
+// Moreover draw.DrawMask will chose optimized implementations based on type
+// assertions.  Thats why it's important to be a image.RGBA specifically,  a
+// type that the draw package knows. Still all rendering done this way is
+// withoug hardware acceleration and rather slow.
 // TODO support 16 bit per pixel, other resolutions and double buffering
 type Framebuffer struct {
-	buf           []uint32
-	height, width int
-	fill          uint32
+	image.RGBA
+	fill image.Uniform
 }
 
 func NewFramebuffer() *Framebuffer {
-	fb := Framebuffer{
-		buf:    Buf[:],
-		width:  WIDTH,
-		height: HEIGHT,
+	fb := &Framebuffer{
+		RGBA: image.RGBA{
+			Pix:    Buf[:],
+			Stride: WIDTH * 4,
+			Rect:   image.Rect(0, 0, WIDTH, HEIGHT),
+		},
 	}
-	return &fb
-}
-
-func (fb *Framebuffer) ColorModel() color.Model {
-	return color.RGBAModel
-}
-
-func (fb *Framebuffer) Bounds() image.Rectangle {
-	return image.Rect(0, 0, WIDTH, HEIGHT)
-}
-
-func (fb *Framebuffer) At(x, y int) color.Color {
-	c := fb.buf[y*fb.width+x]
-	return color.RGBA{
-		R: uint8(c >> 24),
-		G: uint8(c >> 16),
-		B: uint8(c >> 8),
-		A: uint8(0),
-	}
-}
-
-func (fb *Framebuffer) Set(x, y int, c color.Color) {
-	r, g, b, a := c.RGBA()
-	fb.buf[y*fb.width+x] = ((r & 0xff00) << 16) | ((g & 0xff00) << 8) |
-		(b & 0xff00) | ((a & 0xff00) >> 8)
+	return fb
 }
 
 func (fb *Framebuffer) Draw(r image.Rectangle, src image.Image, sp image.Point,
 	mask image.Image, mp image.Point, op draw.Op) {
+	// TODO optimize drawing glyphs via type assertion
+	// text: *image.Uniform, mask *images.ImmAlphaN
 	draw.DrawMask(fb, r, src, sp, mask, mp, op)
 }
 
-func (fb *Framebuffer) Fill(r image.Rectangle) {
-	for line := r.Min.Y; line < r.Max.Y; line++ {
-		for row := r.Min.X; row < r.Max.X; row++ {
-			fb.buf[line*fb.width+row] = fb.fill
+func (fb *Framebuffer) Fill(rect image.Rectangle) {
+	r, g, b, a := fb.fill.C.RGBA()
+	for line := rect.Min.Y; line < rect.Max.Y; line++ {
+		for row := rect.Min.X; row < rect.Max.X; row++ {
+			base := (line<<2)*fb.Rect.Dx() + (row << 2)
+			fb.Pix[base] = uint8(r)
+			fb.Pix[base+1] = uint8(g)
+			fb.Pix[base+2] = uint8(b)
+			fb.Pix[base+3] = uint8(a)
 		}
 	}
 }
 
 func (fb *Framebuffer) SetColor(c color.Color) {
-	r, g, b, a := c.RGBA()
-	fb.fill = ((r & 0xff00) << 16) | ((g & 0xff00) << 8) |
-		(b & 0xff00) | ((a & 0xff00) >> 8)
+	fb.fill.C = c
 }
 
 func (fb *Framebuffer) SetDir(dir int) image.Rectangle {
-	return image.Rect(0, 0, fb.width, fb.height)
+	return fb.Bounds()
 }
 
 func (fb *Framebuffer) Flush() {}
