@@ -1,10 +1,7 @@
 package main
 
 import (
-	"blinky/framebuffer"
 	"bytes"
-	"embed"
-	"embedded/arch/r4000/systim"
 	"fmt"
 	"image"
 	"image/color"
@@ -12,9 +9,18 @@ import (
 	"image/png"
 	"runtime"
 	"time"
-	"unsafe"
 
-	"github.com/embeddedgo/display/font/subfont/font9/vga"
+	"embed"
+	"embedded/arch/r4000/systim"
+
+	"n64/cpu"
+	"n64/fonts/gomono12"
+	"n64/framebuffer"
+	"n64/rcp"
+	"n64/rcp/rdp"
+	"n64/rcp/serial"
+	"n64/rcp/video"
+
 	"github.com/embeddedgo/display/pix"
 )
 
@@ -22,51 +28,28 @@ import (
 var images embed.FS
 
 func init() {
-	systim.Setup(93.75e6)
-}
-
-func initDAC(fb_p unsafe.Pointer) {
-	p := unsafe.Pointer(uintptr(0xA440_0000))
-	*((*uint32)(p)) = 0x3
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = uint32(uintptr(fb_p))
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = 320
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = 0x200
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = 352
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = 0x3E5_2239
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = 525
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = (0 << 16) | 3093
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = (3093 << 16) | 3093
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = (108 << 16) | 748
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = (37 << 16) | 511
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = (14 << 16) | 516
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = (0 << 16) | 512
-	p = unsafe.Add(p, 4)
-	*((*uint32)(p)) = (0 << 16) | 1024
+	systim.Setup(cpu.ClockSpeed)
 }
 
 func main() {
 	println("hello n64")
-	fb_p := unsafe.Pointer(&framebuffer.Buf)
-	initDAC(fb_p)
 
-	fb := framebuffer.NewFramebuffer()
-	disp := pix.NewDisplay(fb)
+	fb := framebuffer.NewFramebuffer(video.BBP16)
+	fbAddr := fb.Swap()
+	rcp.EnableInterrupts(rcp.SerialInterface)
+	rcp.EnableInterrupts(rcp.VideoInterface)
+	rcp.EnableInterrupts(rcp.DisplayProcessor)
+
+	rdp.Start()
+	rdp.SetColorImage(fbAddr, framebuffer.WIDTH, rdp.RGBA, rdp.BBP16)
+
+	pixDriver := rdp.NewRdp(fb)
+	disp := pix.NewDisplay(pixDriver)
+	dispSW := pix.NewDisplay(fb)
 
 	a := disp.NewArea(disp.Bounds())
-	a.SetColor(color.RGBA{100, 100, 120, 255})
-	a.Fill(disp.Bounds())
+	aSW := dispSW.NewArea(image.Rect(240, 200, 320, 240))
+	aSW.SetColor(color.Black)
 
 	n64logo, err := images.ReadFile("images/n64.png")
 	if err != nil {
@@ -78,51 +61,136 @@ func main() {
 		println(err.Error())
 	}
 
-	a.Draw(disp.Bounds().Inset(50),
+	centeredLogo := img.Bounds()
+	centeredLogo = centeredLogo.Add(image.Point{
+		X: disp.Bounds().Dx()/2 - img.Bounds().Dx()/2,
+		Y: disp.Bounds().Dy()/2 - img.Bounds().Dy()/2,
+	})
+	a.Draw(centeredLogo,
 		img, img.Bounds().Min,
 		nil, image.Point{},
 		draw.Over)
 
-	time.Sleep(2 * time.Second)
+	video.SetFramebuffer(fbAddr)
+	video.SetupNTSC(video.BBP16)
+	time.Sleep(500 * time.Millisecond)
 
-	var titleFont = vga.NewFace(
-		vga.X0000_007f,
-	)
+	var titleFont = gomono12.NewFace(gomono12.X0000_00ff())
 	tw := a.NewTextWriter(titleFont)
 	tw.SetColor(color.White)
 
-	// go drawStuff(a)
+	twSW := aSW.NewTextWriter(titleFont)
+	twSW.SetColor(color.White)
 
+	serial.StartJoybus()
+
+	// lr := disp.Bounds().Max
+	// go spinner(disp.NewArea(image.Rect(lr.X-10, lr.Y-15, lr.X, lr.Y-5)))
+
+	n64logosmall, err := images.ReadFile("images/n64_s.png")
+	if err != nil {
+		println(err.Error())
+	}
+
+	imgsmall, err := png.Decode(bytes.NewReader(n64logosmall))
+	if err != nil {
+		println(err.Error())
+	}
+	// imgNRGBA := imgsmall.(*image.NRGBA)
+	// imgData := uintptr(unsafe.Pointer(&imgNRGBA.Pix[:1][0]))
+	// imgData := uintptr(0x8000_0400)
+
+	logoPos := image.Point{}
 	for {
-		a.Fill(disp.Bounds())
-		memstats := &runtime.MemStats{}
-		runtime.ReadMemStats(memstats)
-		tw.WriteString(fmt.Sprintf("alloc: %d\n", memstats.Alloc))
-		tw.WriteString(fmt.Sprintf("heapalloc: %d\n", memstats.HeapAlloc))
-		tw.WriteString(fmt.Sprintf("stack: %d\n", memstats.StackInuse))
-		tw.WriteString(fmt.Sprintf("next GC: %d\n", memstats.NextGC))
-		tw.WriteString(fmt.Sprintf("num GC: %d\n", memstats.NumGC))
-		tw.WriteString(fmt.Sprintf("GC pause: %d\n", memstats.PauseTotalNs))
-		time.Sleep(100 * time.Millisecond)
-		tw.Pos = image.Point{0, 0}
+		start := time.Now()
+
+		fbAddr = fb.Swap()
+		rdp.SetColorImage(fbAddr, framebuffer.WIDTH, rdp.RGBA, rdp.BBP16)
+
+		rdp.Sync(rdp.Pipe)
+		rdp.SetScissor(disp.Bounds(), rdp.InterlaceNone)
+		rdp.SetFillColor(color.RGBA{R: 0, G: 0x37, B: 0x77, A: 0xff})
+		rdp.SetOtherModes(rdp.RGBDitherNone |
+			rdp.AlphaDitherNone | rdp.ForceBlend |
+			rdp.CycleTypeFill | rdp.AtomicPrimitive)
+		rdp.FillRectangle(disp.Bounds())
+
+		logoPos.X = (logoPos.X + 5) % disp.Bounds().Dx()
+		logoPos.Y = (logoPos.Y + 2) % disp.Bounds().Dy()
+
+		pixDriver.Draw(imgsmall.Bounds().Add(logoPos), imgsmall, image.Point{}, nil, image.Point{}, draw.Over)
+
+		tw.Pos = image.Point{}
+		// lidx := runtime.Lastidx - 256
+		// if lidx < 0 {
+		// 	lidx = 0
+		// }
+		// tw.WriteString(fmt.Sprintf("%v\n", string(runtime.Lastlog[lidx:runtime.Lastidx])))
+
+		tw.Wrap = pix.BreakSpace
+		tw.WriteString("Lorem ipsum dolor sit amet, consectetur adipisici elit, sed eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat cupiditat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n")
+		tw.WriteString(fmt.Sprintf("%06d µs\n", waitVBlankNs/time.Microsecond))
+		waitVBlankNs = time.Since(start)
+		a.Flush()
+
+		// twSW.Pos = image.Point{0, 0}
+		// aSW.Fill(aSW.Bounds())
+		// twSW.WriteString(fmt.Sprintf("%06d µs\n", waitVBlankNs/time.Microsecond))
+		// twSW.WriteString(fmt.Sprintf("%06d µs\n", rdp.DrawDuration/time.Microsecond))
+		// rdp.DrawDuration = 0
+		// tw.WriteString(fmt.Sprintf("rdp irq cnt: %06d\n", rdp.IrqCnt))
+
+		runtime.GC() // run garbace collector while we wait on vblank
+		video.VBlank.Clear()
+		video.VBlank.Sleep(-1)
+
+		video.SetFramebuffer(fbAddr)
 	}
 }
 
-func drawStuff(a *pix.Area) {
-	pos := 0
-	c := color.RGBA{0xff, 0, 0, 0xff}
-	for {
-		c = color.RGBA{c.R + 34, c.G + 101, c.A + 10, 0xff}
-		a.SetColor(c)
-		a.Fill(image.Rect(40, pos, 100, 100))
-		pos = (pos + 1) % 240
-		time.Sleep(50 * time.Millisecond)
+var waitVBlankNs time.Duration
+
+func printPressedButton(tw *pix.TextWriter) {
+	controllers := serial.ControllerStates()
+	if controllers[0].Pressed(serial.A) {
+		tw.WriteString("A pressed")
 	}
+	if controllers[0].Released(serial.A) {
+		tw.WriteString("A released")
+	}
+
 }
 
-var i int
+func printSysStats(tw *pix.TextWriter) {
+	start := time.Now()
+	vBlankNs := time.Since(start)
+	memstats := &runtime.MemStats{}
+	runtime.ReadMemStats(memstats)
+	start = time.Now()
+	tw.WriteString(fmt.Sprintf("time: %v\n", time.Now().Format(time.DateTime)))
+	tw.WriteString(fmt.Sprintf("alloc: %d\n", memstats.Alloc))
+	tw.WriteString(fmt.Sprintf("heap objects: %d\n", memstats.HeapObjects))
+	tw.WriteString(fmt.Sprintf("sys: %d\n", memstats.Sys))
+	tw.WriteString(fmt.Sprintf("stack: %d\n", memstats.StackInuse))
+	tw.WriteString(fmt.Sprintf("next GC: %d\n", memstats.NextGC))
+	tw.WriteString(fmt.Sprintf("num GC: %d\n", memstats.NumGC))
+	tw.WriteString(fmt.Sprintf("GC pause: %d\n", memstats.PauseTotalNs))
+	tw.WriteString(fmt.Sprintf("num goroutine: %d\n", runtime.NumGoroutine()))
+	tw.WriteString(fmt.Sprintf("VI intr: %d\n", video.VBlankCnt))
+	tw.WriteString(fmt.Sprintf("SI intr: %d\n", serial.SIIntrCnt))
+	tw.WriteString(fmt.Sprintf("vblank ms: %d\n", vBlankNs/time.Millisecond))
+	tw.WriteString(fmt.Sprintf("wait vblank ms: %d\n", waitVBlankNs/time.Millisecond))
+	textNs := time.Since(start)
+	tw.WriteString(fmt.Sprintf("text ms: %d\n", textNs/time.Millisecond))
+}
 
-//go:interrupthandler
-func RCP_Handler() {
-	i += 1
+// Draws a spinning arc.  Used for debugging to see if system has locked up.
+func spinner(a *pix.Area) {
+	var i int8
+	a.SetColor(color.White)
+	for {
+		i += 32
+		a.Arc(image.Point{5, 5}, 4, 4, 5, 5, int32(i)<<24, int32(i-32)<<24, true)
+		time.Sleep(250 * time.Millisecond)
+	}
 }
