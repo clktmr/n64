@@ -6,7 +6,8 @@ const (
 
 // Memory regions in 32bit Kernel mode
 const (
-	KSEG1 = 0x20000000 // unmapped, uncached
+	KSEG0 = 0xffffffff_80000000 // unmapped, cached
+	KSEG1 = 0xffffffff_a0000000 // unmapped, uncached
 )
 
 // Returns the physical address of an address in KSEG0 or KSEG1.

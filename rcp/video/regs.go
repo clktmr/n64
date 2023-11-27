@@ -1,13 +1,16 @@
+// Video DAC which reads an image from RDRAM and outputs it to screen as either
+// NTSC, PAL or M-PAL.
 package video
 
 import (
 	"embedded/mmio"
+	"n64/rcp/cpu"
 	"unsafe"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(BASE_ADDR))
+var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const BASE_ADDR = uintptr(0xffffffffa440_0000)
+const baseAddr = uintptr(cpu.KSEG1 | 0x0440_0000)
 
 type registers struct {
 	control     mmio.U32
@@ -34,19 +37,35 @@ const (
 )
 
 func SetupNTSC(bbp ColorDepth) {
-	regs.control.Store(uint32(bbp))
+	regs.control.Store(uint32(bbp) | (3 << 8))
 	regs.width.Store(320)
-	regs.vInt.Store(0x200)
-	regs.currentLine.Store(352)
+	regs.vInt.Store(2)
+	regs.currentLine.Store(0)
 	regs.timing.Store(0x3e5_2239)
-	regs.vSync.Store(525)
-	regs.hSync.Store((0 << 16) | 3093)
-	regs.hSync2.Store((3093 << 16) | 3093)
-	regs.hLimits.Store((108 << 16) | 748)
-	regs.vLimits.Store((37 << 16) | 511)
-	regs.colorBurst.Store((14 << 16) | 516)
-	regs.hScale.Store((0 << 16) | 512)
-	regs.vScale.Store((0 << 16) | 1024)
+	regs.vSync.Store(0x20d)
+	regs.hSync.Store(0x0c15)
+	regs.hSync2.Store(0x0c15_0c15)
+	regs.hLimits.Store(0x006c_02ec)
+	regs.vLimits.Store(0x0025_01ff)
+	regs.colorBurst.Store(0x000e_0204)
+	regs.hScale.Store((1024*320 + 320) / 640)
+	regs.vScale.Store((1024*240 + 120) / 240)
+}
+
+func SetupPAL(bbp ColorDepth) {
+	regs.control.Store(uint32(bbp) | (3 << 8))
+	regs.width.Store(320)
+	regs.vInt.Store(2)
+	regs.currentLine.Store(0)
+	regs.timing.Store(0x0404_233a)
+	regs.vSync.Store(0x271)
+	regs.hSync.Store(0x0015_0c69)
+	regs.hSync2.Store(0x0c6f_0c6e)
+	regs.hLimits.Store(0x0080_0300)
+	regs.vLimits.Store(0x005f_0239)
+	regs.colorBurst.Store(0x0009_026b)
+	regs.hScale.Store((1024*320 + 320) / 640)
+	regs.vScale.Store((1024*240 + 120) / 240)
 }
 
 func SetFramebuffer(addr uintptr) {

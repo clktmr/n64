@@ -12,11 +12,13 @@ import (
 
 	"embed"
 	"embedded/arch/r4000/systim"
+	"embedded/rtos"
 
-	"n64/cpu"
+	"n64/drivers/carts/everdrive64"
 	"n64/fonts/gomono12"
 	"n64/framebuffer"
 	"n64/rcp"
+	"n64/rcp/cpu"
 	"n64/rcp/serial"
 	"n64/rcp/video"
 
@@ -31,11 +33,18 @@ func init() {
 }
 
 func main() {
-	fb := framebuffer.NewFramebuffer(video.BBP16)
+	// cart := isviewer.Probe()
+	cart := everdrive64.Probe()
+	if cart != nil {
+		rtos.SetSystemWriter(cart.SystemWriter)
+	}
+
+	println("hi")
+
+	fb := framebuffer.NewFramebuffer(video.BBP32)
 	fbAddr := fb.Swap()
 	rcp.EnableInterrupts(rcp.SerialInterface)
 	rcp.EnableInterrupts(rcp.VideoInterface)
-	rcp.EnableInterrupts(rcp.DisplayProcessor)
 
 	disp := pix.NewDisplay(fb)
 
@@ -62,7 +71,7 @@ func main() {
 		draw.Over)
 
 	video.SetFramebuffer(fbAddr)
-	video.SetupNTSC(video.BBP16)
+	video.SetupPAL(video.BBP32)
 	time.Sleep(500 * time.Millisecond)
 
 	var titleFont = gomono12.NewFace(gomono12.X0000_00ff())
@@ -94,8 +103,10 @@ func main() {
 
 		tw.Pos = image.Point{}
 		tw.Wrap = pix.BreakSpace
+
 		// tw.WriteString("Lorem ipsum dolor sit amet, consectetur adipisici elit, sed eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat cupiditat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n")
-		tw.WriteString(fmt.Sprintf("%06d µs\n", waitVBlankNs/time.Microsecond))
+		// println("Lorem ipsum dolor sit amet, consectetur adipisici elit, sed eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat cupiditat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipisici elit, sed eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat cupiditat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n")
+		println(fmt.Sprintf("%06d µs", waitVBlankNs/time.Microsecond))
 		waitVBlankNs = time.Since(start)
 		a.Flush()
 
@@ -103,6 +114,7 @@ func main() {
 		video.VBlank.Clear()
 		video.VBlank.Sleep(-1)
 
+		// println("sunt in culpa qui officia deserunt mollit anim id est laborum.\n")
 		video.SetFramebuffer(fbAddr)
 	}
 }

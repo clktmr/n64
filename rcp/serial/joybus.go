@@ -2,19 +2,20 @@ package serial
 
 import (
 	"embedded/rtos"
-	"n64/cpu"
+	"n64/rcp/cpu"
 	"unsafe"
 )
 
-type message [32]uint16 // uint16 for cache line alignment
+type message struct {
+	_   cpu.CacheLinePad
+	buf [32]uint16 // uint16 for 2 byte alignment needed by DMA
+	_   cpu.CacheLinePad
+}
 
 var (
 	in, out     chan *message
 	dmaFinished rtos.Note
 )
-
-// TODO remove, only for testing
-var SIIntrCnt uint
 
 // Virtual address of the memory mapped PIF RAM
 const pifRamAddr uint32 = 0x1fc0_07c0
@@ -28,27 +29,27 @@ func StartJoybus() {
 func joybusPoll() {
 	for {
 		sendMsg := <-out
-		sendAddr := uintptr(unsafe.Pointer(sendMsg))
+		sendAddr := uintptr(unsafe.Pointer(&sendMsg.buf))
 
 		dmaFinished.Clear()
-		cpu.Writeback(sendAddr, len(sendMsg))
-		regs.dramAddr.Store(uint32(sendAddr) | cpu.KSEG1)
+		cpu.Writeback(sendAddr, len(sendMsg.buf))
+		regs.dramAddr.Store(uint32(sendAddr))
 		regs.pifWriteAddr.Store(pifRamAddr)
 
 		// Wait until message was sent
 		dmaFinished.Sleep(-1) // TODO sleep with timeout
 
 		var recvMsg message
-		recvAddr := uintptr(unsafe.Pointer(&recvMsg))
+		recvAddr := uintptr(unsafe.Pointer(&recvMsg.buf))
 
 		dmaFinished.Clear()
-		regs.dramAddr.Store(uint32(recvAddr) | cpu.KSEG1)
+		regs.dramAddr.Store(uint32(recvAddr))
 		regs.pifReadAddr.Store(pifRamAddr)
 
 		// Wait until message was received
 		dmaFinished.Sleep(-1) // TODO sleep with timeout
 
-		cpu.Invalidate(recvAddr, len(recvMsg))
+		cpu.Invalidate(recvAddr, len(recvMsg.buf))
 		in <- &recvMsg
 	}
 }
@@ -61,6 +62,5 @@ func Query(req *message) *message {
 // TODO go:nosplit ??
 func Handler() {
 	regs.status.Store(0) // clears interrupt
-	SIIntrCnt += 1
 	dmaFinished.Wakeup()
 }

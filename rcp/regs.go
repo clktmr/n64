@@ -2,12 +2,13 @@ package rcp
 
 import (
 	"embedded/mmio"
+	"n64/rcp/cpu"
 	"unsafe"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(BASE_ADDR))
+var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const BASE_ADDR = uintptr(0xffffffffa430_0000)
+const baseAddr = uintptr(cpu.KSEG1 | 0x0430_0000)
 
 // The RCP has multiple interrupts, which are all routed to the same external
 // interrupt line on the CPU.  So all of these must be handled in the
@@ -36,7 +37,7 @@ type registers struct {
 	// Read-only register with pending interrupts
 	interrupt mmio.R32[InterruptFlag]
 
-	// When writing to this register, the bits have another meanging:  Each
+	// When writing to this register, the bits have another meaning:  Each
 	// interrupt has two bits:
 	// 0 - clear SP
 	// 1 - set SP

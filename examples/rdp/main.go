@@ -13,10 +13,10 @@ import (
 	"embed"
 	"embedded/arch/r4000/systim"
 
-	"n64/cpu"
 	"n64/fonts/gomono12"
 	"n64/framebuffer"
 	"n64/rcp"
+	"n64/rcp/cpu"
 	"n64/rcp/rdp"
 	"n64/rcp/serial"
 	"n64/rcp/video"
@@ -32,6 +32,11 @@ func init() {
 }
 
 func main() {
+	// isv := carts.ProbeISViewer()
+	// if isv != nil {
+	// 	rtos.SetSystemWriter(isv.SystemWriter)
+	// }
+
 	println("hello n64")
 
 	fb := framebuffer.NewFramebuffer(video.BBP16)
@@ -45,11 +50,8 @@ func main() {
 
 	pixDriver := rdp.NewRdp(fb)
 	disp := pix.NewDisplay(pixDriver)
-	dispSW := pix.NewDisplay(fb)
 
 	a := disp.NewArea(disp.Bounds())
-	aSW := dispSW.NewArea(image.Rect(240, 200, 320, 240))
-	aSW.SetColor(color.Black)
 
 	n64logo, err := images.ReadFile("images/n64.png")
 	if err != nil {
@@ -72,17 +74,14 @@ func main() {
 		draw.Over)
 
 	video.SetFramebuffer(fbAddr)
-	video.SetupNTSC(video.BBP16)
+	video.SetupPAL(video.BBP16)
 	time.Sleep(500 * time.Millisecond)
 
 	var titleFont = gomono12.NewFace(gomono12.X0000_00ff())
 	tw := a.NewTextWriter(titleFont)
 	tw.SetColor(color.White)
 
-	twSW := aSW.NewTextWriter(titleFont)
-	twSW.SetColor(color.White)
-
-	serial.StartJoybus()
+	// serial.StartJoybus()
 
 	// lr := disp.Bounds().Max
 	// go spinner(disp.NewArea(image.Rect(lr.X-10, lr.Y-15, lr.X, lr.Y-5)))
@@ -96,9 +95,9 @@ func main() {
 	if err != nil {
 		println(err.Error())
 	}
-	// imgNRGBA := imgsmall.(*image.NRGBA)
-	// imgData := uintptr(unsafe.Pointer(&imgNRGBA.Pix[:1][0]))
-	// imgData := uintptr(0x8000_0400)
+
+	imgsmall16 := framebuffer.NewRGBA16(imgsmall.Bounds())
+	draw.Draw(imgsmall16, imgsmall16.Bounds(), imgsmall, image.Point{}, draw.Over)
 
 	logoPos := image.Point{}
 	for {
@@ -118,18 +117,16 @@ func main() {
 		logoPos.X = (logoPos.X + 5) % disp.Bounds().Dx()
 		logoPos.Y = (logoPos.Y + 2) % disp.Bounds().Dy()
 
-		pixDriver.Draw(imgsmall.Bounds().Add(logoPos), imgsmall, image.Point{}, nil, image.Point{}, draw.Over)
+		pixDriver.Draw(imgsmall16.Bounds().Add(logoPos), imgsmall16, image.Point{}, nil, image.Point{}, draw.Over)
 
-		tw.Pos = image.Point{}
-		// lidx := runtime.Lastidx - 256
-		// if lidx < 0 {
-		// 	lidx = 0
-		// }
-		// tw.WriteString(fmt.Sprintf("%v\n", string(runtime.Lastlog[lidx:runtime.Lastidx])))
+		// tw.Pos = image.Point{}
 
-		tw.Wrap = pix.BreakSpace
-		tw.WriteString("Lorem ipsum dolor sit amet, consectetur adipisici elit, sed eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat cupiditat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n")
-		tw.WriteString(fmt.Sprintf("%06d µs\n", waitVBlankNs/time.Microsecond))
+		// tw.Wrap = pix.BreakSpace
+		//tw.WriteString("Lorem ipsum dolor sit amet, consectetur adipisici elit, sed eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat cupiditat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n")
+		// tw.WriteString(fmt.Sprintf("%06d µs\n", waitVBlankNs/time.Microsecond))
+		// println(fmt.Sprintf("%06d µs\n", waitVBlankNs/time.Microsecond))
+
+		//runtime.GC() // run garbace collector while we wait on vblank
 		waitVBlankNs = time.Since(start)
 		a.Flush()
 
@@ -140,7 +137,7 @@ func main() {
 		// rdp.DrawDuration = 0
 		// tw.WriteString(fmt.Sprintf("rdp irq cnt: %06d\n", rdp.IrqCnt))
 
-		runtime.GC() // run garbace collector while we wait on vblank
+		//runtime.GC() // run garbace collector while we wait on vblank
 		video.VBlank.Clear()
 		video.VBlank.Sleep(-1)
 
@@ -177,7 +174,6 @@ func printSysStats(tw *pix.TextWriter) {
 	tw.WriteString(fmt.Sprintf("GC pause: %d\n", memstats.PauseTotalNs))
 	tw.WriteString(fmt.Sprintf("num goroutine: %d\n", runtime.NumGoroutine()))
 	tw.WriteString(fmt.Sprintf("VI intr: %d\n", video.VBlankCnt))
-	tw.WriteString(fmt.Sprintf("SI intr: %d\n", serial.SIIntrCnt))
 	tw.WriteString(fmt.Sprintf("vblank ms: %d\n", vBlankNs/time.Millisecond))
 	tw.WriteString(fmt.Sprintf("wait vblank ms: %d\n", waitVBlankNs/time.Millisecond))
 	textNs := time.Since(start)

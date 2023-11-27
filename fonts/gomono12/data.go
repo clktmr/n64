@@ -3,6 +3,7 @@ package gomono12
 import (
 	_ "embed"
 	"image"
+	_ "image/png"
 	"strings"
 )
 

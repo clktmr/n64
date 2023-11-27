@@ -10,7 +10,7 @@ TEXT ·Writeback(SB),NOSPLIT|NOFRAME,$0-16
 	AND   $const_cacheLineMask, R4
 
 loop:
-	SUB   R8, R4, R9
+	SUB   R4, R8, R9
 	BLEZ  R9, done
 	BREAK R25, 0(R4) // asm generates cache op
 	ADDU  $const_CacheLineSize, R4
@@ -28,7 +28,7 @@ TEXT ·Invalidate(SB),NOSPLIT|NOFRAME,$0-16
 	AND   $const_cacheLineMask, R4
 
 loop:
-	SUB   R8, R4, R9
+	SUB   R4, R8, R9
 	BLEZ  R9, done
 	BREAK R17, 0(R4) // asm generates cache op
 	ADDU  $const_CacheLineSize, R4

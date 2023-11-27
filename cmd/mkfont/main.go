@@ -36,7 +36,7 @@ var (
 )
 
 const (
-	dim = 64
+	dim = 128
 )
 
 var positions []byte

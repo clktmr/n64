@@ -1,13 +1,17 @@
+// The diplay processor is a hardware rasterizer.  It controls the texture cache
+// and draws primitives directly into a framebuffer in RDRAM.  It's usually not
+// used directly but through the RSP instead.
 package rdp
 
 import (
 	"embedded/mmio"
+	"n64/rcp/cpu"
 	"unsafe"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(BASE_ADDR))
+var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const BASE_ADDR = uintptr(0xffffffffa410_0000)
+const baseAddr = uintptr(cpu.KSEG1 | 0x0410_0000)
 
 type statusFlags uint32
 

@@ -4,7 +4,16 @@ import (
 	"n64/rcp/rdp"
 	"n64/rcp/serial"
 	"n64/rcp/video"
+
+	"embedded/rtos"
+
 	_ "unsafe" // for linkname
+)
+
+const (
+	RCP    rtos.IRQ = 2
+	CART   rtos.IRQ = 3
+	PRENMI rtos.IRQ = 4
 )
 
 //go:linkname handler IRQ3_Handler

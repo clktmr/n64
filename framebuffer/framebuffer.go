@@ -3,7 +3,6 @@ package framebuffer
 import (
 	"image"
 	"image/draw"
-	"n64/cpu"
 	"n64/rcp/video"
 	"unsafe"
 )
@@ -48,9 +47,9 @@ func (fb *Framebuffer) Swap() uintptr {
 	fb.write = tmp
 	switch buf := fb.write.(type) {
 	case *RGBA16:
-		return uintptr(unsafe.Pointer(&buf.Pix[:1][0])) | cpu.KSEG1
+		return uintptr(unsafe.Pointer(&buf.Pix[:1][0]))
 	case *image.RGBA:
-		return uintptr(unsafe.Pointer(&buf.Pix[:1][0])) | cpu.KSEG1
+		return uintptr(unsafe.Pointer(&buf.Pix[:1][0]))
 	}
 	return 0x0
 }

@@ -27,7 +27,7 @@ func (fb *Framebuffer) SetDir(dir int) image.Rectangle {
 }
 
 func (fb *Framebuffer) Flush() {
-	// Nothing to be done, as long as KSEG1 (uncached) is used for writing
+	// TODO cache writeback
 }
 
 func (fb *Framebuffer) Err(clear bool) error {

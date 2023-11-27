@@ -1,13 +1,18 @@
+// The signal processor provides fast vector instructions.  It's usually used
+// for vertex transformations and audio mixing.  It can directly control the RDP
+// via XBUS or shared memory in RDRAM.  There are several precompiled microcodes
+// which can be loaded to provide different functionalities.
 package rsp
 
 import (
 	"embedded/mmio"
+	"n64/rcp/cpu"
 	"unsafe"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(BASE_ADDR))
+var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const BASE_ADDR = uintptr(0xffffffffa440_0000)
+const baseAddr = uintptr(cpu.KSEG1 | 0x0440_0000)
 
 type statusFlags uint32
 

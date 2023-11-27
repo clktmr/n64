@@ -1,13 +1,20 @@
+// The serial interface provides access to the PIF microchip, which in turn
+// handles console startup, reset and most importantly the joyBus.  The joyBus
+// is connected to the controllers and their accessories, e.g. rumble pak.
+//
+// The serial interface is very slow.  Blocking reads and writes should be
+// avoided.
 package serial
 
 import (
 	"embedded/mmio"
+	"n64/rcp/cpu"
 	"unsafe"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(BASE_ADDR))
+var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const BASE_ADDR = uintptr(0xffffffffa480_0000)
+const baseAddr = uintptr(cpu.KSEG1 | 0x0480_0000)
 
 type statusFlags uint32
 

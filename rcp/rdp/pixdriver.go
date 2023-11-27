@@ -36,6 +36,12 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 
 	// TODO store error for unsupported formats
 	switch srcImg := src.(type) {
+	case *framebuffer.RGBA16:
+		imgData = uintptr(unsafe.Pointer(unsafe.SliceData(srcImg.Pix)))
+		format = RGBA
+		bbp = BBP16
+		bounds = src.Bounds().Sub(src.Bounds().Min)
+		stride = srcImg.Stride >> 1
 	case *image.NRGBA:
 		imgData = uintptr(unsafe.Pointer(unsafe.SliceData(srcImg.Pix)))
 		format = RGBA
@@ -82,6 +88,7 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	if bbp == BBP32 && (format == RGBA || format == YUV) {
 		ts.Line = ts.Line >> 1
 	}
+	Sync(Pipe) // TODO needed?
 	SetTile(ts)
 	LoadTile(0, bounds)
 
@@ -114,7 +121,7 @@ func (fb *Rdp) Flush() {
 	Sync(Full)
 
 	waitForFlush <- true
-	// FullSync.Sleep(-1) // TODO blocks forever in ares and cen64
+	FullSync.Sleep(-1)
 }
 
 func (fb *Rdp) Err(clear bool) error {

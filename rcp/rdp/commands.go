@@ -7,7 +7,7 @@ import (
 	"embedded/rtos"
 	"image"
 	"image/color"
-	"n64/cpu"
+	"n64/rcp/cpu"
 	"runtime"
 	"unsafe"
 )
