@@ -17,6 +17,8 @@ func Probe() *EverDrive64 {
 	switch regs.version.Load() {
 	case 0xed64_0008: // EverDrive64 X3
 		fallthrough
+	case 0x0000_0001: // EverDrive64 X7 without sdcard inserted
+		fallthrough
 	case 0xed64_0013: // EverDrive64 X7
 		cart := &EverDrive64{
 			buf: cpu.MakePaddedSlice(bufferSize),
