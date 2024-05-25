@@ -55,12 +55,3 @@ func (v *ISViewer) Write(p []byte) (n int, err error) {
 
 	return n, err
 }
-
-func (v *ISViewer) SystemWriter(fd int, p []byte) int {
-	written := 0
-	for written < len(p) {
-		n, _ := v.Write(p[written:])
-		written += n
-	}
-	return written
-}

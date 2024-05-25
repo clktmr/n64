@@ -23,8 +23,6 @@ func Probe() *EverDrive64 {
 		cart := &EverDrive64{
 			buf: cpu.MakePaddedSlice(bufferSize),
 		}
-		// TODO move implementation of UNFLoader protocol into separate package
-		cart.Write([]byte{'D', 'M', 'A', '@', 5, 0, 0, 4, 0, 2, 0, 1, 'C', 'M', 'P', 'H'})
 		return cart
 	}
 	return nil
@@ -62,18 +60,32 @@ func (v *EverDrive64) Write(p []byte) (n int, err error) {
 	return written, err
 }
 
-func (v *EverDrive64) SystemWriter(fd int, p []byte) int {
-	// TODO move implementation of UNFLoader protocol into separate package
+// Wraps an io.Writer to provide a new io.Writer, which sends encapsulates each
+// write in an UNFLoader packet.
+type UNFLoader struct {
+	// Can't use an interface here because presumably it causes "malloc
+	// during signal" if called via SystemWriter in a syscall.
+	// TODO try using generics to make this available for other carts
+	w *EverDrive64
+}
 
+func NewUNFLoader(w *EverDrive64) *UNFLoader {
+	// send a single heartbeat to let UNFLoader know which protocol version
+	// we are speaking.
+	w.Write([]byte{'D', 'M', 'A', '@', 5, 0, 0, 4, 0, 2, 0, 1, 'C', 'M', 'P', 'H'})
+	return &UNFLoader{w: w}
+}
+
+func (v *UNFLoader) Write(p []byte) (n int, err error) {
 	s := len(p)
 	if s >= 1<<24 {
 		s = 1 << 24
 	}
-	v.Write([]byte{'D', 'M', 'A', '@', 1, byte(s >> 16), byte(s >> 8), byte(s)})
+	v.w.Write([]byte{'D', 'M', 'A', '@', 1, byte(s >> 16), byte(s >> 8), byte(s)})
 
 	written := 0
 	for written < s-s%2 {
-		n, _ := v.Write(p[written:])
+		n, _ := v.w.Write(p[written:])
 		written += n
 	}
 
@@ -83,7 +95,7 @@ func (v *EverDrive64) SystemWriter(fd int, p []byte) int {
 	if s%2 == 0 {
 		footer = footer[1 : len(footer)-1]
 	}
-	v.Write(footer)
+	v.w.Write(footer)
 
-	return written
+	return s, err
 }
