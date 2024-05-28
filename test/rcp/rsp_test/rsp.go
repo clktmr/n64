@@ -14,9 +14,15 @@ func TestDMA(t *testing.T) {
 		testdata[i] = byte(i)
 	}
 	rsp.DMAStore(0x100, testdata, rsp.DMEM)
-	result := rsp.DMALoad(0x100, len(testdata), rsp.DMEM)
 
+	result := rsp.DMALoad(0x100, len(testdata), rsp.DMEM)
 	if !bytes.Equal(testdata, result) {
 		t.Error("exptected to read same data back that was written")
+	}
+
+	shift := 0x20
+	result = rsp.DMALoad(0x100+uintptr(shift), len(testdata)-shift, rsp.DMEM)
+	if !bytes.Equal(testdata[shift:len(testdata)], result) {
+		t.Error("exptected to read part of same data back that was written")
 	}
 }

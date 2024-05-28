@@ -17,7 +17,7 @@ func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 	buf := cpu.MakePaddedSlice(size)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	regs.rdramAddr.Store(uint32(addr))
-	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr/4))
+	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr))
 
 	regs.writeLen.Store(uint32(size - 1))
 
@@ -30,6 +30,10 @@ func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 
 // Stores bytes from RDRAM to RSP IMEM/DMEM via DMA
 func DMAStore(rspAddr uintptr, p []byte, bank memoryBank) {
+	if rspAddr%8 != 0 {
+		panic("rsp: unaligned dma store")
+	}
+
 	buf := p
 
 	if cpu.IsPadded(p) == false {
@@ -39,7 +43,7 @@ func DMAStore(rspAddr uintptr, p []byte, bank memoryBank) {
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	regs.rdramAddr.Store(uint32(addr))
-	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr/4))
+	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr))
 
 	cpu.Writeback(addr, len(buf))
 

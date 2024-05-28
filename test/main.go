@@ -56,8 +56,8 @@ func main() {
 	testing.Main(
 		nil,
 		[]testing.InternalTest{
-			{"TestMakePaddedSlice", cpu_test.TestMakePaddedSlice},
-			{"TestDMA", rsp_test.TestDMA},
+			newInternalTest(cpu_test.TestMakePaddedSlice),
+			newInternalTest(rsp_test.TestDMA),
 		},
 		nil, nil,
 	)
