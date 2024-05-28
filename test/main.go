@@ -5,6 +5,8 @@ import (
 	"embedded/rtos"
 	"io"
 	"os"
+	"reflect"
+	"runtime"
 	"syscall"
 	"testing"
 
@@ -59,4 +61,11 @@ func main() {
 		},
 		nil, nil,
 	)
+}
+
+func newInternalTest(testFn func(*testing.T)) testing.InternalTest {
+	return testing.InternalTest{
+		runtime.FuncForPC(reflect.ValueOf(testFn).Pointer()).Name(),
+		testFn,
+	}
 }
