@@ -36,10 +36,7 @@ func DMAStore(rspAddr uintptr, p []byte, bank memoryBank) {
 
 	buf := p
 
-	if cpu.IsPadded(p) == false {
-		buf = cpu.MakePaddedSlice(len(p))
-		copy(buf, p)
-	}
+	p = cpu.PaddedSlice(p)
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	regs.rdramAddr.Store(uint32(addr))

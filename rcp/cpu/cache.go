@@ -40,6 +40,16 @@ func MakePaddedSlice(size int) paddedSlice {
 	return buf[align : align+size]
 }
 
+// Ensure a slice is padded.  Might copy the slice if necessary
+func PaddedSlice(slice []byte) paddedSlice {
+	if IsPadded(slice) == false {
+		buf := MakePaddedSlice(len(slice))
+		copy(buf, slice)
+		return buf
+	}
+	return slice
+}
+
 // Returns true if p is safe for cache ops, i.e. padded and aligned to cache.
 func IsPadded(p []byte) bool {
 	pAddr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))

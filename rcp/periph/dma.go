@@ -36,10 +36,7 @@ func DMAStore(piAddr uintptr, p []byte) {
 		panic("unaligned dma store")
 	}
 
-	if cpu.IsPadded(p) == false {
-		buf = cpu.MakePaddedSlice(len(p))
-		copy(buf, p)
-	}
+	p = cpu.PaddedSlice(p)
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
