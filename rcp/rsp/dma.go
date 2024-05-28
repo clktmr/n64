@@ -60,5 +60,4 @@ func waitDMA() {
 		}
 		runtime.Gosched()
 	}
-
 }
