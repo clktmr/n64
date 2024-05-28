@@ -2,6 +2,7 @@ package rcp
 
 import (
 	"n64/rcp/rdp"
+	"n64/rcp/rsp"
 	"n64/rcp/serial"
 	"n64/rcp/video"
 
@@ -21,6 +22,8 @@ const (
 func handler() {
 	pending := regs.interrupt.Load()
 	switch {
+	case pending&VideoInterface != 0:
+		rsp.Handler()
 	case pending&VideoInterface != 0:
 		video.Handler()
 	case pending&SerialInterface != 0:

@@ -10,12 +10,16 @@ import (
 	"unsafe"
 )
 
+// RSP program counter.  Access only allowed when RSP is halted.
+var pc *mmio.U32 = (*mmio.U32)(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x0408_0000)))
+
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const baseAddr = uintptr(cpu.KSEG1 | 0x0440_0000)
+const baseAddr = uintptr(cpu.KSEG1 | 0x0404_0000)
 
 type statusFlags uint32
 
+// Read access to status register
 const (
 	halted statusFlags = 1 << iota
 	broke
@@ -34,9 +38,38 @@ const (
 	sig7
 )
 
+// Write access to status register
+const (
+	clrHalt statusFlags = 1 << iota
+	setHalt
+	clrBroke
+	clrIntr
+	setIntr
+	clrSingleStep
+	setSingleStep
+	clrIntbreak
+	setIntbreak
+	clrSig0
+	setSig0
+	clrSig1
+	setSig1
+	clrSig2
+	setSig2
+	clrSig3
+	setSig3
+	clrSig4
+	setSig4
+	clrSig5
+	setSig5
+	clrSig6
+	setSig6
+	clrSig7
+	setSig7
+)
+
 type registers struct {
-	addr      mmio.U32
-	dramAddr  mmio.U32
+	rspAddr   mmio.U32
+	rdramAddr mmio.U32
 	readLen   mmio.U32
 	writeLen  mmio.U32
 	status    mmio.R32[statusFlags]
@@ -44,3 +77,10 @@ type registers struct {
 	dmaBusy   mmio.U32
 	semaphore mmio.U32
 }
+
+type memoryBank uintptr
+
+const (
+	DMEM = memoryBank(cpu.KSEG1 | 0x0400_0000)
+	IMEM = memoryBank(cpu.KSEG1 | 0x0400_1000)
+)

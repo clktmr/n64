@@ -14,6 +14,7 @@ import (
 	"n64/rcp/cpu"
 
 	"n64/test/rcp/cpu_test"
+	"n64/test/rcp/rsp_test"
 
 	"github.com/embeddedgo/fs/termfs"
 )
@@ -54,6 +55,7 @@ func main() {
 		nil,
 		[]testing.InternalTest{
 			{"TestMakePaddedSlice", cpu_test.TestMakePaddedSlice},
+			{"TestDMA", rsp_test.TestDMA},
 		},
 		nil, nil,
 	)
