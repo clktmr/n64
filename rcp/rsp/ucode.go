@@ -5,6 +5,8 @@ import (
 	"runtime"
 )
 
+var currentUCode *UCode
+
 type UCode struct {
 	name string
 
@@ -30,9 +32,15 @@ func NewUCode(name string, entry uint32, code []byte, data []byte) *UCode {
 func (ucode *UCode) Load() {
 	DMAStore(0x0, ucode.code, IMEM)
 	DMAStore(0x0, ucode.data, DMEM)
+
+	currentUCode = ucode
 }
 
 func (ucode *UCode) Run() {
+	if ucode != currentUCode {
+		ucode.Load()
+	}
+
 	pc.Store(ucode.entry)
 	regs.status.SetBits(clrHalt | clrBroke)
 
