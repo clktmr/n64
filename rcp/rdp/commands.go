@@ -323,6 +323,8 @@ func Sync(s SyncCommand) {
 var FullSync rtos.Note
 var IrqCnt uint
 
+//go:nosplit
+//go:nowritebarrierrec
 func Handler() {
 	IrqCnt += 1
 	FullSync.Wakeup()

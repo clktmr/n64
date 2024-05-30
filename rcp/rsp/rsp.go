@@ -17,6 +17,8 @@ func InterruptOnBreak(enable bool) {
 
 var IntBreak rtos.Note
 
+//go:nosplit
+//go:nowritebarrierrec
 func Handler() {
 	regs.status.Store(clrIntr)
 	IntBreak.Wakeup()

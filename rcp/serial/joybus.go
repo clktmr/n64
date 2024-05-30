@@ -59,7 +59,8 @@ func Query(req *message) *message {
 	return <-in
 }
 
-// TODO go:nosplit ??
+//go:nosplit
+//go:nowritebarrierrec
 func Handler() {
 	regs.status.Store(0) // clears interrupt
 	dmaFinished.Wakeup()
