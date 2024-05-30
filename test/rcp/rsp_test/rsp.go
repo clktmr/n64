@@ -2,9 +2,11 @@ package rsp_test
 
 import (
 	"bytes"
+	"n64/rcp"
 	"n64/rcp/cpu"
 	"n64/rcp/rsp"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -59,5 +61,29 @@ func TestRun(t *testing.T) {
 
 	if *result0 != 0xbeeff00d || *result1 != 0xdeadbeef {
 		t.Fatalf("unexpected result after ucode execution: 0x%x 0x%x", *result0, *result1)
+	}
+}
+
+func TestInterrupt(t *testing.T) {
+	t.Cleanup(func() {
+		rcp.DisableInterrupts(rcp.SignalProcessor)
+		rsp.InterruptOnBreak(false)
+	})
+
+	rcp.EnableInterrupts(rcp.SignalProcessor)
+	rsp.InterruptOnBreak(true)
+
+	code := []byte{
+		0x00, 0x00, 0x00, 0x0d, //break
+	}
+	data := []byte{}
+	ucode := rsp.NewUCode("testcode", uint32(rsp.IMEM&0xffffffff), code, data)
+	ucode.Load()
+
+	rsp.IntBreak.Clear()
+	ucode.Run()
+
+	if triggered := rsp.IntBreak.Sleep(10 * time.Millisecond); !triggered {
+		t.Fatal("timeout")
 	}
 }

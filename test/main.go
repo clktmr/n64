@@ -50,6 +50,7 @@ func main() {
 			newInternalTest(cpu_test.TestMakePaddedSlice),
 			newInternalTest(rsp_test.TestDMA),
 			newInternalTest(rsp_test.TestRun),
+			newInternalTest(rsp_test.TestInterrupt),
 		},
 		nil, nil,
 	)
