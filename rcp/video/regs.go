@@ -37,7 +37,9 @@ const (
 )
 
 func SetupNTSC(bbp ColorDepth) {
-	regs.control.Store(uint32(bbp) | (3 << 8))
+	// Avoid crash by disabling output while changing registers
+	regs.control.Store(0)
+
 	regs.width.Store(320)
 	regs.vInt.Store(2)
 	regs.currentLine.Store(0)
@@ -50,10 +52,14 @@ func SetupNTSC(bbp ColorDepth) {
 	regs.colorBurst.Store(0x000e_0204)
 	regs.hScale.Store((1024*320 + 320) / 640)
 	regs.vScale.Store((1024*240 + 120) / 240)
+
+	regs.control.Store(uint32(bbp) | (3 << 8))
 }
 
 func SetupPAL(bbp ColorDepth) {
-	regs.control.Store(uint32(bbp) | (3 << 8))
+	// Avoid crash by disabling output while changing registers
+	regs.control.Store(0)
+
 	regs.width.Store(320)
 	regs.vInt.Store(2)
 	regs.currentLine.Store(0)
@@ -66,6 +72,8 @@ func SetupPAL(bbp ColorDepth) {
 	regs.colorBurst.Store(0x0009_026b)
 	regs.hScale.Store((1024*320 + 320) / 640)
 	regs.vScale.Store((1024*240 + 120) / 240)
+
+	regs.control.Store(uint32(bbp) | (3 << 8))
 }
 
 func SetFramebuffer(addr uintptr) {
