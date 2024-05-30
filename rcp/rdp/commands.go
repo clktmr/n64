@@ -96,10 +96,11 @@ func SetColorImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth)
 		return // TODO store error
 	}
 
-	cmds := make([]Command, 0, 1)
 	cmd := (0xff << 24) | uint32(format) | uint32(bbp) | (width - 1)
-	cmds = append(cmds, Command{UW: uint32(cmd), LW: cpu.PhysicalAddress(addr)})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: uint32(cmd),
+		LW: cpu.PhysicalAddress(addr),
+	})
 
 	fbFormat = format
 	fbBbp = bbp
@@ -111,10 +112,11 @@ func SetTextureImage(addr uintptr, width uint32, format ImageFormat, bbp BitDept
 		return // TODO store error
 	}
 
-	cmds := make([]Command, 0, 1)
 	cmd := (0xfd << 24) | uint32(format) | uint32(bbp) | (width - 1)
-	cmds = append(cmds, Command{UW: uint32(cmd), LW: cpu.PhysicalAddress(addr)})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: uint32(cmd),
+		LW: cpu.PhysicalAddress(addr),
+	})
 }
 
 type TileDescFlags uint32
@@ -142,7 +144,6 @@ type TileDescriptor struct {
 // the Idx field, which can later be referenced in other commands, e.g.
 // LoadTile().
 func SetTile(ts TileDescriptor) {
-	cmds := make([]Command, 0, 1)
 	cmdUW := 0xf5<<24 | uint32(ts.Format) | uint32(ts.Size)
 	cmdUW |= uint32(ts.Line)<<9 | uint32(ts.TMEMAddr)
 
@@ -150,18 +151,20 @@ func SetTile(ts TileDescriptor) {
 	cmdLW |= uint32(ts.MaskT)<<14 | uint32(ts.ShiftT)<<10
 	cmdLW |= uint32(ts.MaskS)<<4 | uint32(ts.ShiftS)
 	cmdLW |= uint32(ts.Flags)
-	cmds = append(cmds, Command{UW: cmdUW, LW: cmdLW})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: cmdUW,
+		LW: cmdLW,
+	})
 }
 
 // Copies a tile into TMEM.  The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func LoadTile(idx uint8, r image.Rectangle) {
-	cmds := make([]Command, 0, 1)
 	cmdUW := 0xf4<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
 	cmdLW := uint32(idx)<<24 | uint32(r.Max.X)<<14 | uint32(r.Max.Y)<<2
-	cmds = append(cmds, Command{UW: cmdUW, LW: cmdLW})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: cmdUW,
+		LW: cmdLW})
 }
 
 // Mode flags for the SetOtherModes() command.
@@ -231,10 +234,11 @@ const (
 )
 
 func SetOtherModes(m ModeFlags) {
-	cmds := make([]Command, 0, 1)
 	cmd := 0xef00_000f_0000_0000 | m
-	cmds = append(cmds, Command{UW: uint32(cmd >> 32), LW: uint32(cmd)}) // set fill mode
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: uint32(cmd >> 32),
+		LW: uint32(cmd),
+	})
 }
 
 type InterlaceFrame uint8
@@ -248,17 +252,17 @@ const (
 // Everything outside `r` is skipped when rendering.  Additionally odd or even
 // lines can be skipped to render interlaced frames.
 func SetScissor(r image.Rectangle, i InterlaceFrame) {
-	cmds := make([]Command, 0, 1)
 	cmd := uint64(0xed << 56)
 	cmd |= uint64(r.Min.X<<46) | uint64(r.Min.Y<<34) | uint64(r.Max.X<<14) | uint64(r.Max.Y<<2)
 	cmd |= uint64(i) << 24
-	cmds = append(cmds, Command{UW: uint32(cmd >> 32), LW: uint32(cmd)})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: uint32(cmd >> 32),
+		LW: uint32(cmd),
+	})
 }
 
 // Sets the color for the next FillRectangle() call.
 func SetFillColor(c color.Color) {
-	cmds := make([]Command, 0, 1)
 	r, g, b, a := c.RGBA()
 	var ci uint32
 	if fbBbp == BBP32 {
@@ -267,29 +271,30 @@ func SetFillColor(c color.Color) {
 		ci = ((r >> 11) << 11) | ((g >> 11) << 6) | ((b >> 11) << 1) | (a >> 15)
 		ci |= ci << 16
 	}
-	cmds = append(cmds, Command{UW: 0xf700_0000, LW: ci})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: 0xf700_0000,
+		LW: ci,
+	})
 }
 
 // Draws a rectangle filled with the color set by SetFillColor().
 func FillRectangle(r image.Rectangle) {
-	cmds := make([]Command, 0, 1)
 	cmd := uint64(0xf6 << 56)
 	cmd |= uint64(r.Max.X<<46) | uint64(r.Max.Y<<34) | uint64(r.Min.X<<14) | uint64(r.Min.Y<<2)
-	cmds = append(cmds, Command{UW: uint32(cmd >> 32), LW: uint32(cmd)})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: uint32(cmd >> 32),
+		LW: uint32(cmd),
+	})
 }
 
 // Draws a textured rectangle.
 func TextureRectangle(r image.Rectangle, tileIdx uint8) {
-	cmds := make([]Command, 0, 2)
-
 	cmdUW := 0xe4<<24 | uint32(r.Max.X)<<14 | uint32(r.Max.Y)<<2
 	cmdLW := uint32(tileIdx)<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
-	cmds = append(cmds, Command{UW: cmdUW, LW: cmdLW})
-
-	cmds = append(cmds, Command{UW: uint32(0), LW: uint32(1<<28 | 1<<10)})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, []Command{
+		Command{UW: cmdUW, LW: cmdLW},
+		Command{UW: uint32(0), LW: uint32(1<<28 | 1<<10)},
+	}...)
 }
 
 type SyncCommand uint32
@@ -309,9 +314,10 @@ const (
 )
 
 func Sync(s SyncCommand) {
-	cmds := make([]Command, 0, 1)
-	cmds = append(cmds, Command{UW: uint32(s), LW: 0x0})
-	commandQueue = append(commandQueue, cmds...)
+	commandQueue = append(commandQueue, Command{
+		UW: uint32(s),
+		LW: 0x0,
+	})
 }
 
 var FullSync rtos.Note
