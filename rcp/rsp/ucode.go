@@ -40,7 +40,7 @@ func (ucode *UCode) Run() {
 	}
 
 	pc.Store(ucode.entry)
-	regs.status.SetBits(clrHalt | clrBroke)
+	regs.status.Store(clrHalt | clrBroke)
 
 	// Wait until ucode execution has finished
 	for {

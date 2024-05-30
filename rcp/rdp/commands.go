@@ -45,7 +45,7 @@ func feedCommands() {
 			runtime.Gosched()
 		}
 
-		regs.status.SetBits(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
+		regs.status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
 
 		regs.start.Store(uint32(cpu.PhysicalAddress(start)))
 		regs.end.Store(uint32(cpu.PhysicalAddress(end)))

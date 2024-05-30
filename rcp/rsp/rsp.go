@@ -1,7 +1,7 @@
 package rsp
 
 func Init() {
-	regs.status.Store(setHalt)
+	regs.status.Store(setHalt | clrSingleStep)
 	pc.Store(0x1000)
 }
 
