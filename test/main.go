@@ -11,8 +11,7 @@ import (
 	"testing"
 
 	"n64/drivers"
-	"n64/drivers/carts/everdrive64"
-	"n64/drivers/carts/isviewer"
+	"n64/drivers/carts"
 	"n64/rcp/cpu"
 
 	"n64/test/rcp/cpu_test"
@@ -31,15 +30,7 @@ func main() {
 
 	// Redirect stdout and stderr either to isviewer or everdrive64 usb,
 	// using UNFLoader protocol.
-	isv := isviewer.Probe()
-	if isv != nil {
-		syswriter = isv
-	}
-	ed64 := everdrive64.Probe()
-	if ed64 != nil {
-		syswriter = everdrive64.NewUNFLoader(ed64)
-	}
-	if syswriter == nil {
+	if syswriter = carts.ProbeAll(); syswriter == nil {
 		panic("no logging peripheral found")
 	}
 	rtos.SetSystemWriter(drivers.NewSystemWriter(syswriter))
