@@ -22,7 +22,7 @@ const (
 func handler() {
 	pending := regs.interrupt.Load()
 	switch {
-	case pending&VideoInterface != 0:
+	case pending&SignalProcessor != 0:
 		rsp.Handler()
 	case pending&VideoInterface != 0:
 		video.Handler()
