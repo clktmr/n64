@@ -68,7 +68,6 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 
 	bounds.Max = bounds.Max.Sub(image.Point{1, 1})
 
-	Sync(Pipe) // TODO needed?
 	DrawDuration += time.Since(start)
 	SetOtherModes(RGBDitherNone |
 		AlphaDitherNone | ForceBlend |
@@ -88,7 +87,6 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	if bbp == BBP32 && (format == RGBA || format == YUV) {
 		ts.Line = ts.Line >> 1
 	}
-	Sync(Pipe) // TODO needed?
 	SetTile(ts)
 	LoadTile(0, bounds)
 
@@ -101,7 +99,6 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 var DrawDuration time.Duration
 
 func (fb *Rdp) Fill(rect image.Rectangle) {
-	Sync(Pipe) // TODO needed?
 	SetOtherModes(RGBDitherNone |
 		AlphaDitherNone | ForceBlend |
 		CycleTypeFill | AtomicPrimitive)
@@ -117,11 +114,7 @@ func (fb *Rdp) SetDir(dir int) image.Rectangle {
 }
 
 func (fb *Rdp) Flush() {
-	FullSync.Clear()
-	Sync(Full)
-
-	waitForFlush <- true
-	FullSync.Sleep(-1)
+	Run()
 }
 
 func (fb *Rdp) Err(clear bool) error {

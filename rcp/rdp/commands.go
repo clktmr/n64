@@ -16,46 +16,43 @@ import (
 // get endianess right.
 type Command struct{ UW, LW uint32 }
 
-var waitForFlush chan bool
 var commandQueue []Command
 
 func init() {
-	waitForFlush = make(chan bool)
 	commandQueue = make([]Command, 0, 32)
 }
 
-func feedCommands() {
+func Run() {
+	sync(Full)
+
+	cmds := commandQueue
+	commandQueue = make([]Command, 0, 32)
+
+	elemSize := unsafe.Sizeof(cmds[0])
+
+	start := uintptr(unsafe.Pointer(&cmds[0]))
+	end := uintptr(unsafe.Pointer(&cmds[len(cmds)-1])) + elemSize
+	length := int(end - start)
+
+	cpu.Writeback(start, length)
+
 	for {
-		<-waitForFlush
-		cmds := commandQueue
-		commandQueue = make([]Command, 0, 32)
-
-		elemSize := unsafe.Sizeof(cmds[0])
-
-		start := uintptr(unsafe.Pointer(&cmds[0]))
-		end := uintptr(unsafe.Pointer(&cmds[len(cmds)-1])) + elemSize
-		length := int(elemSize) * len(cmds)
-
-		cpu.Writeback(start, length)
-
-		for {
-			if regs.status.LoadBits(startPending|endPending) == 0 {
-				break
-			}
-			runtime.Gosched()
+		if regs.status.LoadBits(startPending|endPending) == 0 {
+			break
 		}
-
-		regs.status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
-
-		regs.start.Store(uint32(cpu.PhysicalAddress(start)))
-		regs.end.Store(uint32(cpu.PhysicalAddress(end)))
-
-		// TODO runtime.KeepAlive(cmds) until next call
+		runtime.Gosched()
 	}
-}
 
-func Start() {
-	go feedCommands()
+	regs.status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
+
+	FullSync.Clear()
+
+	regs.start.Store(uint32(cpu.PhysicalAddress(start)))
+	regs.end.Store(uint32(cpu.PhysicalAddress(end)))
+
+	FullSync.Sleep(-1)
+
+	// TODO runtime.KeepAlive(cmds) until next call
 }
 
 type ImageFormat uint32
@@ -233,7 +230,18 @@ const (
 	CvgDestSave
 )
 
+var lastOtherModes ModeFlags
+
 func SetOtherModes(m ModeFlags) {
+	if m == lastOtherModes {
+		return // avoid costly pipeline sync
+	}
+	lastOtherModes = m
+
+	sync(Pipe)
+
+	// TODO merge with previous command if also SetOtherModes
+
 	cmd := 0xef00_000f_0000_0000 | m
 	commandQueue = append(commandQueue, Command{
 		UW: uint32(cmd >> 32),
@@ -261,8 +269,17 @@ func SetScissor(r image.Rectangle, i InterlaceFrame) {
 	})
 }
 
+var lastFillColor color.Color
+
 // Sets the color for the next FillRectangle() call.
 func SetFillColor(c color.Color) {
+	if c == lastFillColor {
+		return // avoid costly pipeline sync
+	}
+	lastFillColor = c
+
+	sync(Pipe)
+
 	r, g, b, a := c.RGBA()
 	var ci uint32
 	if fbBbp == BBP32 {
@@ -313,7 +330,7 @@ const (
 	Tile SyncCommand = 0xe800_0000
 )
 
-func Sync(s SyncCommand) {
+func sync(s SyncCommand) {
 	commandQueue = append(commandQueue, Command{
 		UW: uint32(s),
 		LW: 0x0,

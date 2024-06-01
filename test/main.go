@@ -15,6 +15,7 @@ import (
 	"n64/rcp/cpu"
 
 	"n64/test/rcp/cpu_test"
+	"n64/test/rcp/rdp_test"
 	"n64/test/rcp/rsp_test"
 
 	"github.com/embeddedgo/fs/termfs"
@@ -51,6 +52,7 @@ func main() {
 			newInternalTest(rsp_test.TestDMA),
 			newInternalTest(rsp_test.TestRun),
 			newInternalTest(rsp_test.TestInterrupt),
+			newInternalTest(rdp_test.TestFillRect),
 		},
 		nil, nil,
 	)
