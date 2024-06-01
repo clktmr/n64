@@ -4,7 +4,6 @@
 package rdp
 
 import (
-	"embedded/rtos"
 	"image"
 	"image/color"
 	"n64/rcp/cpu"
@@ -16,17 +15,24 @@ import (
 // get endianess right.
 type Command struct{ UW, LW uint32 }
 
-var commandQueue []Command
-
-func init() {
-	commandQueue = make([]Command, 0, 32)
+type DisplayList struct {
+	commands   []Command
+	otherModes ModeFlags
+	fillColor  color.Color
+	format     ImageFormat
+	bbp        BitDepth
 }
 
-func Run() {
-	sync(Full)
+func NewDisplayList() *DisplayList {
+	return &DisplayList{
+		commands: make([]Command, 0, 32),
+	}
+}
 
-	cmds := commandQueue
-	commandQueue = make([]Command, 0, 32)
+func Run(dl *DisplayList) {
+	dl.sync(Full)
+
+	cmds := dl.commands
 
 	elemSize := unsafe.Sizeof(cmds[0])
 
@@ -83,34 +89,30 @@ func pixelsToBytes(pixels int, bbp BitDepth) int {
 	return pixels << shift
 }
 
-// properties of the current framebuffer
-var fbFormat ImageFormat
-var fbBbp BitDepth
-
 // Sets the framebuffer to render the final image into.
-func SetColorImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth) {
+func (dl *DisplayList) SetColorImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth) {
 	if width > 1<<9-1 {
 		return // TODO store error
 	}
 
 	cmd := (0xff << 24) | uint32(format) | uint32(bbp) | (width - 1)
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: uint32(cmd),
 		LW: cpu.PhysicalAddress(addr),
 	})
 
-	fbFormat = format
-	fbBbp = bbp
+	dl.format = format
+	dl.bbp = bbp
 }
 
 // Sets the image where LoadTile and LoadBlock will copy their data from.
-func SetTextureImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth) {
+func (dl *DisplayList) SetTextureImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth) {
 	if width > 1<<9-1 {
 		return // TODO store error
 	}
 
 	cmd := (0xfd << 24) | uint32(format) | uint32(bbp) | (width - 1)
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: uint32(cmd),
 		LW: cpu.PhysicalAddress(addr),
 	})
@@ -140,7 +142,7 @@ type TileDescriptor struct {
 // Sets a tile's properties.  There are a total of eight tiles, identified by
 // the Idx field, which can later be referenced in other commands, e.g.
 // LoadTile().
-func SetTile(ts TileDescriptor) {
+func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	cmdUW := 0xf5<<24 | uint32(ts.Format) | uint32(ts.Size)
 	cmdUW |= uint32(ts.Line)<<9 | uint32(ts.TMEMAddr)
 
@@ -148,7 +150,7 @@ func SetTile(ts TileDescriptor) {
 	cmdLW |= uint32(ts.MaskT)<<14 | uint32(ts.ShiftT)<<10
 	cmdLW |= uint32(ts.MaskS)<<4 | uint32(ts.ShiftS)
 	cmdLW |= uint32(ts.Flags)
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: cmdUW,
 		LW: cmdLW,
 	})
@@ -156,10 +158,10 @@ func SetTile(ts TileDescriptor) {
 
 // Copies a tile into TMEM.  The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
-func LoadTile(idx uint8, r image.Rectangle) {
+func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
 	cmdUW := 0xf4<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
 	cmdLW := uint32(idx)<<24 | uint32(r.Max.X)<<14 | uint32(r.Max.Y)<<2
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: cmdUW,
 		LW: cmdLW})
 }
@@ -230,20 +232,18 @@ const (
 	CvgDestSave
 )
 
-var lastOtherModes ModeFlags
-
-func SetOtherModes(m ModeFlags) {
-	if m == lastOtherModes {
+func (dl *DisplayList) SetOtherModes(m ModeFlags) {
+	if m == dl.otherModes {
 		return // avoid costly pipeline sync
 	}
-	lastOtherModes = m
+	dl.otherModes = m
 
-	sync(Pipe)
+	dl.sync(Pipe)
 
 	// TODO merge with previous command if also SetOtherModes
 
 	cmd := 0xef00_000f_0000_0000 | m
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: uint32(cmd >> 32),
 		LW: uint32(cmd),
 	})
@@ -259,56 +259,54 @@ const (
 
 // Everything outside `r` is skipped when rendering.  Additionally odd or even
 // lines can be skipped to render interlaced frames.
-func SetScissor(r image.Rectangle, i InterlaceFrame) {
+func (dl *DisplayList) SetScissor(r image.Rectangle, i InterlaceFrame) {
 	cmd := uint64(0xed << 56)
 	cmd |= uint64(r.Min.X<<46) | uint64(r.Min.Y<<34) | uint64(r.Max.X<<14) | uint64(r.Max.Y<<2)
 	cmd |= uint64(i) << 24
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: uint32(cmd >> 32),
 		LW: uint32(cmd),
 	})
 }
 
-var lastFillColor color.Color
-
 // Sets the color for the next FillRectangle() call.
-func SetFillColor(c color.Color) {
-	if c == lastFillColor {
+func (dl *DisplayList) SetFillColor(c color.Color) {
+	if c == dl.fillColor {
 		return // avoid costly pipeline sync
 	}
-	lastFillColor = c
+	dl.fillColor = c
 
-	sync(Pipe)
+	dl.sync(Pipe)
 
 	r, g, b, a := c.RGBA()
 	var ci uint32
-	if fbBbp == BBP32 {
+	if dl.bbp == BBP32 {
 		ci = ((r >> 8) << 24) | ((g >> 8) << 16) | ((b >> 8) << 8) | (a >> 8)
-	} else if fbBbp == BBP16 {
+	} else if dl.bbp == BBP16 {
 		ci = ((r >> 11) << 11) | ((g >> 11) << 6) | ((b >> 11) << 1) | (a >> 15)
 		ci |= ci << 16
 	}
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: 0xf700_0000,
 		LW: ci,
 	})
 }
 
 // Draws a rectangle filled with the color set by SetFillColor().
-func FillRectangle(r image.Rectangle) {
+func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 	cmd := uint64(0xf6 << 56)
 	cmd |= uint64(r.Max.X<<46) | uint64(r.Max.Y<<34) | uint64(r.Min.X<<14) | uint64(r.Min.Y<<2)
-	commandQueue = append(commandQueue, Command{
+	dl.commands = append(dl.commands, Command{
 		UW: uint32(cmd >> 32),
 		LW: uint32(cmd),
 	})
 }
 
 // Draws a textured rectangle.
-func TextureRectangle(r image.Rectangle, tileIdx uint8) {
+func (dl *DisplayList) TextureRectangle(r image.Rectangle, tileIdx uint8) {
 	cmdUW := 0xe4<<24 | uint32(r.Max.X)<<14 | uint32(r.Max.Y)<<2
 	cmdLW := uint32(tileIdx)<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
-	commandQueue = append(commandQueue, []Command{
+	dl.commands = append(dl.commands, []Command{
 		Command{UW: cmdUW, LW: cmdLW},
 		Command{UW: uint32(0), LW: uint32(1<<28 | 1<<10)},
 	}...)
@@ -330,19 +328,9 @@ const (
 	Tile SyncCommand = 0xe800_0000
 )
 
-func sync(s SyncCommand) {
-	commandQueue = append(commandQueue, Command{
+func (dl *DisplayList) sync(s SyncCommand) {
+	dl.commands = append(dl.commands, Command{
 		UW: uint32(s),
 		LW: 0x0,
 	})
-}
-
-var FullSync rtos.Note
-var IrqCnt uint
-
-//go:nosplit
-//go:nowritebarrierrec
-func Handler() {
-	IrqCnt += 1
-	FullSync.Wakeup()
 }

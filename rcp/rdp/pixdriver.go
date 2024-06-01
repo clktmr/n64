@@ -14,6 +14,7 @@ type Rdp struct {
 	bpp    BitDepth
 
 	bounds image.Rectangle
+	dlist  DisplayList
 }
 
 func NewRdp(fb *framebuffer.Framebuffer) *Rdp {
@@ -21,7 +22,7 @@ func NewRdp(fb *framebuffer.Framebuffer) *Rdp {
 		format: RGBA,
 		bounds: fb.Bounds(),
 	}
-	SetScissor(rdp.bounds, InterlaceNone)
+	rdp.dlist.SetScissor(rdp.bounds, InterlaceNone)
 
 	return rdp
 }
@@ -69,10 +70,10 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	bounds.Max = bounds.Max.Sub(image.Point{1, 1})
 
 	DrawDuration += time.Since(start)
-	SetOtherModes(RGBDitherNone |
+	fb.dlist.SetOtherModes(RGBDitherNone |
 		AlphaDitherNone | ForceBlend |
 		CycleTypeCopy | AtomicPrimitive | AlphaCompare)
-	SetTextureImage(imgData, uint32(stride), format, bbp)
+	fb.dlist.SetTextureImage(imgData, uint32(stride), format, bbp)
 
 	ts := TileDescriptor{
 		Format:   format,
@@ -87,11 +88,11 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	if bbp == BBP32 && (format == RGBA || format == YUV) {
 		ts.Line = ts.Line >> 1
 	}
-	SetTile(ts)
-	LoadTile(0, bounds)
+	fb.dlist.SetTile(ts)
+	fb.dlist.LoadTile(0, bounds)
 
 	r.Max = r.Max.Sub(image.Point{1, 1})
-	TextureRectangle(r, 0)
+	fb.dlist.TextureRectangle(r, 0)
 
 	// TODO runtime.KeepAlive(imgData) until FullSync?
 }
@@ -99,14 +100,14 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 var DrawDuration time.Duration
 
 func (fb *Rdp) Fill(rect image.Rectangle) {
-	SetOtherModes(RGBDitherNone |
+	fb.dlist.SetOtherModes(RGBDitherNone |
 		AlphaDitherNone | ForceBlend |
 		CycleTypeFill | AtomicPrimitive)
-	FillRectangle(rect.Bounds())
+	fb.dlist.FillRectangle(rect.Bounds())
 }
 
 func (fb *Rdp) SetColor(c color.Color) {
-	SetFillColor(c)
+	fb.dlist.SetFillColor(c)
 }
 
 func (fb *Rdp) SetDir(dir int) image.Rectangle {
@@ -114,7 +115,7 @@ func (fb *Rdp) SetDir(dir int) image.Rectangle {
 }
 
 func (fb *Rdp) Flush() {
-	Run()
+	Run(&fb.dlist)
 }
 
 func (fb *Rdp) Err(clear bool) error {

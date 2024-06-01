@@ -20,20 +20,22 @@ func TestFillRect(t *testing.T) {
 	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
 	imgBuf := uintptr(unsafe.Pointer(&img.Pix[:1][0]))
 
-	rdp.SetColorImage(imgBuf, 32, rdp.RGBA, rdp.BBP32)
+	dl := rdp.NewDisplayList()
+
+	dl.SetColorImage(imgBuf, 32, rdp.RGBA, rdp.BBP32)
 
 	bounds := image.Rectangle{
 		image.Point{0, 0},
 		image.Point{10, 5},
 	}
-	rdp.SetScissor(bounds, rdp.InterlaceNone)
-	rdp.SetFillColor(testcolor)
-	rdp.SetOtherModes(rdp.RGBDitherNone |
+	dl.SetScissor(bounds, rdp.InterlaceNone)
+	dl.SetFillColor(testcolor)
+	dl.SetOtherModes(rdp.RGBDitherNone |
 		rdp.AlphaDitherNone | rdp.ForceBlend |
 		rdp.CycleTypeFill | rdp.AtomicPrimitive)
-	rdp.FillRectangle(bounds)
+	dl.FillRectangle(bounds)
 
-	rdp.Run()
+	rdp.Run(dl)
 
 	cpu.Invalidate(imgBuf, img.Stride*32)
 

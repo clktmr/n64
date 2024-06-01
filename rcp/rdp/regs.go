@@ -5,6 +5,7 @@ package rdp
 
 import (
 	"embedded/mmio"
+	"embedded/rtos"
 	"n64/rcp/cpu"
 	"unsafe"
 )
@@ -52,4 +53,14 @@ type registers struct {
 	clock   mmio.U32 // 24-bit counter running at RCP frequency
 
 	// TODO there are more undocumented registers (DPC_* and DPS_*)
+}
+
+var FullSync rtos.Note
+var IrqCnt uint
+
+//go:nosplit
+//go:nowritebarrierrec
+func Handler() {
+	IrqCnt += 1
+	FullSync.Wakeup()
 }
