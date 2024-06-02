@@ -3,6 +3,7 @@ package rdp_test
 import (
 	"image"
 	"image/color"
+	"n64/framebuffer"
 	"n64/rcp"
 	"n64/rcp/cpu"
 	"n64/rcp/rdp"
@@ -17,7 +18,7 @@ func TestFillRect(t *testing.T) {
 	})
 
 	testcolor := color.RGBA{R: 0, G: 0x37, B: 0x77, A: 0xff}
-	img := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	img := framebuffer.NewRGBA32(image.Rect(0, 0, 32, 32))
 	imgBuf := uintptr(unsafe.Pointer(&img.Pix[:1][0]))
 
 	dl := rdp.NewDisplayList()
@@ -30,9 +31,10 @@ func TestFillRect(t *testing.T) {
 	}
 	dl.SetScissor(bounds, rdp.InterlaceNone)
 	dl.SetFillColor(testcolor)
-	dl.SetOtherModes(rdp.RGBDitherNone |
-		rdp.AlphaDitherNone | rdp.ForceBlend |
-		rdp.CycleTypeFill | rdp.AtomicPrimitive)
+	dl.SetOtherModes(
+		rdp.ForceBlend|rdp.AtomicPrimitive,
+		rdp.CycleTypeFill, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
+	)
 	dl.FillRectangle(bounds)
 
 	rdp.Run(dl)

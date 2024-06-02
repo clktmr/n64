@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"n64/debug"
 	"n64/framebuffer"
 	"time"
 	"unsafe"
@@ -61,6 +62,7 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 		bounds = mask.Bounds().Sub(mask.Bounds().Min)
 		stride = alphaMask.Stride
 	default:
+		debug.Assert(false, "rdp unsupported format")
 		return
 	}
 
@@ -70,10 +72,11 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	bounds.Max = bounds.Max.Sub(image.Point{1, 1})
 
 	DrawDuration += time.Since(start)
-	fb.dlist.SetOtherModes(RGBDitherNone |
-		AlphaDitherNone | ForceBlend |
-		CycleTypeCopy | AtomicPrimitive | AlphaCompare)
-	fb.dlist.SetTextureImage(imgData, uint32(stride), format, bbp)
+	fb.dlist.SetOtherModes(
+		ForceBlend|AtomicPrimitive|AlphaCompare,
+		CycleTypeCopy, RGBDitherNone, AlphaDitherNone, ZmodeOpaque, CvgDestClamp,
+	)
+	fb.dlist.SetTextureImage(imgData, uint32(stride), bbp)
 
 	ts := TileDescriptor{
 		Format:   format,
@@ -100,9 +103,10 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 var DrawDuration time.Duration
 
 func (fb *Rdp) Fill(rect image.Rectangle) {
-	fb.dlist.SetOtherModes(RGBDitherNone |
-		AlphaDitherNone | ForceBlend |
-		CycleTypeFill | AtomicPrimitive)
+	fb.dlist.SetOtherModes(
+		ForceBlend|AtomicPrimitive,
+		CycleTypeFill, RGBDitherNone, AlphaDitherNone, ZmodeOpaque, CvgDestClamp,
+	)
 	fb.dlist.FillRectangle(rect.Bounds())
 }
 

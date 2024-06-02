@@ -4,10 +4,11 @@
 package rdp
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"n64/debug"
 	"n64/rcp/cpu"
-	"runtime"
 	"unsafe"
 )
 
@@ -16,7 +17,13 @@ import (
 type Command struct{ UW, LW uint32 }
 
 type DisplayList struct {
+	RDPState
+
+	beginState RDPState
 	commands   []Command
+}
+
+type RDPState struct {
 	otherModes ModeFlags
 	fillColor  color.Color
 	format     ImageFormat
@@ -29,29 +36,26 @@ func NewDisplayList() *DisplayList {
 	}
 }
 
+var state RDPState
+
 func Run(dl *DisplayList) {
 	dl.sync(Full)
 
 	cmds := dl.commands
-
 	elemSize := unsafe.Sizeof(cmds[0])
-
 	start := uintptr(unsafe.Pointer(&cmds[0]))
 	end := uintptr(unsafe.Pointer(&cmds[len(cmds)-1])) + elemSize
 	length := int(end - start)
 
 	cpu.Writeback(start, length)
 
-	for {
-		if regs.status.LoadBits(startPending|endPending) == 0 {
-			break
-		}
-		runtime.Gosched()
-	}
+	debug.Assert(regs.status.LoadBits(startPending|endPending) == 0, "concurrent rdp access")
 
 	regs.status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
 
 	FullSync.Clear()
+
+	state = dl.RDPState
 
 	regs.start.Store(uint32(cpu.PhysicalAddress(start)))
 	regs.end.Store(uint32(cpu.PhysicalAddress(end)))
@@ -91,13 +95,13 @@ func pixelsToBytes(pixels int, bbp BitDepth) int {
 
 // Sets the framebuffer to render the final image into.
 func (dl *DisplayList) SetColorImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth) {
-	if width > 1<<9-1 {
-		return // TODO store error
-	}
+	debug.Assert(addr%64 == 0, fmt.Sprintf("rdp framebuffer must be 64 byte aligned %x", addr))
+	debug.Assert(width < 1<<9, "rdp framebuffer width too big")
 
-	cmd := (0xff << 24) | uint32(format) | uint32(bbp) | (width - 1)
+	// TODO according to wiki, a sync *might* be needed in edge cases
+
 	dl.commands = append(dl.commands, Command{
-		UW: uint32(cmd),
+		UW: uint32((0xff << 24) | uint32(format) | uint32(bbp) | (width - 1)),
 		LW: cpu.PhysicalAddress(addr),
 	})
 
@@ -105,15 +109,24 @@ func (dl *DisplayList) SetColorImage(addr uintptr, width uint32, format ImageFor
 	dl.bbp = bbp
 }
 
-// Sets the image where LoadTile and LoadBlock will copy their data from.
-func (dl *DisplayList) SetTextureImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth) {
-	if width > 1<<9-1 {
-		return // TODO store error
-	}
+// Sets the zbuffer.  Width is taken from SetColorImage, bbp is always 18.
+func (dl *DisplayList) SetDepthImage(addr uintptr) {
+	debug.Assert(addr%64 == 0, "rdp zbuffer must be 64 byte aligned")
 
-	cmd := (0xfd << 24) | uint32(format) | uint32(bbp) | (width - 1)
 	dl.commands = append(dl.commands, Command{
-		UW: uint32(cmd),
+		UW: 0xfe << 24,
+		LW: cpu.PhysicalAddress(addr),
+	})
+}
+
+// Sets the image where LoadTile and LoadBlock will copy their data from.
+func (dl *DisplayList) SetTextureImage(addr uintptr, width uint32, bbp BitDepth) {
+	debug.Assert(addr%8 != 0, "rdp texture must be 8 byte aligned")
+	debug.Assert(width < 1<<9, "rdp texture width too big")
+
+	dl.commands = append(dl.commands, Command{
+		// according to wiki, format[23:21] has no effect
+		UW: (0xfd << 24) | uint32(bbp) | (width - 1),
 		LW: cpu.PhysicalAddress(addr),
 	})
 }
@@ -173,15 +186,17 @@ type ModeFlags uint64
 const (
 	AlphaCompare ModeFlags = 1 << iota
 	DitherAlpha
-	ZSource
+	ZPerPrimitive // Use depth value from SetPrimitiveDepth instead per-pixel calculation
 	AntiAlias
-	ZCompare
-	ZUpdate
+	ZCompare // Compare zbuffer
+	ZUpdate  // Update zbuffer
 	ImageRead
 	ColorOnCoverage
+
 	CvgTimesAlphaVG ModeFlags = 1 << (iota + 4)
 	AlphaCvgSelect
 	ForceBlend
+
 	ChromaKeying ModeFlags = 1 << (iota + 29)
 	ConvertOne
 	BiLerp1
@@ -197,42 +212,57 @@ const (
 	AtomicPrimitive = 1 << 55
 )
 
+type CycleType uint64
+
 const (
-	CycleTypeOne ModeFlags = iota << 52
+	CycleTypeOne CycleType = iota << 52
 	CycleTypeTwo
 	CycleTypeCopy
 	CycleTypeFill
 )
 
+type RGBDither uint64
+
 const (
-	RGBDitherMagicSquare ModeFlags = iota << 38
+	RGBDitherMagicSquare RGBDither = iota << 38
 	RGBDitherBayer
 	RGBDitherNoise
 	RGBDitherNone
 )
 
+type AlphaDither uint64
+
 const (
-	AlphaDitherPattern ModeFlags = iota << 36
+	AlphaDitherPattern AlphaDither = iota << 36
 	AlphaDitherInvPattern
 	AlphaDitherNoise
 	AlphaDitherNone
 )
 
+type ZMode uint64
+
 const (
-	ZmodeOpaque ModeFlags = iota << 10
+	ZmodeOpaque ZMode = iota << 10
 	ZmodeInterpenetrating
 	ZmodeTransparent
 	ZmodeDecal
 )
 
+type CvgDest uint64
+
 const (
-	CvgDestClamp ModeFlags = iota << 8
+	CvgDestClamp CvgDest = iota << 8
 	CvgDestWrap
 	CvgDestZap
 	CvgDestSave
 )
 
-func (dl *DisplayList) SetOtherModes(m ModeFlags) {
+func (dl *DisplayList) SetOtherModes(flags ModeFlags, ct CycleType, cDith RGBDither, aDith AlphaDither, zMode ZMode, cvgDest CvgDest) {
+	debug.Assert(!(ct == CycleTypeCopy && dl.bbp == BBP32), "COPY mode unavailable for 32-bit framebuffer")
+	debug.Assert(!(ct == CycleTypeFill && dl.bbp == BBP4), "FILL mode unavailable for 4-bit framebuffer")
+
+	m := flags | ModeFlags(ct) | ModeFlags(cDith) | ModeFlags(aDith) | ModeFlags(zMode) | ModeFlags(cvgDest)
+
 	if m == dl.otherModes {
 		return // avoid costly pipeline sync
 	}
@@ -269,12 +299,12 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, i InterlaceFrame) {
 	})
 }
 
-// Sets the color for the next FillRectangle() call.
+// Sets the color for subsequent FillRectangle() calls.
 func (dl *DisplayList) SetFillColor(c color.Color) {
 	if c == dl.fillColor {
 		return // avoid costly pipeline sync
 	}
-	dl.fillColor = c
+	dl.fillColor = c // FIXME needs copy
 
 	dl.sync(Pipe)
 
@@ -285,6 +315,10 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	} else if dl.bbp == BBP16 {
 		ci = ((r >> 11) << 11) | ((g >> 11) << 6) | ((b >> 11) << 1) | (a >> 15)
 		ci |= ci << 16
+	} else if dl.bbp == BBP8 {
+		ci = ((a >> 8) << 24) | ((a >> 8) << 16) | ((a >> 8) << 8) | (a >> 8)
+	} else {
+		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")
 	}
 	dl.commands = append(dl.commands, Command{
 		UW: 0xf700_0000,
@@ -317,18 +351,31 @@ type SyncCommand uint32
 const (
 	// Waits until all previous commands have finished reading and writing
 	// to RDRAM.  Additionally raises the RDP interrupt.  Use to sync memory
-	// access between RDP and other components (e.g. switching framebuffers) or when changing RDPs RDRAM
-	// buffers (e.g. Render to texture).
+	// access between RDP and other components (e.g. switching framebuffers)
+	// or when changing RDPs RDRAM buffers (e.g. Render to texture).
 	Full SyncCommand = 0xe900_0000
+
+	// Stalls pipeline for exactly 25 GCLK cycles.  Guarantees loading
+	// pipeline is safe for use.
 	Load SyncCommand = 0xf100_0000
+
+	// Stalls pipeline for exactly 50 GCLK cycles.  Guarantees any
+	// preceeding primitives have finished rendering and it's safe to change
+	// rendering modes.
 	Pipe SyncCommand = 0xe700_0000
 
-	// Writing to a tile waits until an immediately previous command finished
-	// reading from the tile.
+	// Stalls pipeline for exactly 33 GCLK cycles.  Guarantees that any
+	// preceding primitives have finished using tile information and
+	// it's safe to modify tile descriptors.
 	Tile SyncCommand = 0xe800_0000
 )
 
 func (dl *DisplayList) sync(s SyncCommand) {
+	last := SyncCommand(dl.commands[len(dl.commands)-1].UW)
+	if s == last {
+		return
+	}
+
 	dl.commands = append(dl.commands, Command{
 		UW: uint32(s),
 		LW: 0x0,

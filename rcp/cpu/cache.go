@@ -36,8 +36,8 @@ type paddedSlice []byte
 func MakePaddedSlice(size int) paddedSlice {
 	buf := make([]byte, 0, size+CacheLineSize+CacheLineSize)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-	align := CacheLineSize - int(addr%CacheLineSize)
-	return buf[align : align+size]
+	shift := CacheLineSize - int(addr)%CacheLineSize
+	return buf[shift : shift+size]
 }
 
 // Ensure a slice is padded.  Might copy the slice if necessary
@@ -48,6 +48,14 @@ func PaddedSlice(slice []byte) paddedSlice {
 		return buf
 	}
 	return slice
+}
+
+// Same as MakePaddedSlice with extra alignment requirements.
+func MakePaddedSliceAligned(size int, align int) paddedSlice {
+	buf := MakePaddedSlice(size + align)
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	shift := align - int(addr)%align
+	return buf[shift : shift+size]
 }
 
 // Returns true if p is safe for cache ops, i.e. padded and aligned to cache.

@@ -3,7 +3,18 @@ package framebuffer
 import (
 	"image"
 	"image/color"
+	"n64/rcp/cpu"
 )
+
+const Alignment = 64
+
+func NewRGBA32(r image.Rectangle) *image.RGBA {
+	return &image.RGBA{
+		Pix:    cpu.MakePaddedSliceAligned(r.Dx()*r.Dy()*4, Alignment),
+		Stride: 4 * r.Dx(),
+		Rect:   r,
+	}
+}
 
 // Stores pixels in RGBA with 16bit (5:5:5:1)
 type RGBA16 struct {
@@ -14,7 +25,7 @@ type RGBA16 struct {
 
 func NewRGBA16(r image.Rectangle) *RGBA16 {
 	return &RGBA16{
-		Pix:    make([]uint8, r.Dx()*r.Dy()*2),
+		Pix:    cpu.MakePaddedSliceAligned(r.Dx()*r.Dy()*2, Alignment),
 		Stride: 2 * r.Dx(),
 		Rect:   r,
 	}
