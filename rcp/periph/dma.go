@@ -1,6 +1,7 @@
 package periph
 
 import (
+	"n64/debug"
 	"n64/rcp/cpu"
 	"unsafe"
 )
@@ -9,9 +10,7 @@ import (
 
 // Loads bytes from PI bus into RDRAM via DMA
 func DMALoad(piAddr uintptr, size int) []byte {
-	if size%2 != 0 {
-		panic("unaligned dma load")
-	}
+	debug.Assert(size%2 == 0, "pi: unaligned dma load")
 
 	buf := cpu.MakePaddedSlice(size)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
@@ -32,9 +31,7 @@ func DMALoad(piAddr uintptr, size int) []byte {
 func DMAStore(piAddr uintptr, p []byte) {
 	buf := p
 
-	if len(p)%2 != 0 {
-		panic("unaligned dma store")
-	}
+	debug.Assert(len(p)%2 == 0, "pi: unaligned dma store")
 
 	p = cpu.PaddedSlice(p)
 

@@ -1,6 +1,7 @@
 package rsp
 
 import (
+	"n64/debug"
 	"n64/rcp/cpu"
 	"runtime"
 	"unsafe"
@@ -10,9 +11,7 @@ import (
 
 // Loads bytes from RSP IMEM/DMEM into RDRAM via DMA
 func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
-	if rspAddr%8 != 0 {
-		panic("rsp: unaligned dma load")
-	}
+	debug.Assert(rspAddr%8 == 0, "rsp: unaligned dma load")
 
 	buf := cpu.MakePaddedSlice(size)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
@@ -30,9 +29,7 @@ func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 
 // Stores bytes from RDRAM to RSP IMEM/DMEM via DMA
 func DMAStore(rspAddr uintptr, p []byte, bank memoryBank) {
-	if rspAddr%8 != 0 {
-		panic("rsp: unaligned dma store")
-	}
+	debug.Assert(rspAddr%8 == 0, "rsp: unaligned dma store")
 
 	buf := p
 
