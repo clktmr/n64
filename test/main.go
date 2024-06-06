@@ -27,14 +27,15 @@ func init() {
 
 func main() {
 	var err error
-	var syswriter io.Writer
+	var cart carts.Cart
 
 	// Redirect stdout and stderr either to isviewer or everdrive64 usb,
 	// using UNFLoader protocol.
-	if syswriter = carts.ProbeAll(); syswriter == nil {
+	if cart = carts.ProbeAll(); cart == nil {
 		panic("no logging peripheral found")
 	}
-	rtos.SetSystemWriter(drivers.NewSystemWriter(syswriter))
+	syswriter := drivers.NewSystemWriter(cart)
+	rtos.SetSystemWriter(syswriter)
 
 	console := termfs.NewLight("termfs", nil, syswriter)
 	rtos.Mount(console, "/dev/console")
