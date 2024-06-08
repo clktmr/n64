@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"n64/rcp/cpu"
 )
 
 func (fb *Framebuffer) Draw(r image.Rectangle, src image.Image, sp image.Point,
@@ -27,7 +28,12 @@ func (fb *Framebuffer) SetDir(dir int) image.Rectangle {
 }
 
 func (fb *Framebuffer) Flush() {
-	// TODO cache writeback
+	switch buf := fb.write.(type) {
+	case *RGBA16:
+		cpu.Writeback(fb.Addr(), buf.Stride*buf.Bounds().Dy())
+	case *image.RGBA:
+		cpu.Writeback(fb.Addr(), buf.Stride*buf.Bounds().Dy())
+	}
 }
 
 func (fb *Framebuffer) Err(clear bool) error {

@@ -57,3 +57,13 @@ func (fb *Framebuffer) Swap() uintptr {
 func (fb *Framebuffer) Bounds() image.Rectangle {
 	return fb.write.Bounds()
 }
+
+func (fb *Framebuffer) Addr() uintptr {
+	switch buf := fb.write.(type) {
+	case *RGBA16:
+		return uintptr(unsafe.Pointer(&buf.Pix[:1][0]))
+	case *image.RGBA:
+		return uintptr(unsafe.Pointer(&buf.Pix[:1][0]))
+	}
+	return 0x0
+}
