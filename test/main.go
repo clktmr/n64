@@ -3,7 +3,6 @@ package main
 import (
 	"embedded/arch/r4000/systim"
 	"embedded/rtos"
-	"io"
 	"os"
 	"reflect"
 	"runtime"
@@ -29,8 +28,7 @@ func main() {
 	var err error
 	var cart carts.Cart
 
-	// Redirect stdout and stderr either to isviewer or everdrive64 usb,
-	// using UNFLoader protocol.
+	// Redirect stdout and stderr either to cart's logger
 	if cart = carts.ProbeAll(); cart == nil {
 		panic("no logging peripheral found")
 	}
@@ -46,21 +44,34 @@ func main() {
 	os.Stderr = os.Stdout
 
 	os.Args = append(os.Args, "-test.v")
+	os.Args = append(os.Args, "-test.bench=.")
 	testing.Main(
-		nil,
+		matchAll,
 		[]testing.InternalTest{
 			newInternalTest(cpu_test.TestMakePaddedSlice),
 			newInternalTest(rsp_test.TestDMA),
 			newInternalTest(rsp_test.TestRun),
 			newInternalTest(rsp_test.TestInterrupt),
 			newInternalTest(rdp_test.TestFillRect),
+			newInternalTest(rdp_test.TestDraw),
 		},
-		nil, nil,
+		[]testing.InternalBenchmark{
+			newInternalBenchmark(rdp_test.BenchmarkFillScreen),
+		}, nil,
 	)
 }
 
+func matchAll(_ string, _ string) (bool, error) { return true, nil }
+
 func newInternalTest(testFn func(*testing.T)) testing.InternalTest {
 	return testing.InternalTest{
+		runtime.FuncForPC(reflect.ValueOf(testFn).Pointer()).Name(),
+		testFn,
+	}
+}
+
+func newInternalBenchmark(testFn func(*testing.B)) testing.InternalBenchmark {
+	return testing.InternalBenchmark{
 		runtime.FuncForPC(reflect.ValueOf(testFn).Pointer()).Name(),
 		testFn,
 	}

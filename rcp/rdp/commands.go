@@ -12,7 +12,7 @@ import (
 	"unsafe"
 )
 
-// Each RDP command is a 64-bit dword, but needs to be stored as two words to
+// Each RDP command is a 64-bit qword, but needs to be stored as two words to
 // get endianess right.
 type Command struct{ UW, LW uint32 }
 
@@ -24,10 +24,14 @@ type DisplayList struct {
 }
 
 type RDPState struct {
-	otherModes ModeFlags
-	fillColor  color.Color
-	format     ImageFormat
-	bbp        BitDepth
+	combineMode      CombineMode
+	otherModes       ModeFlags
+	fillColor        color.RGBA
+	blendColor       color.RGBA
+	primitiveColor   color.RGBA
+	environmentColor color.RGBA
+	format           ImageFormat
+	bbp              BitDepth
 }
 
 func NewDisplayList() *DisplayList {
@@ -121,7 +125,7 @@ func (dl *DisplayList) SetDepthImage(addr uintptr) {
 
 // Sets the image where LoadTile and LoadBlock will copy their data from.
 func (dl *DisplayList) SetTextureImage(addr uintptr, width uint32, bbp BitDepth) {
-	debug.Assert(addr%8 != 0, "rdp texture must be 8 byte aligned")
+	debug.Assert(addr%8 == 0, "rdp texture must be 8 byte aligned")
 	debug.Assert(width < 1<<9, "rdp texture width too big")
 
 	dl.commands = append(dl.commands, Command{
@@ -140,13 +144,21 @@ const (
 	ClampT  TileDescFlags = 1 << 19
 )
 
+var supportedFormat = map[ImageFormat]map[BitDepth]bool{
+	RGBA:     {BBP16: true, BBP32: true},
+	YUV:      {BBP16: true},
+	ColorIdx: {BBP4: true, BBP8: true},
+	IA:       {BBP4: true, BBP8: true, BBP16: true},
+	I:        {BBP4: true, BBP8: true},
+}
+
 type TileDescriptor struct {
 	Format         ImageFormat
 	Size           BitDepth
-	Line           uint16 // 9 bit
-	TMEMAddr       uint16 // 9 bit
-	Idx            uint8  // 3 bit
-	Palette        uint8  // 4 bit
+	Line           uint16 // 9 bit; line length in qwords
+	Addr           uint16 // 9 bit; TMEM address in qwords
+	Idx            uint8  // 3 bit; Tile index
+	Palette        uint8  // 4 bit; Palette index
 	MaskT, MaskS   uint8  // 4 bit
 	ShiftT, ShiftS uint8  // 4 bit
 	Flags          TileDescFlags
@@ -156,8 +168,23 @@ type TileDescriptor struct {
 // the Idx field, which can later be referenced in other commands, e.g.
 // LoadTile().
 func (dl *DisplayList) SetTile(ts TileDescriptor) {
+	debug.Assert(ts.Line < 1<<9, "tile line length out of bounds")
+	debug.Assert(ts.Addr < 1<<9, "tile addr out of bounds")
+	debug.Assert(ts.Idx < 1<<3, "tile index out of bounds")
+	debug.Assert(ts.Palette < 1<<4, "tile palette index out of bounds")
+	debug.Assert(ts.MaskT < 1<<4, "tile mask out of bounds")
+	debug.Assert(ts.MaskS < 1<<4, "tile mask out of bounds")
+	debug.Assert(ts.ShiftT < 1<<4, "tile shift out of bounds")
+	debug.Assert(ts.ShiftS < 1<<4, "tile shift out of bounds")
+	debug.Assert(supportedFormat[ts.Format][ts.Size], fmt.Sprintf("tile unsupported format: %x %x", ts.Format, ts.Size))
+
+	// some formats must indicate 16 byte instead of 8 byte texels
+	if ts.Size == BBP32 && (ts.Format == RGBA || ts.Format == YUV) {
+		ts.Line = ts.Line >> 1
+	}
+
 	cmdUW := 0xf5<<24 | uint32(ts.Format) | uint32(ts.Size)
-	cmdUW |= uint32(ts.Line)<<9 | uint32(ts.TMEMAddr)
+	cmdUW |= uint32(ts.Line)<<9 | uint32(ts.Addr)
 
 	cmdLW := uint32(ts.Idx)<<24 | uint32(ts.Palette)<<20
 	cmdLW |= uint32(ts.MaskT)<<14 | uint32(ts.ShiftT)<<10
@@ -172,15 +199,24 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 // Copies a tile into TMEM.  The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
+	dl.sync(Load)
+
 	cmdUW := 0xf4<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
-	cmdLW := uint32(idx)<<24 | uint32(r.Max.X)<<14 | uint32(r.Max.Y)<<2
-	dl.commands = append(dl.commands, Command{
-		UW: cmdUW,
-		LW: cmdLW})
+	cmdLW := uint32(idx)<<24 | uint32(r.Max.X-1)<<14 | uint32(r.Max.Y-1)<<2
+
+	dl.commands = append(dl.commands, Command{UW: cmdUW, LW: cmdLW})
+}
+
+// Tile size is automatically set on LoadTile(), but can be overidden with
+// SetTileSize().
+func (dl *DisplayList) SetTileSize(idx uint8, r image.Rectangle) {
+	cmdUW := 0xf2<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
+	cmdLW := uint32(idx)<<24 | uint32(r.Max.X-1)<<14 | uint32(r.Max.Y-1)<<2
+
+	dl.commands = append(dl.commands, Command{UW: cmdUW, LW: cmdLW})
 }
 
 // Mode flags for the SetOtherModes() command.
-// TODO Blend modewords (bits 16-31)
 type ModeFlags uint64
 
 const (
@@ -257,14 +293,64 @@ const (
 	CvgDestSave
 )
 
-func (dl *DisplayList) SetOtherModes(flags ModeFlags, ct CycleType, cDith RGBDither, aDith AlphaDither, zMode ZMode, cvgDest CvgDest) {
+type BlenderPM uint64
+
+const (
+	BlenderPMColorCombiner BlenderPM = iota
+	BlenderPMFramebuffer
+	BlenderPMBlendColor
+	BlenderPMFogColor
+)
+
+type BlenderA uint64
+
+const (
+	BlenderAColorCombinerAlpha BlenderA = iota
+	BlenderAFogAlpha
+	BlenderAShadeAlpha
+	BlenderAZero
+)
+
+type BlenderB uint64
+
+const (
+	BlenderBOneMinusAlphaA BlenderB = iota
+	BlenderBFramebufferCvg
+	BlenderBOne
+	BlenderBZero
+)
+
+type BlendMode struct {
+	P1, P2 BlenderPM
+	M1, M2 BlenderPM
+	A1, A2 BlenderA
+	B1, B2 BlenderB
+}
+
+func (c *BlendMode) modeFlags() ModeFlags {
+	return (ModeFlags(c.B2<<16) | ModeFlags(c.B1<<18) |
+		ModeFlags(c.M2<<20) | ModeFlags(c.M1<<22) |
+		ModeFlags(c.A2<<24) | ModeFlags(c.A1<<26) |
+		ModeFlags(c.P2<<28) | ModeFlags(c.P1<<30))
+}
+
+func (dl *DisplayList) SetOtherModes(
+	flags ModeFlags,
+	ct CycleType,
+	cDith RGBDither,
+	aDith AlphaDither,
+	zMode ZMode,
+	cvgDest CvgDest,
+	blend BlendMode,
+) {
 	debug.Assert(!(ct == CycleTypeCopy && dl.bbp == BBP32), "COPY mode unavailable for 32-bit framebuffer")
 	debug.Assert(!(ct == CycleTypeFill && dl.bbp == BBP4), "FILL mode unavailable for 4-bit framebuffer")
 
-	m := flags | ModeFlags(ct) | ModeFlags(cDith) | ModeFlags(aDith) | ModeFlags(zMode) | ModeFlags(cvgDest)
+	m := flags | blend.modeFlags()
+	m |= ModeFlags(ct) | ModeFlags(cDith) | ModeFlags(aDith) | ModeFlags(zMode) | ModeFlags(cvgDest)
 
 	if m == dl.otherModes {
-		return // avoid costly pipeline sync
+		return
 	}
 	dl.otherModes = m
 
@@ -290,8 +376,12 @@ const (
 // Everything outside `r` is skipped when rendering.  Additionally odd or even
 // lines can be skipped to render interlaced frames.
 func (dl *DisplayList) SetScissor(r image.Rectangle, i InterlaceFrame) {
+	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
+		r.Max = r.Max.Sub(image.Point{1, 1})
+	}
+
 	cmd := uint64(0xed << 56)
-	cmd |= uint64(r.Min.X<<46) | uint64(r.Min.Y<<34) | uint64(r.Max.X<<14) | uint64(r.Max.Y<<2)
+	cmd |= uint64(r.Min.X<<46) | uint64(r.Min.Y<<34) | uint64(r.Max.X<<14) | uint64(r.Max.Y<<3)
 	cmd |= uint64(i) << 24
 	dl.commands = append(dl.commands, Command{
 		UW: uint32(cmd >> 32),
@@ -301,14 +391,15 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, i InterlaceFrame) {
 
 // Sets the color for subsequent FillRectangle() calls.
 func (dl *DisplayList) SetFillColor(c color.Color) {
+	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
 	if c == dl.fillColor {
-		return // avoid costly pipeline sync
+		return
 	}
-	dl.fillColor = c // FIXME needs copy
+	dl.fillColor = cRGBA
 
 	dl.sync(Pipe)
 
-	r, g, b, a := c.RGBA()
+	r, g, b, a := dl.fillColor.RGBA()
 	var ci uint32
 	if dl.bbp == BBP32 {
 		ci = ((r >> 8) << 24) | ((g >> 8) << 16) | ((b >> 8) << 8) | (a >> 8)
@@ -326,8 +417,97 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	})
 }
 
+func (dl *DisplayList) SetBlendColor(c color.Color) {
+	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
+	if cRGBA == dl.blendColor {
+		return
+	}
+	dl.blendColor = cRGBA
+
+	dl.sync(Pipe)
+
+	dl.commands = append(dl.commands, Command{
+		UW: 0xf900_0000,
+		LW: uint32(dl.blendColor.R)<<24 | uint32(dl.blendColor.G)<<16 |
+			uint32(dl.blendColor.B)<<8 | uint32(dl.blendColor.A),
+	})
+}
+
+func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
+	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
+	if cRGBA == dl.primitiveColor {
+		return
+	}
+	dl.primitiveColor = cRGBA
+
+	dl.sync(Pipe)
+
+	dl.commands = append(dl.commands, Command{
+		UW: 0xfa00_0000,
+		LW: uint32(dl.primitiveColor.R)<<24 | uint32(dl.primitiveColor.G)<<16 |
+			uint32(dl.primitiveColor.B)<<8 | uint32(dl.primitiveColor.A),
+	})
+}
+
+func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
+	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
+	if cRGBA == dl.environmentColor {
+		return
+	}
+	dl.environmentColor = cRGBA
+
+	dl.sync(Pipe)
+
+	dl.commands = append(dl.commands, Command{
+		UW: 0xfb00_0000,
+		LW: uint32(dl.environmentColor.R)<<24 | uint32(dl.environmentColor.G)<<16 |
+			uint32(dl.environmentColor.B)<<8 | uint32(dl.environmentColor.A),
+	})
+}
+
+type CombineSource uint32
+
+const (
+	CombineCombined CombineSource = iota
+	CombineTex0
+	CombineTex1
+	CombinePrimitive
+	CombineShade
+	CombineEnvironment
+)
+
+type CombineParams struct{ A, B, C, D CombineSource }
+type CombinePass struct{ RGB, Alpha CombineParams }
+type CombineMode struct{ One, Two CombinePass }
+
+func (dl *DisplayList) SetCombineMode(m CombineMode) {
+	if dl.combineMode == m {
+		return
+	}
+	dl.combineMode = m
+
+	dl.sync(Pipe)
+
+	dl.commands = append(dl.commands, Command{
+		UW: uint32(0xfc00_0000 |
+			m.One.RGB.A<<20 | m.One.RGB.C<<15 |
+			m.One.Alpha.A<<12 | m.One.Alpha.C<<9 |
+			m.Two.RGB.A<<5 | m.Two.RGB.C),
+		LW: uint32(0x0 |
+			m.One.RGB.B<<28 | m.Two.RGB.B<<24 |
+			m.Two.Alpha.A<<21 | m.Two.Alpha.C<<18 |
+			m.One.RGB.D<<15 | m.One.Alpha.B<<12 | m.One.Alpha.D<<9 |
+			m.Two.RGB.D<<6 | m.Two.Alpha.B<<3 | m.Two.Alpha.D,
+		),
+	})
+}
+
 // Draws a rectangle filled with the color set by SetFillColor().
 func (dl *DisplayList) FillRectangle(r image.Rectangle) {
+	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
+		r.Max = r.Max.Sub(image.Point{1, 1})
+	}
+
 	cmd := uint64(0xf6 << 56)
 	cmd |= uint64(r.Max.X<<46) | uint64(r.Max.Y<<34) | uint64(r.Min.X<<14) | uint64(r.Min.Y<<2)
 	dl.commands = append(dl.commands, Command{
@@ -337,12 +517,18 @@ func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 }
 
 // Draws a textured rectangle.
-func (dl *DisplayList) TextureRectangle(r image.Rectangle, tileIdx uint8) {
+func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale image.Point, tileIdx uint8) {
+	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
+		r.Max = r.Max.Sub(image.Point{1, 1})
+	}
+
 	cmdUW := 0xe4<<24 | uint32(r.Max.X)<<14 | uint32(r.Max.Y)<<2
 	cmdLW := uint32(tileIdx)<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
 	dl.commands = append(dl.commands, []Command{
 		Command{UW: cmdUW, LW: cmdLW},
-		Command{UW: uint32(0), LW: uint32(1<<28 | 1<<10)},
+		Command{
+			UW: uint32(p.X<<21 | p.Y<<5),
+			LW: uint32(((0x8000/scale.X)>>5)<<16 | (0x8000/scale.Y)>>5)},
 	}...)
 }
 
