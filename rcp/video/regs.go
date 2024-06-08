@@ -40,7 +40,7 @@ func SetupNTSC(bbp ColorDepth) {
 	// Avoid crash by disabling output while changing registers
 	regs.control.Store(0)
 
-	regs.width.Store(320)
+	regs.width.Store(WIDTH)
 	regs.vInt.Store(2)
 	regs.currentLine.Store(0)
 	regs.timing.Store(0x3e5_2239)
@@ -50,8 +50,8 @@ func SetupNTSC(bbp ColorDepth) {
 	regs.hLimits.Store(0x006c_02ec)
 	regs.vLimits.Store(0x0025_01ff)
 	regs.colorBurst.Store(0x000e_0204)
-	regs.hScale.Store((1024*320 + 320) / 640)
-	regs.vScale.Store((1024*240 + 120) / 240)
+	regs.hScale.Store((1024*WIDTH + WIDTH) / 640)
+	regs.vScale.Store((1024*HEIGHT + 120) / HEIGHT)
 
 	regs.control.Store(uint32(bbp) | (3 << 8))
 }
@@ -60,7 +60,7 @@ func SetupPAL(bbp ColorDepth) {
 	// Avoid crash by disabling output while changing registers
 	regs.control.Store(0)
 
-	regs.width.Store(320)
+	regs.width.Store(WIDTH)
 	regs.vInt.Store(2)
 	regs.currentLine.Store(0)
 	regs.timing.Store(0x0404_233a)
@@ -70,12 +70,12 @@ func SetupPAL(bbp ColorDepth) {
 	regs.hLimits.Store(0x0080_0300)
 	regs.vLimits.Store(0x005f_0239)
 	regs.colorBurst.Store(0x0009_026b)
-	regs.hScale.Store((1024*320 + 320) / 640)
-	regs.vScale.Store((1024*240 + 120) / 240)
+	regs.hScale.Store((1024*WIDTH + WIDTH) / 640)
+	regs.vScale.Store((1024*HEIGHT + 120) / HEIGHT)
 
 	regs.control.Store(uint32(bbp) | (3 << 8))
 }
 
-func SetFramebuffer(addr uintptr) {
-	regs.framebuffer.Store(uint32(addr))
+func SetFramebuffer(fb Framebuffer) {
+	regs.framebuffer.Store(uint32(fb.Addr()))
 }

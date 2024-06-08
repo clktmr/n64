@@ -2,7 +2,6 @@ package video
 
 import "embedded/rtos"
 
-// var vBlank rtos.Note
 var VBlank rtos.Note
 var VBlankCnt uint
 
