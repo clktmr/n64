@@ -31,7 +31,7 @@ func TestDMA(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
-	// Simple program that will swap the first two words in DMEM
+	// Simple program that will swap the first two dwords in DMEM
 	code := []byte{
 		0x3c, 0x09, 0xa4, 0x00, //lui   t1,0xa400
 		0x8d, 0x29, 0x00, 0x00, //lw    t1,0(t1)
