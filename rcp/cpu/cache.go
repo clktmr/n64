@@ -52,6 +52,9 @@ func PaddedSlice(slice []byte) paddedSlice {
 
 // Same as MakePaddedSlice with extra alignment requirements.
 func MakePaddedSliceAligned(size int, align int) paddedSlice {
+	if align <= CacheLineSize {
+		return MakePaddedSlice(size)
+	}
 	buf := MakePaddedSlice(size + align)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	shift := align - int(addr)%align
