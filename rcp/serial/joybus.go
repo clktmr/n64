@@ -43,13 +43,13 @@ func joybusPoll() {
 		recvAddr := uintptr(unsafe.Pointer(&recvMsg.buf))
 
 		dmaFinished.Clear()
+		cpu.InvalidateSlice(recvMsg.buf[:])
 		regs.dramAddr.Store(uint32(recvAddr))
 		regs.pifReadAddr.Store(pifRamAddr)
 
 		// Wait until message was received
 		dmaFinished.Sleep(-1) // TODO sleep with timeout
 
-		cpu.InvalidateSlice(recvMsg.buf[:])
 		in <- &recvMsg
 	}
 }

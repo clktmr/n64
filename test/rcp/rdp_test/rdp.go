@@ -48,9 +48,9 @@ func TestFillRect(t *testing.T) {
 	)
 	dl.FillRectangle(bounds)
 
-	rdp.Run(dl)
-
 	cpu.InvalidateSlice(img.Pix)
+
+	rdp.Run(dl)
 
 	for x := range bounds.Max.X {
 		for y := range bounds.Max.Y {
@@ -185,10 +185,9 @@ func TestDraw(t *testing.T) {
 			// draw
 			expected.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
 			expected.Flush()
+			cpu.InvalidateSlice(result.Pix)
 			rasterizer.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
 			rasterizer.Flush()
-
-			cpu.InvalidateSlice(result.Pix)
 
 			// compare
 			const showThreshold = 3

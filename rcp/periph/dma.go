@@ -17,11 +17,11 @@ func DMALoad(piAddr uintptr, size int) []byte {
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
+	cpu.InvalidateSlice(buf)
+
 	regs.writeLen.Store(uint32(size - 1))
 
 	waitDMA()
-
-	cpu.InvalidateSlice(buf)
 
 	return buf
 }

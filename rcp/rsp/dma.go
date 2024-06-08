@@ -18,11 +18,11 @@ func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 	regs.rdramAddr.Store(uint32(addr))
 	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr))
 
+	cpu.InvalidateSlice(buf)
+
 	regs.writeLen.Store(uint32(size - 1))
 
 	waitDMA()
-
-	cpu.InvalidateSlice(buf)
 
 	return buf
 }
