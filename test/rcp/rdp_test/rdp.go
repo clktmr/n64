@@ -50,7 +50,7 @@ func TestFillRect(t *testing.T) {
 
 	rdp.Run(dl)
 
-	cpu.Invalidate(imgBuf, img.Stride*32)
+	cpu.InvalidateSlice(img.Pix)
 
 	for x := range bounds.Max.X {
 		for y := range bounds.Max.Y {
@@ -188,7 +188,7 @@ func TestDraw(t *testing.T) {
 			rasterizer.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
 			rasterizer.Flush()
 
-			cpu.Invalidate(result.Addr(), result.Stride*result.Bounds().Dy())
+			cpu.InvalidateSlice(result.Pix)
 
 			// compare
 			const showThreshold = 3

@@ -7,7 +7,10 @@
 // won't be affected.
 package cpu
 
-import "unsafe"
+import (
+	"n64/debug"
+	"unsafe"
+)
 
 const CacheLineSize = 16
 const cacheLineMask = ^(CacheLineSize - 1)
@@ -23,27 +26,28 @@ type CacheLinePad struct{ _ [CacheLineSize]byte }
 func Writeback(addr uintptr, length int)
 
 // Causes the cache to be read from RAM before next access.  Call this before
-// reading the address range if it was written by another component.  If the
-// specified address is currently not cached, this is a no-op.
+// the address range is to be written by another component.  If the specified
+// address is currently not cached, this is a no-op.
 func Invalidate(addr uintptr, length int)
 
 // A slice that is safe for cache ops.  It's start is aligned to CacheLineSize
-// and the end is padded fill the cache line.  Note that using append() might
+// and the end is padded to fill the cache line.  Note that using append() might
 // corrupt the padding.
-type paddedSlice []byte
-
-// Wrapper around make() to create paddedSlice.
-func MakePaddedSlice(size int) paddedSlice {
-	buf := make([]byte, 0, size+CacheLineSize+CacheLineSize)
+// Aligning the slice start to CacheLineSize has the advantage that runtime
+// validation is possible, see IsPadded().
+func MakePaddedSlice[T any](size int) []T {
+	var t T
+	cls := CacheLineSize / int(unsafe.Sizeof(t))
+	buf := make([]T, 0, cls+size+cls)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-	shift := CacheLineSize - int(addr)%CacheLineSize
+	shift := (CacheLineSize - int(addr)%CacheLineSize) / int(unsafe.Sizeof(t))
 	return buf[shift : shift+size]
 }
 
 // Ensure a slice is padded.  Might copy the slice if necessary
-func PaddedSlice(slice []byte) paddedSlice {
+func PaddedSlice[T any](slice []T) []T {
 	if IsPadded(slice) == false {
-		buf := MakePaddedSlice(len(slice))
+		buf := MakePaddedSlice[T](len(slice))
 		copy(buf, slice)
 		return buf
 	}
@@ -51,18 +55,39 @@ func PaddedSlice(slice []byte) paddedSlice {
 }
 
 // Same as MakePaddedSlice with extra alignment requirements.
-func MakePaddedSliceAligned(size int, align int) paddedSlice {
-	if align <= CacheLineSize {
-		return MakePaddedSlice(size)
+func MakePaddedSliceAligned[T any](size int, align uintptr) []T {
+	var t T
+	if align <= CacheLineSize || align <= unsafe.Alignof(t) {
+		return MakePaddedSlice[T](size)
 	}
-	buf := MakePaddedSlice(size + align)
+
+	buf := MakePaddedSlice[T](size + int(align/unsafe.Sizeof(t)))
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-	shift := align - int(addr)%align
-	return buf[shift : shift+size]
+	shift := (align - addr%align) / unsafe.Sizeof(t)
+	return buf[shift : shift+uintptr(size)]
 }
 
 // Returns true if p is safe for cache ops, i.e. padded and aligned to cache.
-func IsPadded(p []byte) bool {
-	pAddr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
-	return pAddr%CacheLineSize == 0 && cap(p)-len(p) >= CacheLineSize-len(p)%CacheLineSize
+func IsPadded[T any](p []T) bool {
+	var t T
+	cls := CacheLineSize / int(unsafe.Sizeof(t))
+
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	return addr%CacheLineSize == 0 && cap(p)-len(p) >= cls-len(p)%cls
+}
+
+func WritebackSlice[T any](buf []T) {
+	debug.Assert(IsPadded(buf), "unpadded cache writeback")
+
+	var t T
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	Writeback(addr, len(buf)*int(unsafe.Sizeof(t)))
+}
+
+func InvalidateSlice[T any](buf []T) {
+	debug.Assert(IsPadded(buf), "unpadded cache invalidate")
+
+	var t T
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	Invalidate(addr, len(buf)*int(unsafe.Sizeof(t)))
 }

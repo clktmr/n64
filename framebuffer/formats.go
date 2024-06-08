@@ -10,7 +10,7 @@ const Alignment = 64
 
 func NewRGBA32(r image.Rectangle) *image.RGBA {
 	return &image.RGBA{
-		Pix:    cpu.MakePaddedSliceAligned(r.Dx()*r.Dy()*4, Alignment),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, Alignment),
 		Stride: 4 * r.Dx(),
 		Rect:   r,
 	}
@@ -25,7 +25,7 @@ type RGBA16 struct {
 
 func NewRGBA16(r image.Rectangle) *RGBA16 {
 	return &RGBA16{
-		Pix:    cpu.MakePaddedSliceAligned(r.Dx()*r.Dy()*2, Alignment),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*2, Alignment),
 		Stride: 2 * r.Dx(),
 		Rect:   r,
 	}

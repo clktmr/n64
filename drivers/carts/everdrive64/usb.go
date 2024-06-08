@@ -21,7 +21,7 @@ func Probe() *EverDrive64 {
 		fallthrough
 	case 0xed64_0013: // EverDrive64 X7
 		cart := &EverDrive64{
-			buf: cpu.MakePaddedSlice(bufferSize),
+			buf: cpu.MakePaddedSlice[byte](bufferSize),
 		}
 		return cart
 	}

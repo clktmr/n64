@@ -49,6 +49,7 @@ func main() {
 		matchAll,
 		[]testing.InternalTest{
 			newInternalTest(cpu_test.TestMakePaddedSlice),
+			newInternalTest(cpu_test.TestMakePaddedSliceAligned),
 			newInternalTest(rsp_test.TestDMA),
 			newInternalTest(rsp_test.TestRun),
 			newInternalTest(rsp_test.TestInterrupt),

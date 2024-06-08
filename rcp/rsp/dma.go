@@ -13,7 +13,7 @@ import (
 func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 	debug.Assert(rspAddr%8 == 0, "rsp: unaligned dma load")
 
-	buf := cpu.MakePaddedSlice(size)
+	buf := cpu.MakePaddedSlice[byte](size)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	regs.rdramAddr.Store(uint32(addr))
 	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr))
@@ -22,7 +22,7 @@ func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 
 	waitDMA()
 
-	cpu.Invalidate(addr, len(buf))
+	cpu.InvalidateSlice(buf)
 
 	return buf
 }
@@ -39,7 +39,7 @@ func DMAStore(rspAddr uintptr, p []byte, bank memoryBank) {
 	regs.rdramAddr.Store(uint32(addr))
 	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr))
 
-	cpu.Writeback(addr, len(buf))
+	cpu.WritebackSlice(buf)
 
 	regs.readLen.Store(uint32(len(buf) - 1))
 

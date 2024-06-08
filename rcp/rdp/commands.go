@@ -36,7 +36,7 @@ type RDPState struct {
 
 func NewDisplayList() *DisplayList {
 	return &DisplayList{
-		commands: make([]Command, 0, 32),
+		commands: cpu.MakePaddedSlice[Command](32)[:0],
 	}
 }
 
@@ -49,9 +49,8 @@ func Run(dl *DisplayList) {
 	elemSize := unsafe.Sizeof(cmds[0])
 	start := uintptr(unsafe.Pointer(&cmds[0]))
 	end := uintptr(unsafe.Pointer(&cmds[len(cmds)-1])) + elemSize
-	length := int(end - start)
 
-	cpu.Writeback(start, length)
+	cpu.WritebackSlice(dl.commands)
 
 	debug.Assert(regs.status.LoadBits(startPending|endPending) == 0, "concurrent rdp access")
 

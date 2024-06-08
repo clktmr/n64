@@ -12,7 +12,7 @@ import (
 
 func TestDMA(t *testing.T) {
 	rsp.Init()
-	testdata := cpu.MakePaddedSlice(80)
+	testdata := cpu.MakePaddedSlice[byte](80)
 	for i := range len(testdata) {
 		testdata[i] = byte(i)
 	}

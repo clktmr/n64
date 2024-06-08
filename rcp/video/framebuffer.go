@@ -40,7 +40,7 @@ type RGBA32 struct {
 
 func NewRGBA32(r image.Rectangle) *RGBA32 {
 	return &RGBA32{image.RGBA{
-		Pix:    cpu.MakePaddedSliceAligned(r.Dx()*r.Dy()*4, Alignment),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, Alignment),
 		Stride: 4 * r.Dx(),
 		Rect:   r,
 	}}
@@ -54,7 +54,7 @@ func (p *RGBA32) Draw(r image.Rectangle, src image.Image, sp image.Point,
 }
 
 func (p *RGBA32) Flush() {
-	cpu.Writeback(p.Addr(), p.Stride*p.Bounds().Dy())
+	cpu.WritebackSlice(p.Pix)
 }
 
 func (p *RGBA32) Addr() uintptr {
@@ -75,7 +75,7 @@ type NRGBA32 struct {
 
 func NewNRGBA32(r image.Rectangle) *NRGBA32 {
 	return &NRGBA32{image.NRGBA{
-		Pix:    cpu.MakePaddedSliceAligned(r.Dx()*r.Dy()*4, Alignment),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, Alignment),
 		Stride: 4 * r.Dx(),
 		Rect:   r,
 	}}
@@ -89,7 +89,7 @@ func (p *NRGBA32) Draw(r image.Rectangle, src image.Image, sp image.Point,
 }
 
 func (p *NRGBA32) Flush() {
-	cpu.Writeback(p.Addr(), p.Stride*p.Bounds().Dy())
+	cpu.WritebackSlice(p.Pix)
 }
 
 func (p *NRGBA32) Addr() uintptr {
@@ -114,7 +114,7 @@ type RGBA16 struct {
 
 func NewRGBA16(r image.Rectangle) *RGBA16 {
 	return &RGBA16{
-		Pix:    cpu.MakePaddedSliceAligned(r.Dx()*r.Dy()*2, Alignment),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*2, Alignment),
 		Stride: 2 * r.Dx(),
 		Rect:   r,
 	}
@@ -127,7 +127,7 @@ func (p *RGBA16) Draw(r image.Rectangle, src image.Image, sp image.Point,
 }
 
 func (p *RGBA16) Flush() {
-	cpu.Writeback(p.Addr(), p.Stride*p.Bounds().Dy())
+	cpu.WritebackSlice(p.Pix)
 }
 
 func (p *RGBA16) Addr() uintptr {

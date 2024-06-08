@@ -12,17 +12,16 @@ import (
 func DMALoad(piAddr uintptr, size int) []byte {
 	debug.Assert(size%2 == 0, "pi: unaligned dma load")
 
-	buf := cpu.MakePaddedSlice(size)
+	buf := cpu.MakePaddedSliceAligned[byte](size, 2)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
-	// TODO 2 byte alignment might be needed according to n64brew wiki
 	regs.writeLen.Store(uint32(size - 1))
 
 	waitDMA()
 
-	cpu.Invalidate(addr, len(buf))
+	cpu.InvalidateSlice(buf)
 
 	return buf
 }
@@ -39,7 +38,7 @@ func DMAStore(piAddr uintptr, p []byte) {
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
-	cpu.Writeback(addr, len(buf))
+	cpu.WritebackSlice(buf)
 
 	regs.readLen.Store(uint32(len(buf) - 1))
 

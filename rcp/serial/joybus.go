@@ -32,7 +32,7 @@ func joybusPoll() {
 		sendAddr := uintptr(unsafe.Pointer(&sendMsg.buf))
 
 		dmaFinished.Clear()
-		cpu.Writeback(sendAddr, len(sendMsg.buf))
+		cpu.WritebackSlice(sendMsg.buf[:])
 		regs.dramAddr.Store(uint32(sendAddr))
 		regs.pifWriteAddr.Store(pifRamAddr)
 
@@ -49,7 +49,7 @@ func joybusPoll() {
 		// Wait until message was received
 		dmaFinished.Sleep(-1) // TODO sleep with timeout
 
-		cpu.Invalidate(recvAddr, len(recvMsg.buf))
+		cpu.InvalidateSlice(recvMsg.buf[:])
 		in <- &recvMsg
 	}
 }

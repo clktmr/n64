@@ -28,7 +28,7 @@ func Probe() *ISViewer {
 	regs.buf[0].Store(probeVal)
 	if regs.buf[0].Load() == probeVal {
 		return &ISViewer{
-			buf: cpu.MakePaddedSlice(bufferSize),
+			buf: cpu.MakePaddedSlice[byte](bufferSize),
 		}
 	}
 	return nil

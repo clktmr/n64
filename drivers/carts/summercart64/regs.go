@@ -77,7 +77,7 @@ func Probe() *SummerCart64 {
 
 	if regs.identifier.Load() == 0x53437632 { // SummerCart64 V2
 		return &SummerCart64{
-			buf: cpu.MakePaddedSlice(bufferSize),
+			buf: cpu.MakePaddedSlice[byte](bufferSize),
 		}
 	}
 	return nil
