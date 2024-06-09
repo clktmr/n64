@@ -34,9 +34,11 @@ type RDPState struct {
 	bbp              BitDepth
 }
 
+const DisplayListLength = 256
+
 func NewDisplayList() *DisplayList {
 	return &DisplayList{
-		commands: cpu.MakePaddedSlice[Command](32)[:0],
+		commands: cpu.MakePaddedSlice[Command](DisplayListLength)[:0],
 	}
 }
 
@@ -87,6 +89,11 @@ const (
 	BBP32
 )
 
+func (dl *DisplayList) push(cmd Command) {
+	dl.commands = dl.commands[:len(dl.commands)+1]
+	dl.commands[len(dl.commands)-1] = cmd
+}
+
 // Shift a number of pixels left by pixelsToBytes to get their size in bytes.
 func pixelsToBytes(pixels int, bbp BitDepth) int {
 	shift := int(bbp)>>19 - 1
@@ -103,7 +110,7 @@ func (dl *DisplayList) SetColorImage(addr uintptr, width uint32, format ImageFor
 
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: uint32((0xff << 24) | uint32(format) | uint32(bbp) | (width - 1)),
 		LW: cpu.PhysicalAddress(addr),
 	})
@@ -116,7 +123,7 @@ func (dl *DisplayList) SetColorImage(addr uintptr, width uint32, format ImageFor
 func (dl *DisplayList) SetDepthImage(addr uintptr) {
 	debug.Assert(addr%64 == 0, "rdp zbuffer must be 64 byte aligned")
 
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: 0xfe << 24,
 		LW: cpu.PhysicalAddress(addr),
 	})
@@ -127,7 +134,7 @@ func (dl *DisplayList) SetTextureImage(addr uintptr, width uint32, bbp BitDepth)
 	debug.Assert(addr%8 == 0, "rdp texture must be 8 byte aligned")
 	debug.Assert(width < 1<<9, "rdp texture width too big")
 
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		// according to wiki, format[23:21] has no effect
 		UW: (0xfd << 24) | uint32(bbp) | (width - 1),
 		LW: cpu.PhysicalAddress(addr),
@@ -189,7 +196,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	cmdLW |= uint32(ts.MaskT)<<14 | uint32(ts.ShiftT)<<10
 	cmdLW |= uint32(ts.MaskS)<<4 | uint32(ts.ShiftS)
 	cmdLW |= uint32(ts.Flags)
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: cmdUW,
 		LW: cmdLW,
 	})
@@ -203,7 +210,7 @@ func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
 	cmdUW := 0xf4<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
 	cmdLW := uint32(idx)<<24 | uint32(r.Max.X-1)<<14 | uint32(r.Max.Y-1)<<2
 
-	dl.commands = append(dl.commands, Command{UW: cmdUW, LW: cmdLW})
+	dl.push(Command{UW: cmdUW, LW: cmdLW})
 }
 
 // Tile size is automatically set on LoadTile(), but can be overidden with
@@ -212,7 +219,7 @@ func (dl *DisplayList) SetTileSize(idx uint8, r image.Rectangle) {
 	cmdUW := 0xf2<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
 	cmdLW := uint32(idx)<<24 | uint32(r.Max.X-1)<<14 | uint32(r.Max.Y-1)<<2
 
-	dl.commands = append(dl.commands, Command{UW: cmdUW, LW: cmdLW})
+	dl.push(Command{UW: cmdUW, LW: cmdLW})
 }
 
 // Mode flags for the SetOtherModes() command.
@@ -358,7 +365,7 @@ func (dl *DisplayList) SetOtherModes(
 	// TODO merge with previous command if also SetOtherModes
 
 	cmd := 0xef00_000f_0000_0000 | m
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: uint32(cmd >> 32),
 		LW: uint32(cmd),
 	})
@@ -382,7 +389,7 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, i InterlaceFrame) {
 	cmd := uint64(0xed << 56)
 	cmd |= uint64(r.Min.X<<46) | uint64(r.Min.Y<<34) | uint64(r.Max.X<<14) | uint64(r.Max.Y<<3)
 	cmd |= uint64(i) << 24
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: uint32(cmd >> 32),
 		LW: uint32(cmd),
 	})
@@ -410,7 +417,7 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	} else {
 		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")
 	}
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: 0xf700_0000,
 		LW: ci,
 	})
@@ -425,7 +432,7 @@ func (dl *DisplayList) SetBlendColor(c color.Color) {
 
 	dl.sync(Pipe)
 
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: 0xf900_0000,
 		LW: uint32(dl.blendColor.R)<<24 | uint32(dl.blendColor.G)<<16 |
 			uint32(dl.blendColor.B)<<8 | uint32(dl.blendColor.A),
@@ -441,7 +448,7 @@ func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
 
 	dl.sync(Pipe)
 
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: 0xfa00_0000,
 		LW: uint32(dl.primitiveColor.R)<<24 | uint32(dl.primitiveColor.G)<<16 |
 			uint32(dl.primitiveColor.B)<<8 | uint32(dl.primitiveColor.A),
@@ -457,7 +464,7 @@ func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
 
 	dl.sync(Pipe)
 
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: 0xfb00_0000,
 		LW: uint32(dl.environmentColor.R)<<24 | uint32(dl.environmentColor.G)<<16 |
 			uint32(dl.environmentColor.B)<<8 | uint32(dl.environmentColor.A),
@@ -487,7 +494,7 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 
 	dl.sync(Pipe)
 
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: uint32(0xfc00_0000 |
 			m.One.RGB.A<<20 | m.One.RGB.C<<15 |
 			m.One.Alpha.A<<12 | m.One.Alpha.C<<9 |
@@ -509,7 +516,7 @@ func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 
 	cmd := uint64(0xf6 << 56)
 	cmd |= uint64(r.Max.X<<46) | uint64(r.Max.Y<<34) | uint64(r.Min.X<<14) | uint64(r.Min.Y<<2)
-	dl.commands = append(dl.commands, Command{
+	dl.push(Command{
 		UW: uint32(cmd >> 32),
 		LW: uint32(cmd),
 	})
@@ -523,12 +530,11 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 
 	cmdUW := 0xe4<<24 | uint32(r.Max.X)<<14 | uint32(r.Max.Y)<<2
 	cmdLW := uint32(tileIdx)<<24 | uint32(r.Min.X)<<14 | uint32(r.Min.Y)<<2
-	dl.commands = append(dl.commands, []Command{
-		Command{UW: cmdUW, LW: cmdLW},
-		Command{
-			UW: uint32(p.X<<21 | p.Y<<5),
-			LW: uint32(((0x8000/scale.X)>>5)<<16 | (0x8000/scale.Y)>>5)},
-	}...)
+	dl.push(Command{UW: cmdUW, LW: cmdLW})
+	dl.push(Command{
+		UW: uint32(p.X<<21 | p.Y<<5),
+		LW: uint32(((0x8000/scale.X)>>5)<<16 | (0x8000/scale.Y)>>5),
+	})
 }
 
 type SyncCommand uint32
@@ -561,8 +567,5 @@ func (dl *DisplayList) sync(s SyncCommand) {
 		return
 	}
 
-	dl.commands = append(dl.commands, Command{
-		UW: uint32(s),
-		LW: 0x0,
-	})
+	dl.push(Command{UW: uint32(s), LW: 0x0})
 }

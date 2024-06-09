@@ -15,7 +15,7 @@ import (
 type Rdp struct {
 	target image.Image // TODO use video.Framebuffer instead
 	bounds image.Rectangle
-	dlist  DisplayList
+	dlist  *DisplayList
 
 	fill image.Uniform
 }
@@ -23,6 +23,7 @@ type Rdp struct {
 func NewRdp(fb image.Image) *Rdp {
 	rdp := &Rdp{
 		target: fb,
+		dlist:  NewDisplayList(),
 	}
 
 	switch img := fb.(type) {
@@ -45,7 +46,7 @@ func NewRdp(fb image.Image) *Rdp {
 }
 
 func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
-	if len(fb.dlist.commands) > 1024 { // TODO ugly
+	if len(fb.dlist.commands) >= DisplayListLength/2 { // TODO ugly
 		fb.Flush()
 	}
 
@@ -292,8 +293,8 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src Texture, p image.Point, sca
 }
 
 func (fb *Rdp) Flush() {
-	Run(&fb.dlist)
-	fb.dlist.commands = fb.dlist.commands[0:2] // TODO ugly displaylist reset
+	Run(fb.dlist)
+	fb.dlist.commands = fb.dlist.commands[:2] // TODO ugly displaylist reset
 }
 
 func maxTile(bpp BitDepth) image.Rectangle {
