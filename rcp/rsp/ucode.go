@@ -1,8 +1,9 @@
 package rsp
 
 import (
-	"n64/rcp/cpu"
 	"runtime"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 var currentUCode *UCode

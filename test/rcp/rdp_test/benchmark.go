@@ -3,10 +3,11 @@ package rdp_test
 import (
 	"image"
 	"image/draw"
-	"n64/rcp"
-	"n64/rcp/rdp"
-	"n64/rcp/video"
 	"testing"
+
+	"github.com/clktmr/n64/rcp"
+	"github.com/clktmr/n64/rcp/rdp"
+	"github.com/clktmr/n64/rcp/video"
 )
 
 func BenchmarkFillScreen(b *testing.B) {

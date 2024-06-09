@@ -8,8 +8,9 @@
 package cpu
 
 import (
-	"n64/debug"
 	"unsafe"
+
+	"github.com/clktmr/n64/debug"
 )
 
 const CacheLineSize = 16

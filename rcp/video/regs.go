@@ -4,8 +4,9 @@ package video
 
 import (
 	"embedded/mmio"
-	"n64/rcp/cpu"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))

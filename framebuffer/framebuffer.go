@@ -3,8 +3,9 @@ package framebuffer
 import (
 	"image"
 	"image/draw"
-	"n64/rcp/video"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/video"
 )
 
 const (

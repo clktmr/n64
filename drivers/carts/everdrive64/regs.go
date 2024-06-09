@@ -1,9 +1,10 @@
 package everdrive64
 
 import (
-	"n64/rcp/cpu"
-	"n64/rcp/periph"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/periph"
 )
 
 type usbMode uint32

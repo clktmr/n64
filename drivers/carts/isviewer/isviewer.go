@@ -2,9 +2,10 @@ package isviewer
 
 import (
 	"io"
-	"n64/rcp/cpu"
-	"n64/rcp/periph"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/periph"
 )
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))

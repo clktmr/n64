@@ -2,12 +2,13 @@ package rsp_test
 
 import (
 	"bytes"
-	"n64/rcp"
-	"n64/rcp/cpu"
-	"n64/rcp/rsp"
 	"testing"
 	"time"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp"
+	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/rsp"
 )
 
 func TestDMA(t *testing.T) {

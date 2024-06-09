@@ -1,9 +1,10 @@
 package cpu_test
 
 import (
-	"n64/rcp/cpu"
 	"testing"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 func testMakePaddedSlice[T any](t *testing.T) {

@@ -2,8 +2,9 @@ package everdrive64
 
 import (
 	"io"
-	"n64/rcp/cpu"
-	"n64/rcp/periph"
+
+	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/periph"
 )
 
 const bufferSize = 512

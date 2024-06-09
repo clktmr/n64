@@ -3,7 +3,8 @@ package framebuffer
 import (
 	"image"
 	"image/color"
-	"n64/rcp/cpu"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 const Alignment = 64

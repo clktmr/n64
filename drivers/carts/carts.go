@@ -2,9 +2,10 @@ package carts
 
 import (
 	"io"
-	"n64/drivers/carts/everdrive64"
-	"n64/drivers/carts/isviewer"
-	"n64/drivers/carts/summercart64"
+
+	"github.com/clktmr/n64/drivers/carts/everdrive64"
+	"github.com/clktmr/n64/drivers/carts/isviewer"
+	"github.com/clktmr/n64/drivers/carts/summercart64"
 )
 
 type Cart interface {

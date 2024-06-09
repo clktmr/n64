@@ -5,9 +5,10 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"n64/debug"
-	"n64/rcp/video"
 	"unsafe"
+
+	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/rcp/video"
 
 	"github.com/embeddedgo/display/images"
 )

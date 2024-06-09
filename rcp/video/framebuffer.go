@@ -4,8 +4,9 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"n64/rcp/cpu"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 const (

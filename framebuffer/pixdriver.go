@@ -4,7 +4,8 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"n64/rcp/cpu"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 func (fb *Framebuffer) Draw(r image.Rectangle, src image.Image, sp image.Point,

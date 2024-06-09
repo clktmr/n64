@@ -2,8 +2,9 @@ package serial
 
 import (
 	"embedded/rtos"
-	"n64/rcp/cpu"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 type message struct {

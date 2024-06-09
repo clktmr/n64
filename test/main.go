@@ -9,13 +9,13 @@ import (
 	"syscall"
 	"testing"
 
-	"n64/drivers"
-	"n64/drivers/carts"
-	"n64/rcp/cpu"
+	"github.com/clktmr/n64/drivers"
+	"github.com/clktmr/n64/drivers/carts"
+	"github.com/clktmr/n64/rcp/cpu"
 
-	"n64/test/rcp/cpu_test"
-	"n64/test/rcp/rdp_test"
-	"n64/test/rcp/rsp_test"
+	"github.com/clktmr/n64/test/rcp/cpu_test"
+	"github.com/clktmr/n64/test/rcp/rdp_test"
+	"github.com/clktmr/n64/test/rcp/rsp_test"
 
 	"github.com/embeddedgo/fs/termfs"
 )

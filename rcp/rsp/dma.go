@@ -1,10 +1,11 @@
 package rsp
 
 import (
-	"n64/debug"
-	"n64/rcp/cpu"
 	"runtime"
 	"unsafe"
+
+	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 // TODO protect access to DMA with mutex

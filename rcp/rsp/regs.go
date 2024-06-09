@@ -6,8 +6,9 @@ package rsp
 
 import (
 	"embedded/mmio"
-	"n64/rcp/cpu"
 	"unsafe"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 // RSP program counter.  Access only allowed when RSP is halted.

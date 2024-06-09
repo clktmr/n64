@@ -7,13 +7,14 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
-	"n64/framebuffer"
-	"n64/rcp"
-	"n64/rcp/cpu"
-	"n64/rcp/rdp"
-	"n64/rcp/video"
 	"testing"
 	"unsafe"
+
+	"github.com/clktmr/n64/framebuffer"
+	"github.com/clktmr/n64/rcp"
+	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/rdp"
+	"github.com/clktmr/n64/rcp/video"
 )
 
 //go:embed testdata/gradient.png

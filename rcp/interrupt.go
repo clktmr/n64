@@ -1,10 +1,10 @@
 package rcp
 
 import (
-	"n64/rcp/rdp"
-	"n64/rcp/rsp"
-	"n64/rcp/serial"
-	"n64/rcp/video"
+	"github.com/clktmr/n64/rcp/rdp"
+	"github.com/clktmr/n64/rcp/rsp"
+	"github.com/clktmr/n64/rcp/serial"
+	"github.com/clktmr/n64/rcp/video"
 
 	"embedded/rtos"
 

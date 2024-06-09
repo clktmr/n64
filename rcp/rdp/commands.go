@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	"n64/debug"
-	"n64/rcp/cpu"
 	"unsafe"
+
+	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 // Each RDP command is a 64-bit qword, but needs to be stored as two words to
