@@ -58,6 +58,7 @@ func main() {
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(rdp_test.BenchmarkFillScreen),
+			newInternalBenchmark(rdp_test.BenchmarkTextureRectangle),
 		}, nil,
 	)
 }
