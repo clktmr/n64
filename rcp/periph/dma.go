@@ -29,19 +29,17 @@ func DMALoad(piAddr uintptr, size int) []byte {
 
 // Stores bytes from RDRAM to PI bus via DMA
 func DMAStore(piAddr uintptr, p []byte) {
-	buf := p
-
 	debug.Assert(len(p)%2 == 0, "pi: unaligned dma store")
 
 	p = cpu.PaddedSlice(p)
 
-	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
-	cpu.WritebackSlice(buf)
+	cpu.WritebackSlice(p)
 
-	regs.readLen.Store(uint32(len(buf) - 1))
+	regs.readLen.Store(uint32(len(p) - 1))
 
 	waitDMA()
 }

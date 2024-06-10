@@ -12,6 +12,7 @@ type Console interface {
 	io.ReadWriter
 }
 
+// FIXME SystemWriter needs go:nosplit pragma
 type SystemWriter func(int, []byte) int
 
 // Returns a SystemWriter from an io.Writer for rtos.SetSystemWriter()
