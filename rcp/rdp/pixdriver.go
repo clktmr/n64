@@ -299,7 +299,7 @@ func (fb *Rdp) Flush() {
 }
 
 func maxTile(bpp BitDepth) image.Rectangle {
-	size := 256 >> uint(bpp>>19)
+	size := 256 >> uint(bpp>>51)
 	return image.Rect(0, 0, size, size)
 }
 
