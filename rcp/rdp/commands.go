@@ -425,8 +425,6 @@ func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
 	}
 	dl.primitiveColor = cRGBA
 
-	dl.sync(Pipe)
-
 	dl.push(0xfa<<56 |
 		Command(dl.primitiveColor.R)<<24 | Command(dl.primitiveColor.G)<<16 |
 		Command(dl.primitiveColor.B)<<8 | Command(dl.primitiveColor.A))
