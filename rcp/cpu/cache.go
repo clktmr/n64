@@ -31,12 +31,17 @@ func Writeback(addr uintptr, length int)
 // address is currently not cached, this is a no-op.
 func Invalidate(addr uintptr, length int)
 
+// Only types with CacheLineSize%unsafe.Sizeof(T) == 0
+type Paddable interface {
+	~uint8 | ~uint16 | ~uint32 | ~uint64 | ~int8 | ~int16 | ~int32 | ~int64
+}
+
 // A slice that is safe for cache ops.  It's start is aligned to CacheLineSize
 // and the end is padded to fill the cache line.  Note that using append() might
 // corrupt the padding.
 // Aligning the slice start to CacheLineSize has the advantage that runtime
 // validation is possible, see IsPadded().
-func MakePaddedSlice[T any](size int) []T {
+func MakePaddedSlice[T Paddable](size int) []T {
 	var t T
 	cls := CacheLineSize / int(unsafe.Sizeof(t))
 	buf := make([]T, 0, cls+size+cls)
@@ -46,7 +51,7 @@ func MakePaddedSlice[T any](size int) []T {
 }
 
 // Ensure a slice is padded.  Might copy the slice if necessary
-func PaddedSlice[T any](slice []T) []T {
+func PaddedSlice[T Paddable](slice []T) []T {
 	if IsPadded(slice) == false {
 		buf := MakePaddedSlice[T](len(slice))
 		copy(buf, slice)
@@ -56,7 +61,7 @@ func PaddedSlice[T any](slice []T) []T {
 }
 
 // Same as MakePaddedSlice with extra alignment requirements.
-func MakePaddedSliceAligned[T any](size int, align uintptr) []T {
+func MakePaddedSliceAligned[T Paddable](size int, align uintptr) []T {
 	var t T
 	if align <= CacheLineSize || align <= unsafe.Alignof(t) {
 		return MakePaddedSlice[T](size)
@@ -69,7 +74,7 @@ func MakePaddedSliceAligned[T any](size int, align uintptr) []T {
 }
 
 // Returns true if p is safe for cache ops, i.e. padded and aligned to cache.
-func IsPadded[T any](p []T) bool {
+func IsPadded[T Paddable](p []T) bool {
 	var t T
 	cls := CacheLineSize / int(unsafe.Sizeof(t))
 
@@ -77,7 +82,7 @@ func IsPadded[T any](p []T) bool {
 	return addr%CacheLineSize == 0 && cap(p)-len(p) >= cls-len(p)%cls
 }
 
-func WritebackSlice[T any](buf []T) {
+func WritebackSlice[T Paddable](buf []T) {
 	debug.Assert(IsPadded(buf), "unpadded cache writeback")
 
 	var t T
@@ -85,7 +90,7 @@ func WritebackSlice[T any](buf []T) {
 	Writeback(addr, len(buf)*int(unsafe.Sizeof(t)))
 }
 
-func InvalidateSlice[T any](buf []T) {
+func InvalidateSlice[T Paddable](buf []T) {
 	debug.Assert(IsPadded(buf), "unpadded cache invalidate")
 
 	var t T
