@@ -29,7 +29,7 @@ func handler() {
 	case pending&SerialInterface != 0:
 		serial.Handler()
 	case pending&DisplayProcessor != 0:
-		regs.mode.SetBits(0x800) // TODO name const
+		regs.mode.Store(ClearDP)
 		rdp.Handler()
 	default:
 		panic("unknown rcp interrupt")

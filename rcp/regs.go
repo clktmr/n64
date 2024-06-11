@@ -27,8 +27,30 @@ const (
 	InterruptFlagLast
 )
 
+type ModeFlag uint32
+
+const RepeatCountMask ModeFlag = 0x7f
+
+// mode read access
+const (
+	Repeat ModeFlag = 1 << (iota + 7)
+	EBus
+	Upper
+)
+
+// mode write access
+const (
+	ClearRepeat ModeFlag = 1 << (iota + 7)
+	SetRepeat
+	ClearEBus
+	SetEBus
+	ClearDP
+	ClearUpper
+	SetUpper
+)
+
 type registers struct {
-	mode mmio.U32
+	mode mmio.R32[ModeFlag]
 
 	rspVersion mmio.U8
 	rdpVersion mmio.U8
@@ -51,12 +73,12 @@ type registers struct {
 func EnableInterrupts(mask InterruptFlag) {
 	mask = convertMask(mask)
 	mask = mask << 1
-	regs.mask.SetBits(mask)
+	regs.mask.Store(mask)
 }
 
 func DisableInterrupts(mask InterruptFlag) {
 	mask = convertMask(mask)
-	regs.mask.SetBits(mask)
+	regs.mask.Store(mask)
 }
 
 func convertMask(mask InterruptFlag) InterruptFlag {
