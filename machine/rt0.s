@@ -34,30 +34,7 @@ TEXT machine·rt0(SB),NOSPLIT|NOFRAME,$0
 
 	JAL  ·rt0_tlb(SB)
 
-	// Check whether we are running on iQue or N64. Use the MI version
-	// register which has LSB set to 0xB0 on iQue. We assume 0xBn was meant
-	// for BBPlayer. Notice that we want this test to be hard for emulators
-	// to pass by mistake, so checking for a specific value while reading
-	// seems solid enough.
 	MOVW (0x80000318), R8 // memory size
-	MOVW (0xA4300004), R9
-	MOVW $0xB0, R10
-	AND  $0xF0, R9
-	MOVW $0, R15 // R15=0 -> vanilla N64
-	BNE  R9, R10, set_sp
-
-	// In iQue player, memory allocated to game can be configured and it
-	// appears in 0x80000318. On the other hand, the top 8 MiB of RDRAM is
-	// reserved to savegames. So avoid putting the stack there, capping the
-	// size to 0x7C0000. See also get_memory_size.
-	MOVW $1, R15 // R15=1 -> iQue player
-	MOVW 0x800000, R9
-	SGT  R10, R9, R8
-	MOVW 0x0, R9
-	BNE  R10, R9, set_sp
-	MOVW 0x7C0000, R8
-
-set_sp:
 	MOVV $0x10, R9
 	SUBV R9, R8, R29 // init stack pointer
 	MOVV $0, RSB // init data pointer
@@ -99,9 +76,6 @@ wait_dma_end:
 	MOVW 0x10(R8), R9 // PI_STATUS
 	AND  $3, R9 // PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY
 	BGTZ R9, wait_dma_end
-
-	// Store the BBPlayer flag now that BSS has been cleared
-	MOVB R15, ·BBPlayer(SB)
 
 	JMP runtime·_rt0_mips64_noos1(SB)
 

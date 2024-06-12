@@ -9,9 +9,6 @@ import (
 	"github.com/clktmr/n64/rcp/periph"
 )
 
-// True if iQue hardware was detected
-var BBPlayer bool
-
 // TODO use register definitions from isviewer package
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
