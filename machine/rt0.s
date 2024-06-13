@@ -22,14 +22,15 @@
 #define SR_PE           0x00100000      /* Mark soft reset (clear parity error) */
 
 
-#define DEFAULT_C0_SR SR_CU1|SR_PE|SR_FR
+// Prepend NOOP to avert CP0 hazards
+#define TLBWI NOOP; WORD $0x42000002
 
-#define TLBWI WORD $0x42000002
-
+// TODO Use libdragons opensource bootloader
 TEXT machine·rt0(SB),NOSPLIT|NOFRAME,$0
-	// Watchpoints have been proven to persist across resets and even with
-	// the console being off. Zero it as early as possible, to avoid it
-	// triggering during boot. This should really be done at the start IPL3.
+	// start at a known state
+	MOVW $(SR_CU1|SR_PE|SR_FR), R2
+	MOVW R2, M(C0_SR)
+	MOVW R0, M(C0_CAUSE)
 	MOVW R0, M(C0_WATCHLO)
 
 	JAL  ·rt0_tlb(SB)
@@ -41,21 +42,14 @@ TEXT machine·rt0(SB),NOSPLIT|NOFRAME,$0
 	MOVW $8, R2
 	MOVW R2, (0xbfc007fc) // magic N64 hardware init
 
-	// a bit from libgloss so we start at a known state
-	MOVW $DEFAULT_C0_SR, R2
-	MOVW R2, M(C0_SR)
-	MOVW $0, M(C0_CAUSE)
-
 	// Check if PI DMA transfer is required, knowing that IPL3 loads 1 MiB
-	// of ROM to RAM, and __libdragon_text_start is located right after the
-	// ROM header where this 1 MiB starts.
-	// TODO test again with TLB mappings configured
+	// of ROM to RAM.
 	MOVW $_rt0_mips64_noos(SB), R4
 	MOVW $runtime·edata(SB), R5
 	MOVW $0x100000, R8 // stock IPL3 load size (1 MiB)
 	SUBU R4, R5, R6	// calculate data size
 	SUB  R8, R6, R6 // calculate remaining data size
-	BLEZ R6, skip_dma // skip PI DMA if data is already loaded
+	BLEZ R6, wait_dma_end // skip PI DMA if data is already loaded
 
 	// Copy code and data via DMA
 	MOVW $0x10001000, R5 // address in rom
@@ -69,25 +63,33 @@ TEXT machine·rt0(SB),NOSPLIT|NOFRAME,$0
 	ADD  $-1, R6
 	MOVW R6, 0x0C(R8) // PI_WR_LEN
 
-skip_dma:
-	// Wait for DMA transfer to be finished
-	MOVW $0xA4600000, R8
 wait_dma_end:
+	MOVW $0xA4600000, R8
 	MOVW 0x10(R8), R9 // PI_STATUS
 	AND  $3, R9 // PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY
 	BGTZ R9, wait_dma_end
 
 	JMP runtime·_rt0_mips64_noos1(SB)
 
-// Maps KSEG0, KSEG1 and ROM to the beginning of the virtual address space.
-// This saves us from sign-extending pointers correctly, as we avoid pointers
-// upwards of 0x80000000.
-// The only problems encountered with falsely sign-extended pointers were symbol
-// addresses loaded from the ELF.  Otherwise running code in KSEG0 seems to be
-// no problem in general.
-// The correct way of doing this would probably involve defining a new 64-bit
-// architecture with PtrSize = 4, but I have ran into some issues that weren't
-// worth fixing at the moment.
+// The n64 actually needs to be compiled for GOARCH=mips64p32 which isn't
+// supported by gc.  Instead we use mips64, but to do so we must ensure at
+// runtime that pointers are always 32-bit and correctly sign-extended to 64-bit
+// pointers.  Sign-extending means, setting all bits of the upper DWORD to the
+// same value as bit 31.
+// In 32-bit kernel mode the VR4300 has all of it's physical memory mapped to
+// KSEG0=0x80000000 and again at KSEG1=0xa0000000 for uncached access.  Running
+// code there generally works, but we get in trouble as soon es we read pointers
+// from external sources, e.g. when doing symbol lookup.  These addresses won't
+// get sign-extended correctly, but always padded with zeroes instead.
+// To solve this we map KSEG0, KSEG1 to the beginning of the virtual address
+// space and continue execution there.  This saves us from sign-extending
+// pointers correctly, as we avoid pointers with bit 31 set, leaving us
+// effectively with an 31-bit wide address space.
+//
+// Possibly another way of solving this would be running the n64 in actual
+// 64-bit mode, but I'm not sure what other problems might occur when accessing
+// the 32-bit wide system bus.
+//
 // TODO currently only 16 MiB of cartridge is mapped
 TEXT ·rt0_tlb(SB),NOSPLIT|NOFRAME,$0
 	MOVV $0, R8
@@ -100,7 +102,6 @@ TEXT ·rt0_tlb(SB),NOSPLIT|NOFRAME,$0
 	MOVV R8, M(C0_ENTRYLO1)
 	MOVV $0x00000000, R8
 	MOVV R8, M(C0_ENTRYHI)
-	NOOP // avert CP0 hazards
 	TLBWI
 
 	MOVV $1, R8
@@ -113,7 +114,6 @@ TEXT ·rt0_tlb(SB),NOSPLIT|NOFRAME,$0
 	MOVV R8, M(C0_ENTRYLO1)
 	MOVV $0x10000000, R8
 	MOVV R8, M(C0_ENTRYHI)
-	NOOP // avert CP0 hazards
 	TLBWI
 
 	MOVV $2, R8
@@ -126,7 +126,6 @@ TEXT ·rt0_tlb(SB),NOSPLIT|NOFRAME,$0
 	MOVV R8, M(C0_ENTRYLO1)
 	MOVV $0x20000000, R8
 	MOVV R8, M(C0_ENTRYHI)
-	NOOP // avert CP0 hazards
 	TLBWI
 
 	MOVV $0x7fffffff, R8
