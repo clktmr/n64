@@ -38,12 +38,29 @@ const (
 type command status
 
 const (
-	cmdConfigGet       = 'c'
-	cmdConfigSet       = 'C'
-	cmdUSBRead         = 'm'
-	cmdUSBWrite        = 'M'
-	cmdUSBReadStatus   = 'u'
-	cmdUSBWrtiteStatus = 'U'
+	cmdIdentifierGet    = 'v'
+	cmdVersionGet       = 'V'
+	cmdConfigGet        = 'c'
+	cmdConfigSet        = 'C'
+	cmdSettingGet       = 'a'
+	cmdSettingSet       = 'A'
+	cmdTimeGet          = 't'
+	cmdTimeSet          = 'T'
+	cmdUSBRead          = 'm'
+	cmdUSBWrite         = 'M'
+	cmdUSBReadStatus    = 'u'
+	cmdUSBWrtiteStatus  = 'U'
+	cmdSDCardOp         = 'i'
+	cmdSDSectorSet      = 'I'
+	cmdSDRead           = 's'
+	cmdSDWrite          = 'S'
+	cmdDiskMappingSet   = 'D'
+	cmdWritebackPending = 'w'
+	cmdWritebackSDInfo  = 'W'
+	cmdFlashProgram     = 'K'
+	cmdFlashWaitBusy    = 'p'
+	cmdFlashEraseBlock  = 'P'
+	cmdDiagnosticGet    = '%'
 )
 
 type config uint32
@@ -84,8 +101,18 @@ func Probe() *SummerCart64 {
 	return nil
 }
 
+func (v *SummerCart64) ROMWriteEnable(en bool) (old bool, err error) {
+	var eni uint32
+	if en {
+		eni = 1
+	}
+	_, oldi, err := execCommand(cmdConfigSet, cfgROMWriteEnable, eni)
+	old = (oldi != 0)
+	return old, err
+}
+
 func (v *SummerCart64) Write(p []byte) (n int, err error) {
-	_, writeEnable, err := execCommand(cmdConfigSet, cfgROMWriteEnable, 1)
+	writeEnable, err := v.ROMWriteEnable(true)
 	if err != nil {
 		return 0, err
 	}
@@ -106,7 +133,7 @@ func (v *SummerCart64) Write(p []byte) (n int, err error) {
 
 	periph.DMAStore(usbBuf[0].Addr(), p[:n+n%2])
 
-	_, _, err = execCommand(cmdConfigSet, cfgROMWriteEnable, writeEnable)
+	_, err = v.ROMWriteEnable(writeEnable)
 	if err != nil {
 		return 0, err
 	}
