@@ -10,14 +10,20 @@ import (
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const baseAddr = uintptr(cpu.KSEG1 | 0x13ff_0014)
-const bufferSize = 512
+const token = 0x49533634
+const baseAddr = uintptr(cpu.KSEG1 | 0x13ff_0000)
+const bufferSize = 64*1024 - 0x20
 
 type registers struct {
-	writeLen periph.U32
+	token    periph.U32
+	readPtr  periph.U32
 	_        periph.U32
 	_        periph.U32
-	buf      [128]periph.U32
+	_        periph.U32
+	writePtr periph.U32
+	_        periph.U32
+	_        periph.U32
+	buf      [bufferSize / 4]periph.U32
 }
 
 type ISViewer struct {
@@ -25,9 +31,8 @@ type ISViewer struct {
 }
 
 func Probe() *ISViewer {
-	const probeVal = 0xbeefcafe
-	regs.buf[0].Store(probeVal)
-	if regs.buf[0].Load() == probeVal {
+	regs.token.Store(token)
+	if regs.token.Load() == token {
 		return &ISViewer{
 			buf: cpu.MakePaddedSlice[byte](bufferSize),
 		}
@@ -52,7 +57,12 @@ func (v *ISViewer) Write(p []byte) (n int, err error) {
 
 	periph.DMAStore(regs.buf[0].Addr(), p[:n+n%2])
 
-	regs.writeLen.Store(uint32(n))
+	wp := (regs.writePtr.Load() + uint32(n)) % bufferSize
+	regs.writePtr.Store(wp)
+
+	for regs.readPtr.Load() != regs.writePtr.Load() {
+		// wait
+	}
 
 	return n, err
 }
