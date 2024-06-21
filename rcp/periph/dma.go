@@ -11,10 +11,12 @@ import (
 
 // Loads bytes from PI bus into RDRAM via DMA
 func DMALoad(piAddr uintptr, size int) []byte {
-	debug.Assert(size%2 == 0, "pi: unaligned dma load")
+	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
+	debug.Assert(size%2 == 0, "PI end address unaligned")
 
 	buf := cpu.MakePaddedSliceAligned[byte](size, 2)
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
@@ -29,11 +31,13 @@ func DMALoad(piAddr uintptr, size int) []byte {
 
 // Stores bytes from RDRAM to PI bus via DMA
 func DMAStore(piAddr uintptr, p []byte) {
-	debug.Assert(len(p)%2 == 0, "pi: unaligned dma store")
+	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
+	debug.Assert(len(p)%2 == 0, "PI end address unaligned")
 
 	p = cpu.PaddedSlice(p)
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
