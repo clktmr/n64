@@ -34,6 +34,7 @@ type registers struct {
 //
 //go:nowritebarrierrec
 //go:nosplit
+//go:linkname DefaultWrite runtime.defaultWrite
 func DefaultWrite(fd int, p []byte) int {
 	n := len(p)
 	if n > bufferSize {

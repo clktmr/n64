@@ -5,7 +5,7 @@
 #include "asm_mips64.h"
 
 // TODO Use libdragons opensource bootloader
-TEXT machine·rt0(SB),NOSPLIT|NOFRAME,$0
+TEXT _rt0_mips64_noos(SB),NOSPLIT|NOFRAME,$0
 	// start at a known state
 	MOVW $(SR_CU1|SR_PE|SR_FR), R2
 	MOVW R2, M(C0_SR)
