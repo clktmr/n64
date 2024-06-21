@@ -12,14 +12,20 @@ import (
 // TODO use register definitions from isviewer package
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const baseAddr = uintptr(cpu.KSEG1 | 0x13ff_0014)
-const bufferSize = 512
+const token = 0x49533634
+const baseAddr = uintptr(cpu.KSEG1 | 0x13ff_0000)
+const bufferSize = 512 // actually 64*1024 - 0x20, but ISViewer.buf will allocate this
 
 type registers struct {
-	writeLen periph.U32
+	token    periph.U32
+	readPtr  periph.U32
 	_        periph.U32
 	_        periph.U32
-	buf      [128]periph.U32
+	_        periph.U32
+	writePtr periph.U32
+	_        periph.U32
+	_        periph.U32
+	buf      [bufferSize / 4]periph.U32
 }
 
 // Writes to ISViewer registers, regardless if a ISViewer is present or not.  Is
@@ -52,7 +58,15 @@ func DefaultWrite(fd int, p []byte) int {
 		regs.buf[n/4].Store(tail)
 	}
 
-	regs.writeLen.Store(uint32(n))
+	regs.readPtr.Store(0)
+	regs.writePtr.Store(uint32(n))
+	regs.token.Store(token)
+
+	for regs.readPtr.Load() != regs.writePtr.Load() {
+		// wait
+	}
+
+	regs.token.Store(0x0)
 
 	return n
 }
