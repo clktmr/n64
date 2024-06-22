@@ -12,9 +12,11 @@ import (
 )
 
 const (
-	RCP    rtos.IRQ = 2
-	CART   rtos.IRQ = 3
-	PRENMI rtos.IRQ = 4
+	RCP      rtos.IRQ = 3 // RCP forwards interrupt by another peripheral
+	CART     rtos.IRQ = 4 // Interrupt caused by a peripheral on the cartridge
+	PRENMI   rtos.IRQ = 5 // User has pushd reset button on console
+	RDBREAD  rtos.IRQ = 6 // Devboard has read the value in the RDB port
+	RDBWRITE rtos.IRQ = 7 // Devboard has written a value in the RDB port
 )
 
 //go:linkname handler IRQ3_Handler
