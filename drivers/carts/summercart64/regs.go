@@ -63,26 +63,6 @@ const (
 	cmdDiagnosticGet    = '%'
 )
 
-type config uint32
-
-const (
-	cfgBootloaderSwitch = iota
-	cfgROMWriteEnable
-	cfgROMShadowEnable
-	cfgDDMode
-	cfgISVAddress
-	cfgBootMode
-	cfgSaveType
-	cfgCICSeed
-	cfgTVType
-	cfgDDSDEnable
-	cfgDDDriveType
-	cfgDDDiskState
-	cfgButtonState
-	cfgButtonMode
-	cfgROMExtendedEnable
-)
-
 type SummerCart64 struct {
 	buf []byte
 }
@@ -101,18 +81,13 @@ func Probe() *SummerCart64 {
 	return nil
 }
 
-func (v *SummerCart64) ROMWriteEnable(en bool) (old bool, err error) {
-	var eni uint32
-	if en {
-		eni = 1
-	}
-	_, oldi, err := execCommand(cmdConfigSet, cfgROMWriteEnable, eni)
-	old = (oldi != 0)
-	return old, err
+//go:nosplit
+func (v *SummerCart64) ClearInterrupt() {
+	regs.identifier.Store(0)
 }
 
 func (v *SummerCart64) Write(p []byte) (n int, err error) {
-	writeEnable, err := v.ROMWriteEnable(true)
+	writeEnable, err := v.SetConfig(CfgROMWriteEnable, 1)
 	if err != nil {
 		return 0, err
 	}
@@ -133,7 +108,7 @@ func (v *SummerCart64) Write(p []byte) (n int, err error) {
 
 	periph.DMAStore(usbBuf[0].Addr(), p[:n+n%2])
 
-	_, err = v.ROMWriteEnable(writeEnable)
+	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
 	if err != nil {
 		return 0, err
 	}
