@@ -17,12 +17,9 @@ const bufferSize = 512 // actually 64*1024 - 0x20, but ISViewer.buf will allocat
 type registers struct {
 	token    periph.U32
 	readPtr  periph.U32
-	_        periph.U32
-	_        periph.U32
-	_        periph.U32
+	_        [3]periph.U32
 	writePtr periph.U32
-	_        periph.U32
-	_        periph.U32
+	_        [2]periph.U32
 	buf      [bufferSize / 4]periph.U32
 }
 
