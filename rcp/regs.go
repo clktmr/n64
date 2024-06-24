@@ -9,7 +9,7 @@ import (
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const baseAddr = uintptr(cpu.KSEG1 | 0x0430_0000)
+const baseAddr uintptr = cpu.KSEG1 | 0x0430_0000
 
 // The RCP has multiple interrupts, which are all routed to the same external
 // interrupt line on the CPU.  So all of these must be handled in the

@@ -13,7 +13,7 @@ import (
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
 const token = 0x49533634
-const baseAddr = uintptr(cpu.KSEG1 | 0x13ff_0000)
+const baseAddr uintptr = cpu.KSEG1 | 0x13ff_0000
 const bufferSize = 512 // actually 64*1024 - 0x20, but ISViewer.buf will allocate this
 
 type registers struct {

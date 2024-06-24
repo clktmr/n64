@@ -15,7 +15,7 @@ import (
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const baseAddr = uintptr(cpu.KSEG1 | 0x0480_0000)
+const baseAddr uintptr = cpu.KSEG1 | 0x0480_0000
 
 type statusFlags uint32
 

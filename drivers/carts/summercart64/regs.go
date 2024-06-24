@@ -11,12 +11,12 @@ import (
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const baseAddr = uintptr(cpu.KSEG1 | 0x1fff_0000)
+const baseAddr uintptr = cpu.KSEG1 | 0x1fff_0000
 const bufferSize = 512
 
 // It's up to us to choose a location in the ROM.  This puts it at the end of a
 // 64MB cartridge.
-var usbBuf *[128]periph.U32 = (*[128]periph.U32)(unsafe.Pointer(uintptr(cpu.KSEG1 | (0x1400_0000 - bufferSize))))
+var usbBuf *[128]periph.U32 = (*[128]periph.U32)(unsafe.Pointer(cpu.KSEG1 | (0x1400_0000 - bufferSize)))
 
 type registers struct {
 	status     periph.R32[status]

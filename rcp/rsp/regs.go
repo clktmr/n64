@@ -12,11 +12,11 @@ import (
 )
 
 // RSP program counter.  Access only allowed when RSP is halted.
-var pc *mmio.U32 = (*mmio.U32)(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x0408_0000)))
+var pc *mmio.U32 = (*mmio.U32)(unsafe.Pointer(cpu.KSEG1 | 0x0408_0000))
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
-const baseAddr = uintptr(cpu.KSEG1 | 0x0404_0000)
+const baseAddr uintptr = cpu.KSEG1 | 0x0404_0000
 
 type statusFlags uint32
 

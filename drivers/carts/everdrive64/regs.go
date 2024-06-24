@@ -34,10 +34,10 @@ var regs = struct {
 	sysCfg  *periph.U32
 	key     *periph.U32
 }{
-	(*periph.R32[usbStatus])(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x1f80_0004))),
-	(*periph.R32[usbMode])(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x1f80_0004))),
-	(*periph.U32)(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x1f80_0014))),
-	(*[128]periph.U32)(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x1f80_0400))),
-	(*periph.U32)(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x1f80_8000))),
-	(*periph.U32)(unsafe.Pointer(uintptr(cpu.KSEG1 | 0x1f80_8004))),
+	(*periph.R32[usbStatus])(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0004)),
+	(*periph.R32[usbMode])(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0004)),
+	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0014)),
+	(*[128]periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0400)),
+	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_8000)),
+	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_8004)),
 }
