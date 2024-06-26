@@ -10,23 +10,25 @@ import (
 // TODO protect access to DMA with mutex
 
 // Loads bytes from PI bus into RDRAM via DMA
-func DMALoad(piAddr uintptr, size int) []byte {
+func DMALoad(piAddr uintptr, p []byte) (n int, err error) {
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	size := len(p)
+
 	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
 	debug.Assert(size%2 == 0, "PI end address unaligned")
-
-	buf := cpu.MakePaddedSliceAligned[byte](size, 2)
-	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
+
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
-	cpu.InvalidateSlice(buf)
+	cpu.InvalidateSlice(p)
 
 	regs.writeLen.Store(uint32(size - 1))
 
 	waitDMA()
 
-	return buf
+	return size, err
 }
 
 // Stores bytes from RDRAM to PI bus via DMA

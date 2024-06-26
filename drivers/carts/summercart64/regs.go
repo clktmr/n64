@@ -1,8 +1,6 @@
 package summercart64
 
 import (
-	"errors"
-	"io"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -38,29 +36,29 @@ const (
 type command status
 
 const (
-	cmdIdentifierGet    = 'v'
-	cmdVersionGet       = 'V'
-	cmdConfigGet        = 'c'
-	cmdConfigSet        = 'C'
-	cmdSettingGet       = 'a'
-	cmdSettingSet       = 'A'
-	cmdTimeGet          = 't'
-	cmdTimeSet          = 'T'
-	cmdUSBRead          = 'm'
-	cmdUSBWrite         = 'M'
-	cmdUSBReadStatus    = 'u'
-	cmdUSBWrtiteStatus  = 'U'
-	cmdSDCardOp         = 'i'
-	cmdSDSectorSet      = 'I'
-	cmdSDRead           = 's'
-	cmdSDWrite          = 'S'
-	cmdDiskMappingSet   = 'D'
-	cmdWritebackPending = 'w'
-	cmdWritebackSDInfo  = 'W'
-	cmdFlashProgram     = 'K'
-	cmdFlashWaitBusy    = 'p'
-	cmdFlashEraseBlock  = 'P'
-	cmdDiagnosticGet    = '%'
+	cmdIdentifierGet    command = 'v'
+	cmdVersionGet       command = 'V'
+	cmdConfigGet        command = 'c'
+	cmdConfigSet        command = 'C'
+	cmdSettingGet       command = 'a'
+	cmdSettingSet       command = 'A'
+	cmdTimeGet          command = 't'
+	cmdTimeSet          command = 'T'
+	cmdUSBRead          command = 'm'
+	cmdUSBWrite         command = 'M'
+	cmdUSBReadStatus    command = 'u'
+	cmdUSBWriteStatus   command = 'U'
+	cmdSDCardOp         command = 'i'
+	cmdSDSectorSet      command = 'I'
+	cmdSDRead           command = 's'
+	cmdSDWrite          command = 'S'
+	cmdDiskMappingSet   command = 'D'
+	cmdWritebackPending command = 'w'
+	cmdWritebackSDInfo  command = 'W'
+	cmdFlashProgram     command = 'K'
+	cmdFlashWaitBusy    command = 'p'
+	cmdFlashEraseBlock  command = 'P'
+	cmdDiagnosticGet    command = '%'
 )
 
 type SummerCart64 struct {
@@ -84,81 +82,4 @@ func Probe() *SummerCart64 {
 //go:nosplit
 func (v *SummerCart64) ClearInterrupt() {
 	regs.identifier.Store(0)
-}
-
-func (v *SummerCart64) Write(p []byte) (n int, err error) {
-	writeEnable, err := v.SetConfig(CfgROMWriteEnable, 1)
-	if err != nil {
-		return 0, err
-	}
-
-	n = len(p)
-	if n > bufferSize {
-		n = bufferSize
-		err = io.ErrShortWrite
-	}
-
-	// If used as a SystemWriter we might be in a syscall.  Make sure we
-	// don't allocate in DMAStore, or we might panic with "malloc during
-	// signal".
-	if cpu.IsPadded(p) == false {
-		copy(v.buf, p)
-		p = v.buf
-	}
-
-	periph.DMAStore(usbBuf[0].Addr(), p[:n+n%2])
-
-	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
-	if err != nil {
-		return 0, err
-	}
-
-	datatype := 1
-	header := uint32(((datatype) << 24) | ((n) & 0x00FFFFFF))
-	_, _, err = execCommand(cmdUSBWrite, uint32(usbBuf[0].Addr()), header)
-	if err != nil {
-		return 0, err
-	}
-
-	err = waitUSBBusy()
-	if err != nil {
-		return 0, err
-	}
-
-	return n, err
-}
-
-var ErrCommand error = errors.New("execute sc64 command")
-
-func waitUSBBusy() error {
-	for {
-		status, _, err := execCommand(cmdUSBWrtiteStatus, 0, 0)
-		if err != nil {
-			return err
-		}
-		if status != uint32(statusBusy) {
-			break
-		}
-	}
-	return nil
-}
-
-func execCommand(cmdId command, data0 uint32, data1 uint32) (result0 uint32, result1 uint32, err error) {
-	regs.data0.Store(data0)
-	regs.data1.Store(data1)
-	regs.status.Store(status(cmdId))
-
-	for {
-		if regs.status.Load()&statusBusy == 0 {
-			break
-		}
-	}
-
-	if regs.status.Load()&statusError != 0 {
-		return 0, 0, ErrCommand
-	}
-
-	result0 = regs.data0.Load()
-	result1 = regs.data1.Load()
-	return
 }
