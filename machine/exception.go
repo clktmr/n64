@@ -14,6 +14,7 @@ func Exception(cause, epc, status, badvaddr, sp uint64) {
 	DefaultWrite(0, itoa(buf[:], badvaddr))
 	DefaultWrite(0, []byte("\nsp       0x"))
 	DefaultWrite(0, itoa(buf[:], sp))
+	DefaultWrite(0, []byte("\n"))
 }
 
 //go:nosplit
