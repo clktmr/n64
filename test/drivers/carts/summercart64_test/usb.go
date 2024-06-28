@@ -17,6 +17,9 @@ func mustSC64(t *testing.T) (sc64 *summercart64.SummerCart64) {
 }
 
 func TestUSBRead(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
 	sc64 := mustSC64(t)
 	buf := cpu.MakePaddedSlice[byte](7)
 

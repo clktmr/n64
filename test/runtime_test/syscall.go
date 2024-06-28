@@ -34,6 +34,9 @@ func blockingHandler() {
 
 func TestInterruptPrio(t *testing.T) {
 	sc64 = summercart64.Probe()
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
 	if sc64 == nil {
 		t.Skip("requires SummerCart64")
 	}

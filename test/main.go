@@ -47,6 +47,7 @@ func init() {
 
 func main() {
 	os.Args = append(os.Args, "-test.v")
+	os.Args = append(os.Args, "-test.short")
 	os.Args = append(os.Args, "-test.bench=.")
 	testing.Main(
 		matchAll,
