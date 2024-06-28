@@ -60,3 +60,9 @@ func waitDMA() {
 	}
 
 }
+
+//go:nosplit
+//go:nowritebarrierrec
+func Handler() {
+	regs.status.Store(clearInterrupt)
+}

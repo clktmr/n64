@@ -70,6 +70,10 @@ type registers struct {
 	mask mmio.R32[InterruptFlag]
 }
 
+func init() {
+	DisableInterrupts(^InterruptFlag(0))
+}
+
 func EnableInterrupts(mask InterruptFlag) {
 	mask = convertMask(mask)
 	mask = mask << 1
@@ -79,6 +83,10 @@ func EnableInterrupts(mask InterruptFlag) {
 func DisableInterrupts(mask InterruptFlag) {
 	mask = convertMask(mask)
 	regs.mask.Store(mask)
+}
+
+func Interrupts() {
+	regs.mask.Load()
 }
 
 func convertMask(mask InterruptFlag) InterruptFlag {

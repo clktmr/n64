@@ -18,15 +18,14 @@ import (
 	"github.com/clktmr/n64/test/rcp/cpu_test"
 	"github.com/clktmr/n64/test/rcp/rdp_test"
 	"github.com/clktmr/n64/test/rcp/rsp_test"
+	"github.com/clktmr/n64/test/runtime_test"
 
 	"github.com/embeddedgo/fs/termfs"
 )
 
 func init() {
 	systim.Setup(cpu.ClockSpeed)
-}
 
-func main() {
 	var err error
 	var cart carts.Cart
 
@@ -44,15 +43,18 @@ func main() {
 		panic(err)
 	}
 	os.Stderr = os.Stdout
+}
 
+func main() {
 	os.Args = append(os.Args, "-test.v")
 	os.Args = append(os.Args, "-test.bench=.")
 	testing.Main(
 		matchAll,
 		[]testing.InternalTest{
+			newInternalTest(runtime_test.TestFPUPreemption),
+			newInternalTest(runtime_test.TestInterruptPrio),
 			newInternalTest(cpu_test.TestMakePaddedSlice),
 			newInternalTest(cpu_test.TestMakePaddedSliceAligned),
-			newInternalTest(cpu_test.TestFPUPreemption),
 			newInternalTest(rsp_test.TestDMA),
 			newInternalTest(rsp_test.TestRun),
 			newInternalTest(rsp_test.TestInterrupt),
@@ -61,6 +63,7 @@ func main() {
 			newInternalTest(summercart64_test.TestUSBRead),
 		},
 		[]testing.InternalBenchmark{
+			newInternalBenchmark(runtime_test.BenchmarkSchedule),
 			newInternalBenchmark(rdp_test.BenchmarkFillScreen),
 			newInternalBenchmark(rdp_test.BenchmarkTextureRectangle),
 		}, nil,

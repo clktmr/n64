@@ -1,6 +1,7 @@
 package rcp
 
 import (
+	"github.com/clktmr/n64/rcp/periph"
 	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/rsp"
 	"github.com/clktmr/n64/rcp/serial"
@@ -19,21 +20,43 @@ const (
 	RDBWRITE rtos.IRQ = 7 // Devboard has written a value in the RDB port
 )
 
-//go:linkname handler IRQ3_Handler
+var handlers = [...]func(){
+	rsp.Handler,
+	serial.Handler,
+	func() { panic("unhandled AI interrupt") },
+	video.Handler,
+	periph.Handler,
+	func() { regs.mode.Store(ClearDP); rdp.Handler() },
+}
+
+//go:linkname rcpHandler IRQ3_Handler
 //go:interrupthandler
-func handler() {
+func rcpHandler() {
 	pending := regs.interrupt.Load()
-	switch {
-	case pending&SignalProcessor != 0:
-		rsp.Handler()
-	case pending&VideoInterface != 0:
-		video.Handler()
-	case pending&SerialInterface != 0:
-		serial.Handler()
-	case pending&DisplayProcessor != 0:
-		regs.mode.Store(ClearDP)
-		rdp.Handler()
-	default:
-		panic("unknown rcp interrupt")
+	mask := regs.mask.Load()
+	irq := 0
+	for flag := InterruptFlag(1); flag != InterruptFlagLast; flag = flag << 1 {
+		if flag&pending != 0 && flag&mask != 0 {
+			handlers[irq]()
+		}
+		irq += 1
+	}
+}
+
+func SetHandler(int InterruptFlag, handler func()) {
+	en, prio, _ := RCP.Status(0)
+	RCP.Disable(0)
+
+	irq := 0
+	for flag := InterruptFlag(1); flag != InterruptFlagLast; flag = flag << 1 {
+		if flag&int != 0 {
+			handlers[irq] = handler
+			break
+		}
+		irq += 1
+	}
+
+	if en {
+		RCP.Enable(prio, 0)
 	}
 }
