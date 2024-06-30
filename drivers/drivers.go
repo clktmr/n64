@@ -4,14 +4,6 @@ package drivers
 
 import "io"
 
-type Logger interface {
-	io.Writer
-}
-
-type Console interface {
-	io.ReadWriter
-}
-
 // FIXME SystemWriter needs go:nosplit pragma
 type SystemWriter func(int, []byte) int
 
