@@ -444,21 +444,6 @@ func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
 		Command(dl.environmentColor.B)<<8 | Command(dl.environmentColor.A))
 }
 
-type CombineSource uint64
-
-const (
-	CombineCombined CombineSource = iota
-	CombineTex0
-	CombineTex1
-	CombinePrimitive
-	CombineShade
-	CombineEnvironment
-)
-
-type CombineParams struct{ A, B, C, D CombineSource }
-type CombinePass struct{ RGB, Alpha CombineParams }
-type CombineMode struct{ One, Two CombinePass }
-
 func (dl *DisplayList) SetCombineMode(m CombineMode) {
 	if dl.combineMode == m {
 		return

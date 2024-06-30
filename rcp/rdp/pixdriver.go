@@ -182,8 +182,8 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 	fb.dlist.SetPrimitiveColor(fill)
 	fb.dlist.SetEnvironmentColor(mask)
 
-	cp := CombineParams{CombinePrimitive, 8, 12, 7}                  // cc = env_alpha*primitive_color
-	cpA := CombineParams{7, CombineEnvironment, CombinePrimitive, 6} // cc_alpha = 1-env_alpha*primitive_alpha
+	cp := CombineParams{CombinePrimitive, CombineBColorZero, CombineCColorEnvironmentAlpha, CombineDColorZero} // cc = env_alpha*primitive_color
+	cpA := CombineParams{CombineAAlphaZero, CombineEnvironment, CombinePrimitive, CombineDAlphaOne}            // cc_alpha = 1-env_alpha*primitive_alpha
 	fb.dlist.SetCombineMode(CombineMode{
 		Two: CombinePass{RGB: cp, Alpha: cpA},
 	})
@@ -223,7 +223,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src Texture, p image.Point, sca
 	if src.premult {
 		cp = CombineParams{0, 0, 0, colorSource} // cc = src
 	} else {
-		cp = CombineParams{colorSource, 8, 8, 7} // cc = src_alpha*src
+		cp = CombineParams{colorSource, CombineBColorZero, CombineCColorTex0Alpha, CombineDColorZero} // cc = src_alpha*src
 	}
 
 	if op == draw.Over {
@@ -237,7 +237,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src Texture, p image.Point, sca
 				B1: BlenderBOne,
 			},
 		)
-		cpA := CombineParams{7, 6, CombineTex0, 6} // cc_alpha = 1-tex0_alpha
+		cpA := CombineParams{CombineAAlphaZero, CombineBAlphaOne, CombineTex0, CombineDAlphaOne} // cc_alpha = 1-tex0_alpha
 
 		fb.dlist.SetCombineMode(CombineMode{
 			Two: CombinePass{RGB: cp, Alpha: cpA},
