@@ -68,3 +68,11 @@ func DefaultWrite(fd int, p []byte) int {
 
 	return n
 }
+
+type defaultWriter int
+
+const DefaultWriter defaultWriter = 0
+
+func (v defaultWriter) Write(p []byte) (int, error) {
+	return DefaultWrite(int(v), p), nil
+}
