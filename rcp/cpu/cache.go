@@ -51,13 +51,28 @@ func MakePaddedSlice[T Paddable](size int) []T {
 }
 
 // Ensure a slice is padded.  Might copy the slice if necessary
-func PaddedSlice[T Paddable](slice []T) []T {
+func CopyPaddedSlice[T Paddable](slice []T) []T {
 	if IsPadded(slice) == false {
 		buf := MakePaddedSlice[T](len(slice))
 		copy(buf, slice)
 		return buf
 	}
 	return slice
+}
+
+// Add padding to a given slice by shrinking it.  Returns the number of
+// discarded elements at the beginnning of the slice as second return value.
+func PaddedSlice[T Paddable](buf []T) ([]T, int, int) {
+	var t T
+	start := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	end := start + uintptr(cap(buf))*unsafe.Sizeof(t)
+	head := ((CacheLineSize - int(start)%CacheLineSize) % CacheLineSize) / int(unsafe.Sizeof(t))
+	tail := int(end) % CacheLineSize / int(unsafe.Sizeof(t))
+	if head+tail >= cap(buf) {
+		return buf[:0], 0, len(buf)
+	}
+	tail = max(0, tail-(cap(buf)-len(buf)))
+	return buf[head : len(buf)-tail], head, tail
 }
 
 // Same as MakePaddedSlice with extra alignment requirements.

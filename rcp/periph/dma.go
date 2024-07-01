@@ -119,7 +119,7 @@ func dmaLoad(piAddr uintptr, p []byte) {
 
 // Stores bytes from RDRAM to PI bus via DMA
 func dmaStore(piAddr uintptr, p []byte) {
-	p = cpu.PaddedSlice(p)
+	p = cpu.CopyPaddedSlice(p)
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")

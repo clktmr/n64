@@ -17,8 +17,8 @@ type UCode struct {
 }
 
 func NewUCode(name string, entry uint32, code []byte, data []byte) *UCode {
-	paddedCode := cpu.PaddedSlice(code)
-	paddedData := cpu.PaddedSlice(data)
+	paddedCode := cpu.CopyPaddedSlice(code)
+	paddedData := cpu.CopyPaddedSlice(data)
 
 	return &UCode{
 		name:  name,

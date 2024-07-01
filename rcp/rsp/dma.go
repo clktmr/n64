@@ -32,7 +32,7 @@ func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 func DMAStore(rspAddr uintptr, p []byte, bank memoryBank) {
 	debug.Assert(rspAddr%8 == 0, "rsp: unaligned dma store")
 
-	p = cpu.PaddedSlice(p)
+	p = cpu.CopyPaddedSlice(p)
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
 	regs.rdramAddr.Store(uint32(addr))

@@ -55,6 +55,7 @@ func main() {
 			newInternalTest(runtime_test.TestFPUPreemption),
 			newInternalTest(runtime_test.TestInterruptPrio),
 			newInternalTest(cpu_test.TestMakePaddedSlice),
+			newInternalTest(cpu_test.TestPaddedSubslice),
 			newInternalTest(cpu_test.TestMakePaddedSliceAligned),
 			newInternalTest(rsp_test.TestDMA),
 			newInternalTest(rsp_test.TestRun),
