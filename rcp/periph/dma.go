@@ -14,7 +14,9 @@ const (
 	piBusEnd   = 0x1fbf_ffff
 )
 
-// Implememts io.ReadWriteSeeker for accessing devices on the PI bus.
+// Implememts io.ReadWriteSeeker for accessing devices on the PI bus.  It will
+// automatically choose DMA transfers where alignment and cacheline padding
+// allow it, otherwise fall back to copying via CPU load/store.
 type Device struct {
 	addr uint32
 	size uint32
@@ -36,19 +38,52 @@ func (v *Device) Addr() (piAddr uintptr) {
 
 func (v *Device) Write(p []byte) (n int, err error) {
 	n = len(p)
-	size := int(v.size) - int(v.seek)
-	if n > size {
-		n = size
+	left := int(v.size) - int(v.seek)
+	if n > left {
+		n = left
+		p = p[:left]
 		err = io.ErrShortWrite
 	}
-	dmaStore(uintptr(int32(v.addr)+v.seek), p[:n])
-	v.seek += int32(n)
+
+	pdma, head, tail := cpu.PaddedSlice(p)
+	dmaStore(uintptr(int32(v.addr)+v.seek), pdma)
+
+	for i := range head {
+		v.WriteByte(p[i])
+	}
+
+	v.seek += int32(len(pdma))
+
+	tailBase := head + len(pdma)
+	for i := range tail {
+		v.WriteByte(p[tailBase+i])
+	}
 	return
 }
 
 func (v *Device) Read(p []byte) (n int, err error) {
+	n = len(p)
+	left := int(v.size) - int(v.seek)
+	if n > left {
+		n = left
+		p = p[:left]
+		err = io.EOF
+	}
 	n = min(int(int32(v.size)-v.seek), len(p))
-	dmaLoad(uintptr(int32(v.addr)+v.seek), p[:n])
+
+	pdma, head, tail := cpu.PaddedSlice(p)
+	dmaLoad(uintptr(int32(v.addr)+v.seek), pdma)
+
+	for i := range head {
+		p[i], _ = v.ReadByte()
+	}
+
+	v.seek += int32(len(pdma))
+
+	tailBase := head + len(pdma)
+	for i := range tail {
+		p[tailBase+i], _ = v.ReadByte()
+	}
 	v.seek += int32(n)
 	return
 }
@@ -106,7 +141,6 @@ func dmaLoad(piAddr uintptr, p []byte) {
 	}
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
-
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 
@@ -127,10 +161,9 @@ func dmaStore(piAddr uintptr, p []byte) {
 		return
 	}
 
-	p = cpu.CopyPaddedSlice(p)
-
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
+
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
