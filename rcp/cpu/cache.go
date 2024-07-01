@@ -75,11 +75,15 @@ func MakePaddedSliceAligned[T Paddable](size int, align uintptr) []T {
 
 // Returns true if p is safe for cache ops, i.e. padded and aligned to cache.
 func IsPadded[T Paddable](p []T) bool {
+	if len(p) == 0 {
+		return true
+	}
+
 	var t T
 	cls := CacheLineSize / int(unsafe.Sizeof(t))
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
-	return addr%CacheLineSize == 0 && cap(p)-len(p) >= cls-len(p)%cls
+	return addr%CacheLineSize == 0 && cap(p)-len(p) >= cap(p)%cls
 }
 
 func WritebackSlice[T Paddable](buf []T) {
