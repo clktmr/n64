@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/clktmr/n64/rcp/cpu"
-	"github.com/clktmr/n64/rcp/periph"
 )
 
 func (v *SummerCart64) Write(p []byte) (n int, err error) {
@@ -14,21 +13,19 @@ func (v *SummerCart64) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	n = len(p)
-	if n > bufferSize {
-		n = bufferSize
-		err = io.ErrShortWrite
-	}
-
 	// If used as a SystemWriter we might be in a syscall.  Make sure we
-	// don't allocate in DMAStore, or we might panic with "malloc during
-	// signal".
+	// don't allocate in periph/Device.Write().
 	if cpu.IsPadded(p) == false {
-		copy(v.buf, p)
-		p = v.buf
+		n = copy(v.buf, p)
+		p = v.buf[:n]
 	}
 
-	periph.DMAStore(usbBuf[0].Addr(), p[:n+n%2])
+	_, err = usbBuf.Seek(0, io.SeekStart)
+	if err != nil {
+		return 0, err
+	}
+	n, err1 := usbBuf.Write(p)
+	usbBuf.Flush()
 
 	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
 	if err != nil {
@@ -37,7 +34,7 @@ func (v *SummerCart64) Write(p []byte) (n int, err error) {
 
 	datatype := 1
 	header := uint32(((datatype) << 24) | ((n) & 0x00FFFFFF))
-	_, _, err = execCommand(cmdUSBWrite, uint32(usbBuf[0].Addr()), header)
+	_, _, err = execCommand(cmdUSBWrite, uint32(usbBuf.Addr()), header)
 	if err != nil {
 		return 0, err
 	}
@@ -47,7 +44,7 @@ func (v *SummerCart64) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	return n, err
+	return n, err1
 }
 
 func (v *SummerCart64) Read(p []byte) (n int, err error) {
@@ -61,8 +58,8 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	n = min(len(p), int(length), bufferSize)
-	_, _, err = execCommand(cmdUSBRead, uint32(usbBuf[0].Addr()), uint32(n))
+	pending := min(len(p), int(length), bufferSize)
+	_, _, err = execCommand(cmdUSBRead, uint32(usbBuf.Addr()), uint32(pending))
 	if err != nil {
 		return 0, err
 	}
@@ -72,7 +69,7 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	periph.DMALoad(usbBuf[0].Addr(), p[:n+n%2])
+	n, err1 := usbBuf.Read(p)
 
 	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
 	if err != nil {
@@ -84,7 +81,7 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 		p[n-1] = '\n'
 	}
 
-	return n, err
+	return n, err1
 }
 
 var ErrCommand error = errors.New("execute sc64 command")

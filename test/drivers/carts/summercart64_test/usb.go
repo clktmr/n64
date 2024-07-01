@@ -11,7 +11,7 @@ import (
 func mustSC64(t *testing.T) (sc64 *summercart64.SummerCart64) {
 	sc64 = summercart64.Probe()
 	if sc64 == nil {
-		t.Skipf("needs SummerCart64")
+		t.Skip("needs SummerCart64")
 	}
 	return
 }

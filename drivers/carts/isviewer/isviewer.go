@@ -24,7 +24,8 @@ type registers struct {
 }
 
 type ISViewer struct {
-	buf []byte
+	buf   []byte
+	piBuf *periph.Device
 }
 
 func Probe() *ISViewer {
@@ -33,28 +34,24 @@ func Probe() *ISViewer {
 		regs.readPtr.Store(0)
 		regs.writePtr.Store(0)
 		return &ISViewer{
-			buf: cpu.MakePaddedSlice[byte](bufferSize),
+			buf:   cpu.MakePaddedSlice[byte](bufferSize),
+			piBuf: periph.NewDevice(regs.buf[0].Addr(), bufferSize),
 		}
 	}
 	return nil
 }
 
 func (v *ISViewer) Write(p []byte) (n int, err error) {
-	n = len(p)
-	if n > bufferSize {
-		n = bufferSize
-		err = io.ErrShortWrite
-	}
-
 	// If used as a SystemWriter we might be in a syscall.  Make sure we
-	// don't allocate in DMAStore, or we might panic with "malloc during
-	// signal".
+	// don't allocate in periph/Device.Write().
 	if cpu.IsPadded(p) == false {
-		copy(v.buf, p)
-		p = v.buf
+		n = copy(v.buf, p)
+		p = v.buf[:n]
 	}
 
-	periph.DMAStore(regs.buf[0].Addr(), p[:n+n%2])
+	v.piBuf.Seek(io.SeekStart, 0)
+	n, err = v.piBuf.Write(p)
+	v.piBuf.Flush()
 
 	regs.readPtr.Store(0)
 	regs.writePtr.Store(uint32(n))

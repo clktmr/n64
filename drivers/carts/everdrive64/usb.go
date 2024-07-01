@@ -9,6 +9,8 @@ import (
 
 const bufferSize = 512
 
+var usbBuf = periph.NewDevice(0x1f80_0400, bufferSize)
+
 type EverDrive64 struct {
 	buf []byte
 }
@@ -30,26 +32,25 @@ func Probe() *EverDrive64 {
 }
 
 func (v *EverDrive64) Write(p []byte) (n int, err error) {
-	n = len(p)
-	if n > bufferSize {
-		n = bufferSize
-		err = io.ErrShortWrite
+	// If used as a SystemWriter we might be in a syscall.  Make sure we
+	// don't allocate in periph/Device.Write().
+	if cpu.IsPadded(p) == false {
+		n = copy(v.buf, p)
+		p = v.buf[:n]
 	}
 
-	// If used as a SystemWriter we might be in a syscall.  Make sure we
-	// don't allocate in DMAStore, or we might panic with "malloc during
-	// signal".
-	if cpu.IsPadded(p) == false {
-		copy(v.buf, p)
-		p = v.buf
-	}
+	regs.usbCfgW.Store(writeNop)
 
 	// EverDrive64 needs 2 byte alignment, not only for DMA
-	written := n - n%2
+	n = min(len(p), bufferSize)
+	offset, err := usbBuf.Seek(int64(-(n &^ 1)), io.SeekEnd)
+	if err != nil {
+		return 0, err
+	}
 
-	offset := bufferSize - written
-	regs.usbCfgW.Store(writeNop)
-	periph.DMAStore(regs.usbData[0].Addr()+uintptr(offset), p[:written])
+	n, err = usbBuf.Write(p)
+	usbBuf.Flush()
+
 	regs.usbCfgW.Store(write | usbMode(offset))
 
 	for {
@@ -58,7 +59,7 @@ func (v *EverDrive64) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	return written, err
+	return
 }
 
 // Wraps an io.Writer to provide a new io.Writer, which sends encapsulates each

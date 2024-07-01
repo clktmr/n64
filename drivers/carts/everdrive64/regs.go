@@ -30,14 +30,12 @@ var regs = struct {
 	usbCfgR *periph.R32[usbStatus]
 	usbCfgW *periph.R32[usbMode]
 	version *periph.U32
-	usbData *[128]periph.U32
 	sysCfg  *periph.U32
 	key     *periph.U32
 }{
 	(*periph.R32[usbStatus])(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0004)),
 	(*periph.R32[usbMode])(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0004)),
 	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0014)),
-	(*[128]periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0400)),
 	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_8000)),
 	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_8004)),
 }
