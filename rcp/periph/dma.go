@@ -101,6 +101,10 @@ func (v *Device) Flush() {
 
 // Loads bytes from PI bus into RDRAM via DMA
 func dmaLoad(piAddr uintptr, p []byte) {
+	if len(p) == 0 {
+		return
+	}
+
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
 
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
@@ -119,6 +123,10 @@ func dmaLoad(piAddr uintptr, p []byte) {
 
 // Stores bytes from RDRAM to PI bus via DMA
 func dmaStore(piAddr uintptr, p []byte) {
+	if len(p) == 0 {
+		return
+	}
+
 	p = cpu.CopyPaddedSlice(p)
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
