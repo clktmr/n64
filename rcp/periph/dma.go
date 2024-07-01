@@ -53,6 +53,31 @@ func (v *Device) Read(p []byte) (n int, err error) {
 	return
 }
 
+func (v *Device) WriteByte(c byte) error {
+	if uint32(v.seek) >= v.size {
+		return io.ErrShortWrite
+	}
+	cptr, shift := v.byteMask()
+	v.seek += 1
+	cptr.StoreBits(0xff<<shift, uint32(c)<<shift)
+	return nil
+}
+
+func (v *Device) ReadByte() (byte, error) {
+	if uint32(v.seek) >= v.size {
+		return 0, io.EOF
+	}
+	cptr, shift := v.byteMask()
+	v.seek += 1
+	return byte(cptr.LoadBits(0xff<<shift) >> shift), nil
+}
+
+func (v *Device) byteMask() (cptr *U32, shift int32) {
+	cptr = (*U32)(unsafe.Pointer(cpu.KSEG1 | uintptr(v.addr+uint32(v.seek&^0x3))))
+	shift = (3 - v.seek%4) * 8
+	return
+}
+
 func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 	switch whence {
 	case io.SeekStart:
