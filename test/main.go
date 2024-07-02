@@ -33,10 +33,9 @@ func init() {
 	if cart = carts.ProbeAll(); cart == nil {
 		panic("no logging peripheral found")
 	}
-	syswriter := drivers.NewSystemWriter(cart)
-	rtos.SetSystemWriter(syswriter)
+	rtos.SetSystemWriter(drivers.NewSystemWriter(cart))
 
-	console := termfs.NewLight("termfs", nil, syswriter)
+	console := termfs.NewLight("termfs", nil, cart)
 	rtos.Mount(console, "/dev/console")
 	os.Stdout, err = os.OpenFile("/dev/console", syscall.O_WRONLY, 0)
 	if err != nil {
