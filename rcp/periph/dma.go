@@ -21,12 +21,17 @@ type Device struct {
 	addr uint32
 	size uint32
 	seek int32
+
+	// Caches WriteByte until a full word has been written.  This reduces PI
+	// bus accesses but also helps to handle write-only devices more
+	// gracefully.
+	cache uint32
 }
 
 func NewDevice(piAddr uintptr, size uint32) *Device {
 	addr := cpu.PhysicalAddress(piAddr)
 	debug.Assert(addr >= piBusStart && addr+size <= piBusEnd, "invalid PI bus address")
-	return &Device{addr, size, 0x0}
+	return &Device{addr, size, 0x0, 0}
 }
 
 var ErrSeekOutOfRange = errors.New("seek out of range")
@@ -98,8 +103,13 @@ func (v *Device) WriteByte(c byte) error {
 		return io.ErrShortWrite
 	}
 	cptr, shift := v.byteMask()
+	v.cache = (v.cache &^ (0xff << shift)) | uint32(c)<<shift
 	v.seek += 1
-	cptr.StoreBits(0xff<<shift, uint32(c)<<shift)
+	ncptr, _ := v.byteMask()
+	if cptr != ncptr { // FIXME move cache writeback to Seek() and Flush()
+		cptr.Store(v.cache)
+		v.cache = ncptr.Load()
+	}
 	return nil
 }
 
