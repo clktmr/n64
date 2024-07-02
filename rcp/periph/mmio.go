@@ -8,25 +8,45 @@ import "embedded/mmio"
 // - 0x0500_0000 to 0x1fbf_ffff
 // - 0x1fd0_0000 to 0x7fff_ffff
 type U32 struct {
-	mmio.U32
+	r mmio.U32
 }
 
 func (r *U32) Store(v uint32) {
-	r.U32.Store(v)
+	r.r.Store(v)
 
-	for regs.status.LoadBits(ioBusy) != 0 {
-		// wait
+	for {
+		if regs.status.LoadBits(ioBusy) == 0 {
+			break
+		}
 	}
+}
+
+func (r *U32) Load() uint32 {
+	return r.r.Load()
+}
+
+func (r *U32) Addr() uintptr {
+	return r.r.Addr()
 }
 
 type R32[T mmio.T32] struct {
-	mmio.R32[T]
+	r mmio.R32[T]
 }
 
 func (r *R32[T]) Store(v T) {
-	r.R32.Store(v)
+	r.r.Store(v)
 
-	for regs.status.LoadBits(ioBusy) != 0 {
-		// wait
+	for {
+		if regs.status.LoadBits(ioBusy) == 0 {
+			break
+		}
 	}
+}
+
+func (r *R32[T]) Load() T {
+	return r.r.Load()
+}
+
+func (r *R32[T]) Addr() uintptr {
+	return r.r.Addr()
 }
