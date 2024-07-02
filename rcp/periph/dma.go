@@ -24,7 +24,6 @@ type Device struct {
 }
 
 func NewDevice(piAddr uintptr, size uint32) *Device {
-	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
 	addr := cpu.PhysicalAddress(piAddr)
 	debug.Assert(addr >= piBusStart && addr+size <= piBusEnd, "invalid PI bus address")
 	return &Device{addr, size, 0x0}
@@ -46,18 +45,21 @@ func (v *Device) Write(p []byte) (n int, err error) {
 	}
 
 	pdma, head, tail := cpu.PaddedSlice(p)
-	dmaStore(uintptr(int32(v.addr)+v.seek), pdma)
 
 	for i := range head {
 		v.WriteByte(p[i])
 	}
 
+	dma := int32(v.addr) + v.seek
 	v.seek += int32(len(pdma))
 
 	tailBase := head + len(pdma)
 	for i := range tail {
 		v.WriteByte(p[tailBase+i])
 	}
+
+	dmaStore(uintptr(dma), pdma)
+
 	return
 }
 
@@ -72,12 +74,12 @@ func (v *Device) Read(p []byte) (n int, err error) {
 	n = min(int(int32(v.size)-v.seek), len(p))
 
 	pdma, head, tail := cpu.PaddedSlice(p)
-	dmaLoad(uintptr(int32(v.addr)+v.seek), pdma)
 
 	for i := range head {
 		p[i], _ = v.ReadByte()
 	}
 
+	dmaAddr := uintptr(int32(v.addr) + v.seek)
 	v.seek += int32(len(pdma))
 
 	tailBase := head + len(pdma)
@@ -85,6 +87,9 @@ func (v *Device) Read(p []byte) (n int, err error) {
 		p[tailBase+i], _ = v.ReadByte()
 	}
 	v.seek += int32(n)
+
+	dmaLoad(dmaAddr, pdma)
+
 	return
 }
 
@@ -141,6 +146,7 @@ func dmaLoad(piAddr uintptr, p []byte) {
 	}
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 
@@ -162,6 +168,7 @@ func dmaStore(piAddr uintptr, p []byte) {
 	}
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
