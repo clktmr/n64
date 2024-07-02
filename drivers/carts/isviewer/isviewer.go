@@ -23,45 +23,37 @@ type registers struct {
 	buf      [bufferSize / 4]periph.U32
 }
 
-type ISViewer struct {
-	buf   []byte
-	piBuf *periph.Device
-}
+var piBuf *periph.Device = periph.NewDevice(regs.buf[0].Addr(), bufferSize)
+
+type ISViewer struct{}
 
 func Probe() *ISViewer {
 	regs.token.Store(0xbeefcafe)
 	if regs.token.Load() == 0xbeefcafe {
 		regs.readPtr.Store(0)
 		regs.writePtr.Store(0)
-		return &ISViewer{
-			buf:   cpu.MakePaddedSlice[byte](bufferSize),
-			piBuf: periph.NewDevice(regs.buf[0].Addr(), bufferSize),
-		}
+		return &ISViewer{}
 	}
 	return nil
 }
 
 func (v *ISViewer) Write(p []byte) (n int, err error) {
-	// If used as a SystemWriter we might be in a syscall.  Make sure we
-	// don't allocate in periph/Device.Write().
-	if cpu.IsPadded(p) == false {
-		n = copy(v.buf, p)
-		p = v.buf[:n]
+	for err = io.ErrShortWrite; err == io.ErrShortWrite; {
+		piBuf.Seek(io.SeekStart, 0)
+		n, err = piBuf.Write(p)
+		p = p[n:]
+		piBuf.Flush()
+
+		regs.readPtr.Store(0)
+		regs.writePtr.Store(uint32(n))
+		regs.token.Store(token)
+
+		for regs.readPtr.Load() != regs.writePtr.Load() {
+			// wait
+		}
+
+		regs.token.Store(0x0)
 	}
-
-	v.piBuf.Seek(io.SeekStart, 0)
-	n, err = v.piBuf.Write(p)
-	v.piBuf.Flush()
-
-	regs.readPtr.Store(0)
-	regs.writePtr.Store(uint32(n))
-	regs.token.Store(token)
-
-	for regs.readPtr.Load() != regs.writePtr.Load() {
-		// wait
-	}
-
-	regs.token.Store(0x0)
 
 	return n, err
 }

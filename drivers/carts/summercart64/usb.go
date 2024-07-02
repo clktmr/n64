@@ -3,8 +3,6 @@ package summercart64
 import (
 	"errors"
 	"io"
-
-	"github.com/clktmr/n64/rcp/cpu"
 )
 
 func (v *SummerCart64) Write(p []byte) (n int, err error) {
@@ -13,38 +11,34 @@ func (v *SummerCart64) Write(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	// If used as a SystemWriter we might be in a syscall.  Make sure we
-	// don't allocate in periph/Device.Write().
-	if cpu.IsPadded(p) == false {
-		n = copy(v.buf, p)
-		p = v.buf[:n]
-	}
+	for errShort := io.ErrShortWrite; errShort == io.ErrShortWrite; {
+		_, err = usbBuf.Seek(0, io.SeekStart)
+		if err != nil {
+			return 0, err
+		}
+		n, errShort = usbBuf.Write(p)
+		p = p[n:]
+		usbBuf.Flush()
 
-	_, err = usbBuf.Seek(0, io.SeekStart)
-	if err != nil {
-		return 0, err
+		datatype := 1
+		header := uint32(((datatype) << 24) | ((n) & 0x00FFFFFF))
+		_, _, err = execCommand(cmdUSBWrite, uint32(usbBuf.Addr()), header)
+		if err != nil {
+			return 0, err
+		}
+
+		err = waitUSB(cmdUSBWriteStatus)
+		if err != nil {
+			return 0, err
+		}
 	}
-	n, err1 := usbBuf.Write(p)
-	usbBuf.Flush()
 
 	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
 	if err != nil {
 		return 0, err
 	}
 
-	datatype := 1
-	header := uint32(((datatype) << 24) | ((n) & 0x00FFFFFF))
-	_, _, err = execCommand(cmdUSBWrite, uint32(usbBuf.Addr()), header)
-	if err != nil {
-		return 0, err
-	}
-
-	err = waitUSB(cmdUSBWriteStatus)
-	if err != nil {
-		return 0, err
-	}
-
-	return n, err1
+	return n, err
 }
 
 func (v *SummerCart64) Read(p []byte) (n int, err error) {

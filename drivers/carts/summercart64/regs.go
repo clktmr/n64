@@ -61,9 +61,7 @@ const (
 	cmdDiagnosticGet    command = '%'
 )
 
-type SummerCart64 struct {
-	buf []byte
-}
+type SummerCart64 struct{}
 
 func Probe() *SummerCart64 {
 	// sc64 magic unlock sequence
@@ -72,9 +70,7 @@ func Probe() *SummerCart64 {
 	regs.key.Store(0x4f434b5f)
 
 	if regs.identifier.Load() == 0x53437632 { // SummerCart64 V2
-		return &SummerCart64{
-			buf: cpu.MakePaddedSlice[byte](bufferSize),
-		}
+		return &SummerCart64{}
 	}
 	return nil
 }

@@ -32,30 +32,25 @@ func Probe() *EverDrive64 {
 }
 
 func (v *EverDrive64) Write(p []byte) (n int, err error) {
-	// If used as a SystemWriter we might be in a syscall.  Make sure we
-	// don't allocate in periph/Device.Write().
-	if cpu.IsPadded(p) == false {
-		n = copy(v.buf, p)
-		p = v.buf[:n]
-	}
+	for err = io.ErrShortWrite; err == io.ErrShortWrite; {
+		regs.usbCfgW.Store(writeNop)
 
-	regs.usbCfgW.Store(writeNop)
+		var offset int64 = int64(min(len(p), bufferSize))
+		offset, err = usbBuf.Seek(-offset, io.SeekEnd)
+		if err != nil {
+			return
+		}
 
-	// EverDrive64 needs 2 byte alignment, not only for DMA
-	n = min(len(p), bufferSize)
-	offset, err := usbBuf.Seek(int64(-(n &^ 1)), io.SeekEnd)
-	if err != nil {
-		return 0, err
-	}
+		var written int
+		written, err = usbBuf.Write(p)
+		n += written
+		p = p[written:]
+		usbBuf.Flush()
 
-	n, err = usbBuf.Write(p)
-	usbBuf.Flush()
+		regs.usbCfgW.Store(write | usbMode(offset))
 
-	regs.usbCfgW.Store(write | usbMode(offset))
-
-	for {
-		if regs.usbCfgR.Load()&act == 0 {
-			break
+		for regs.usbCfgR.Load()&act != 0 {
+			// wait
 		}
 	}
 
@@ -79,25 +74,26 @@ func NewUNFLoader(w *EverDrive64) *UNFLoader {
 }
 
 func (v *UNFLoader) Write(p []byte) (n int, err error) {
-	s := len(p)
-	if s >= 1<<24 {
-		s = 1 << 24
+	n = len(p)
+	if n >= 1<<24 {
+		n = 1 << 24
+		err = io.ErrShortWrite
 	}
-	v.w.Write([]byte{'D', 'M', 'A', '@', 1, byte(s >> 16), byte(s >> 8), byte(s)})
+	v.w.Write([]byte{'D', 'M', 'A', '@', 1, byte(n >> 16), byte(n >> 8), byte(n)})
 
-	written := 0
-	for written < s-s%2 {
-		n, _ := v.w.Write(p[written:])
-		written += n
+	// Align pi addr to 2 byte to ensure use of DMA.  This might cause the
+	// last byte to be discarded.  If that's the case, we prepend it to the
+	// footer.
+	s, err1 := v.w.Write(p[:n&^1])
+	if err1 != nil {
+		return s, err1
 	}
 
 	footer := []byte{p[len(p)-1], 'C', 'M', 'P', 'H', '0'}
-
-	// Ensure 2 byte alignment
-	if s%2 == 0 {
+	if n%2 == 0 {
 		footer = footer[1 : len(footer)-1]
 	}
 	v.w.Write(footer)
 
-	return s, err
+	return
 }
