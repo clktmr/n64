@@ -52,13 +52,12 @@ func (v *Device) Write(p []byte) (n int, err error) {
 		err = io.ErrShortWrite
 	}
 
-	pdma, head, tail := v.assessTransfer(p)
+	dmaAddr, pdma, head, tail := v.assessTransfer(p)
 
 	for i := range head {
 		v.WriteByte(p[i])
 	}
 
-	dmaAddr := int32(v.addr) + v.seek
 	v.Seek(int64(len(pdma)), io.SeekCurrent)
 
 	tailBase := head + len(pdma)
@@ -82,22 +81,23 @@ func (v *Device) Read(p []byte) (n int, err error) {
 		err = io.EOF
 	}
 
-	pdma, head, tail := v.assessTransfer(p)
+	dmaAddr, pdma, head, tail := v.assessTransfer(p)
+
+	// Do the DMA before the mmio because it might invalidate parts of head
+	// and tail
+	v.cacheWriteback()
+	dmaLoad(dmaAddr, pdma)
 
 	for i := range head {
 		p[i], _ = v.ReadByte()
 	}
 
-	dmaAddr := uintptr(int32(v.addr) + v.seek)
 	v.Seek(int64(len(pdma)), io.SeekCurrent)
 
 	tailBase := head + len(pdma)
 	for i := range tail {
 		p[tailBase+i], _ = v.ReadByte()
 	}
-
-	v.cacheWriteback()
-	dmaLoad(dmaAddr, pdma)
 
 	return
 }
@@ -117,8 +117,9 @@ func (v *Device) ReadByte() (c byte, err error) {
 		return 0, io.EOF
 	}
 	shift := (3 - v.seek%4) * 8
+	c = byte(v.cache >> shift)
 	v.Seek(1, io.SeekCurrent)
-	return byte(v.cache >> shift), nil
+	return
 }
 
 func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
@@ -151,7 +152,7 @@ func (v *Device) Flush() {
 	v.cacheWriteback()
 }
 
-func (v *Device) assessTransfer(p []byte) (dma []byte, head int, tail int) {
+func (v *Device) assessTransfer(p []byte) (addr uintptr, dma []byte, head int, tail int) {
 	dma, head, tail = cpu.PaddedSlice(p)
 	if len(dma)&0x1 != 0 {
 		// If DMA end address isn't 2 byte aligned, fallback to mmio for
@@ -159,9 +160,9 @@ func (v *Device) assessTransfer(p []byte) (dma []byte, head int, tail int) {
 		dma = dma[:len(dma)-1]
 		tail += 1
 	}
-	dmaAddr := uintptr(int32(v.addr) + v.seek + int32(head))
+	addr = uintptr(int32(v.addr) + v.seek + int32(head))
 
-	if dmaAddr&0x1 != 0 {
+	if addr&0x1 != 0 {
 		// If DMA start address isn't 2 byte aligned there is no way to
 		// use DMA at all, fallback to mmio for the whole transfer.
 		tail += len(dma)

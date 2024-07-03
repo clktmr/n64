@@ -38,7 +38,7 @@ var dut = periph.NewDevice(0x13ff_fe00, 64)
 var ref = newBytesReadWriter(make([]byte, 64, 64))
 var initReader *bytes.Reader
 
-func TestWriteSeeker(t *testing.T) {
+func TestReadWriteSeeker(t *testing.T) {
 	var initBytes = make([]byte, 64, 64)
 	for i, _ := range initBytes {
 		initBytes[i] = byte(i + 0x30)
@@ -90,7 +90,16 @@ func TestWriteSeeker(t *testing.T) {
 			resultDut := testWriteSeeker(t, tc, dut)
 
 			if bytes.Compare(resultRef.buf, resultDut.buf) != 0 {
-				t.Error("not equal")
+				t.Error("write not equal")
+				t.Log("Ref:", string(resultRef.buf))
+				t.Log("Dut:", string(resultDut.buf))
+			}
+
+			resultRef = testReadSeeker(t, tc, ref)
+			resultDut = testReadSeeker(t, tc, dut)
+
+			if bytes.Compare(resultRef.buf, resultDut.buf) != 0 {
+				t.Error("read not equal")
 				t.Log("Ref:", string(resultRef.buf))
 				t.Log("Dut:", string(resultDut.buf))
 			}
@@ -124,6 +133,26 @@ func testWriteSeeker(t *testing.T, tc params, dut io.ReadWriteSeeker) *bytesRead
 	n, err = io.Copy(result, dut)
 	if n != 64 || err != nil {
 		t.Error("copy result:", err, n)
+	}
+
+	return result
+}
+
+func testReadSeeker(t *testing.T, tc params, dut io.ReadWriteSeeker) *bytesReadWriter {
+	initReader.Seek(0, io.SeekStart)
+	dut.Seek(0, io.SeekStart)
+	n, err := io.Copy(dut, initReader)
+	if n != 64 || err != nil {
+		t.Error("copy init:", err, n)
+	}
+
+	result := newBytesReadWriter(make([]byte, 64, 64))
+
+	dut.Seek(0, io.SeekStart)
+	for range tc.repeat {
+		dut.Seek(tc.offset, tc.whence)
+		dut.Read(tc.data)
+		result.Write(tc.data)
 	}
 
 	return result
