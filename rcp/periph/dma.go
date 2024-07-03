@@ -16,11 +16,14 @@ const (
 
 // Implememts io.ReadWriteSeeker for accessing devices on the PI bus.  It will
 // automatically choose DMA transfers where alignment and cacheline padding
-// allow it, otherwise fall back to copying via CPU load/store.
+// allow it, otherwise fall back to copying via mmio.
+//
+// Devices must not have overlapping addresses, as they might cache bus
+// accessses.
 type Device struct {
 	addr uint32
 	size uint32
-	seek int32
+	seek int32 // TODO rename offset, make uint32
 
 	// Caches WriteByte until a full word has been written.  This reduces PI
 	// bus accesses but also helps to handle write-only devices more
@@ -49,21 +52,23 @@ func (v *Device) Write(p []byte) (n int, err error) {
 		err = io.ErrShortWrite
 	}
 
-	pdma, head, tail := cpu.PaddedSlice(p)
+	pdma, head, tail := v.assessTransfer(p)
 
 	for i := range head {
 		v.WriteByte(p[i])
 	}
 
-	dma := int32(v.addr) + v.seek
-	v.seek += int32(len(pdma))
+	dmaAddr := int32(v.addr) + v.seek
+	v.Seek(int64(len(pdma)), io.SeekCurrent)
 
 	tailBase := head + len(pdma)
 	for i := range tail {
 		v.WriteByte(p[tailBase+i])
 	}
 
-	dmaStore(uintptr(dma), pdma)
+	v.cacheWriteback()
+	dmaStore(uintptr(dmaAddr), pdma)
+	v.cacheInvalidate()
 
 	return
 }
@@ -71,28 +76,27 @@ func (v *Device) Write(p []byte) (n int, err error) {
 func (v *Device) Read(p []byte) (n int, err error) {
 	n = len(p)
 	left := int(v.size) - int(v.seek)
-	if n > left {
+	if n >= left {
 		n = left
 		p = p[:left]
 		err = io.EOF
 	}
-	n = min(int(int32(v.size)-v.seek), len(p))
 
-	pdma, head, tail := cpu.PaddedSlice(p)
+	pdma, head, tail := v.assessTransfer(p)
 
 	for i := range head {
 		p[i], _ = v.ReadByte()
 	}
 
 	dmaAddr := uintptr(int32(v.addr) + v.seek)
-	v.seek += int32(len(pdma))
+	v.Seek(int64(len(pdma)), io.SeekCurrent)
 
 	tailBase := head + len(pdma)
 	for i := range tail {
 		p[tailBase+i], _ = v.ReadByte()
 	}
-	v.seek += int32(n)
 
+	v.cacheWriteback()
 	dmaLoad(dmaAddr, pdma)
 
 	return
@@ -102,30 +106,19 @@ func (v *Device) WriteByte(c byte) error {
 	if uint32(v.seek) >= v.size {
 		return io.ErrShortWrite
 	}
-	cptr, shift := v.byteMask()
+	shift := (3 - v.seek%4) * 8
 	v.cache = (v.cache &^ (0xff << shift)) | uint32(c)<<shift
-	v.seek += 1
-	ncptr, _ := v.byteMask()
-	if cptr != ncptr { // FIXME move cache writeback to Seek() and Flush()
-		cptr.Store(v.cache)
-		v.cache = ncptr.Load()
-	}
+	v.Seek(1, io.SeekCurrent)
 	return nil
 }
 
-func (v *Device) ReadByte() (byte, error) {
+func (v *Device) ReadByte() (c byte, err error) {
 	if uint32(v.seek) >= v.size {
 		return 0, io.EOF
 	}
-	cptr, shift := v.byteMask()
-	v.seek += 1
-	return byte(cptr.LoadBits(0xff<<shift) >> shift), nil
-}
-
-func (v *Device) byteMask() (cptr *U32, shift int32) {
-	cptr = (*U32)(unsafe.Pointer(cpu.KSEG1 | uintptr(v.addr+uint32(v.seek&^0x3))))
-	shift = (3 - v.seek%4) * 8
-	return
+	shift := (3 - v.seek%4) * 8
+	v.Seek(1, io.SeekCurrent)
+	return byte(v.cache >> shift), nil
 }
 
 func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
@@ -141,12 +134,55 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 	if newoffset < 0 || newoffset > int64(v.size) {
 		return int64(v.seek), ErrSeekOutOfRange
 	}
+
+	cptr := v.cacheTarget()
 	v.seek = int32(newoffset)
+
+	ncptr := v.cacheTarget()
+	if cptr != ncptr {
+		cptr.Store(v.cache)
+		v.cache = ncptr.Load()
+	}
 	return
 }
 
 func (v *Device) Flush() {
 	waitDMA()
+	v.cacheWriteback()
+}
+
+func (v *Device) assessTransfer(p []byte) (dma []byte, head int, tail int) {
+	dma, head, tail = cpu.PaddedSlice(p)
+	if len(dma)&0x1 != 0 {
+		// If DMA end address isn't 2 byte aligned, fallback to mmio for
+		// the last byte.
+		dma = dma[:len(dma)-1]
+		tail += 1
+	}
+	dmaAddr := uintptr(int32(v.addr) + v.seek + int32(head))
+
+	if dmaAddr&0x1 != 0 {
+		// If DMA start address isn't 2 byte aligned there is no way to
+		// use DMA at all, fallback to mmio for the whole transfer.
+		tail += len(dma)
+		dma = dma[:0]
+	}
+
+	return
+}
+
+func (v *Device) cacheTarget() *U32 {
+	return (*U32)(unsafe.Pointer(cpu.KSEG1 | uintptr(v.addr+uint32(v.seek&^0x3))))
+}
+
+func (v *Device) cacheWriteback() {
+	cptr := v.cacheTarget()
+	cptr.Store(v.cache)
+}
+
+func (v *Device) cacheInvalidate() {
+	cptr := v.cacheTarget()
+	v.cache = cptr.Load()
 }
 
 // Loads bytes from PI bus into RDRAM via DMA
@@ -157,6 +193,7 @@ func dmaLoad(piAddr uintptr, p []byte) {
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
 	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
+	debug.Assert(len(p)%2 == 0, "PI end address unaligned")
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 
@@ -166,7 +203,7 @@ func dmaLoad(piAddr uintptr, p []byte) {
 	cpu.InvalidateSlice(p)
 
 	n := len(p)
-	regs.writeLen.Store(uint32(n + n%2 - 1))
+	regs.writeLen.Store(uint32(n - 1))
 
 	waitDMA()
 }
@@ -179,6 +216,8 @@ func dmaStore(piAddr uintptr, p []byte) {
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
 	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
+	debug.Assert(len(p)%2 == 0, "PI end address unaligned")
+	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
@@ -187,7 +226,9 @@ func dmaStore(piAddr uintptr, p []byte) {
 	cpu.WritebackSlice(p)
 
 	n := len(p)
-	regs.readLen.Store(uint32(n + n%2 - 1))
+	regs.readLen.Store(uint32(n - 1))
+
+	waitDMA()
 }
 
 // Blocks until DMA has finished.

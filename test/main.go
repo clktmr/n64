@@ -16,6 +16,7 @@ import (
 
 	"github.com/clktmr/n64/test/drivers/carts/summercart64_test"
 	"github.com/clktmr/n64/test/rcp/cpu_test"
+	"github.com/clktmr/n64/test/rcp/periph_test"
 	"github.com/clktmr/n64/test/rcp/rdp_test"
 	"github.com/clktmr/n64/test/rcp/rsp_test"
 	"github.com/clktmr/n64/test/runtime_test"
@@ -61,6 +62,7 @@ func main() {
 			newInternalTest(rsp_test.TestInterrupt),
 			newInternalTest(rdp_test.TestFillRect),
 			newInternalTest(rdp_test.TestDraw),
+			newInternalTest(periph_test.TestWriteSeeker),
 			newInternalTest(summercart64_test.TestUSBRead),
 		},
 		[]testing.InternalBenchmark{
