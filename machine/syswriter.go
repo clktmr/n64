@@ -33,40 +33,44 @@ type registers struct {
 //go:nosplit
 //go:linkname DefaultWrite runtime.defaultWrite
 func DefaultWrite(fd int, p []byte) int {
-	n := len(p)
-	if n > bufferSize {
-		n = bufferSize
-	}
-
-	for i := 0; i < n/4; i++ {
-		pi := 4 * i
-		regs.buf[i].Store(0 |
-			uint32(p[pi])<<24 |
-			uint32(p[pi+1])<<16 |
-			uint32(p[pi+2])<<8 |
-			uint32(p[pi+3]))
-	}
-
-	if n%4 != 0 {
-		var tail uint32
-		for i := 0; i < n%4; i++ {
-			base := len(p) - n%4
-			tail |= uint32(p[base+i]) << ((3 - i) * 8)
+	written := len(p)
+	for len(p) > 0 {
+		n := len(p)
+		if n > bufferSize {
+			n = bufferSize
 		}
-		regs.buf[n/4].Store(tail)
+
+		for i := 0; i < n/4; i++ {
+			pi := 4 * i
+			regs.buf[i].Store(0 |
+				uint32(p[pi])<<24 |
+				uint32(p[pi+1])<<16 |
+				uint32(p[pi+2])<<8 |
+				uint32(p[pi+3]))
+		}
+
+		if n%4 != 0 {
+			var tail uint32
+			for i := 0; i < n%4; i++ {
+				base := len(p) - n%4
+				tail |= uint32(p[base+i]) << ((3 - i) * 8)
+			}
+			regs.buf[n/4].Store(tail)
+		}
+
+		regs.readPtr.Store(0)
+		regs.writePtr.Store(uint32(n))
+		regs.token.Store(token)
+
+		for regs.readPtr.Load() != regs.writePtr.Load() {
+			// wait
+		}
+
+		regs.token.Store(0x0)
+		p = p[n:]
 	}
 
-	regs.readPtr.Store(0)
-	regs.writePtr.Store(uint32(n))
-	regs.token.Store(token)
-
-	for regs.readPtr.Load() != regs.writePtr.Load() {
-		// wait
-	}
-
-	regs.token.Store(0x0)
-
-	return n
+	return written
 }
 
 type defaultWriter int
