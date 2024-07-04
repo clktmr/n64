@@ -148,8 +148,8 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 }
 
 func (v *Device) Flush() {
-	waitDMA()
 	v.cacheWriteback()
+	waitDMA()
 }
 
 func (v *Device) assessTransfer(p []byte) (addr uintptr, dma []byte, head int, tail int) {
@@ -198,6 +198,8 @@ func dmaLoad(piAddr uintptr, p []byte) {
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 
+	waitDMA()
+
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
@@ -221,6 +223,8 @@ func dmaStore(piAddr uintptr, p []byte) {
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
 	debug.Assert(addr%8 == 0, "RDRAM address unaligned")
 
+	waitDMA()
+
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
 	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
 
@@ -228,8 +232,6 @@ func dmaStore(piAddr uintptr, p []byte) {
 
 	n := len(p)
 	regs.readLen.Store(uint32(n - 1))
-
-	waitDMA()
 }
 
 // Blocks until DMA has finished.
