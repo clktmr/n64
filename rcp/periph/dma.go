@@ -27,14 +27,16 @@ type Device struct {
 
 	// Caches WriteByte until a full word has been written.  This reduces PI
 	// bus accesses but also helps to handle write-only devices more
-	// gracefully.
+	// gracefully.  These would otherwise read a dword and write it back on
+	// each byte write, which breaks if the read op returns garbage.
 	cache uint32
+	valid bool
 }
 
 func NewDevice(piAddr uintptr, size uint32) *Device {
 	addr := cpu.PhysicalAddress(piAddr)
 	debug.Assert(addr >= piBusStart && addr+size <= piBusEnd, "invalid PI bus address")
-	return &Device{addr, size, 0x0, 0}
+	return &Device{addr, size, 0x0, 0, false}
 }
 
 var ErrSeekOutOfRange = errors.New("seek out of range")
@@ -107,7 +109,7 @@ func (v *Device) WriteByte(c byte) error {
 		return io.ErrShortWrite
 	}
 	shift := (3 - v.seek%4) * 8
-	v.cache = (v.cache &^ (0xff << shift)) | uint32(c)<<shift
+	v.cache = (v.cacheRead() &^ (0xff << shift)) | uint32(c)<<shift
 	v.Seek(1, io.SeekCurrent)
 	return nil
 }
@@ -117,7 +119,7 @@ func (v *Device) ReadByte() (c byte, err error) {
 		return 0, io.EOF
 	}
 	shift := (3 - v.seek%4) * 8
-	c = byte(v.cache >> shift)
+	c = byte(v.cacheRead() >> shift)
 	v.Seek(1, io.SeekCurrent)
 	return
 }
@@ -141,8 +143,10 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 
 	ncptr := v.cacheTarget()
 	if cptr != ncptr {
-		cptr.Store(v.cache)
-		v.cache = ncptr.Load()
+		if v.valid {
+			cptr.Store(v.cache)
+		}
+		v.cacheInvalidate()
 	}
 	return
 }
@@ -177,13 +181,21 @@ func (v *Device) cacheTarget() *U32 {
 }
 
 func (v *Device) cacheWriteback() {
-	cptr := v.cacheTarget()
-	cptr.Store(v.cache)
+	if v.valid {
+		v.cacheTarget().Store(v.cache)
+	}
 }
 
 func (v *Device) cacheInvalidate() {
-	cptr := v.cacheTarget()
-	v.cache = cptr.Load()
+	v.valid = false
+}
+
+func (v *Device) cacheRead() uint32 {
+	if v.valid == false {
+		v.cache = v.cacheTarget().Load()
+		v.valid = true
+	}
+	return v.cache
 }
 
 // Loads bytes from PI bus into RDRAM via DMA
