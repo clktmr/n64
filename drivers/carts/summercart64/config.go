@@ -1,6 +1,27 @@
 package summercart64
 
+import "errors"
+
 type config uint32
+
+var (
+	ErrBadArgument = errors.New("bad argument")
+	ErrBadAddress  = errors.New("bad address")
+	ErrBadConfigId = errors.New("bad config id")
+	ErrTimeout     = errors.New("timeout")
+	ErrSdCard      = errors.New("sdcard")
+	ErrUnknownCmd  = errors.New("unknown command")
+)
+
+var errCodes = map[uint32]error{
+	1: ErrBadArgument,
+	2: ErrBadAddress,
+	3: ErrBadConfigId,
+	4: ErrTimeout,
+	5: ErrSdCard,
+
+	0xffffff: ErrUnknownCmd,
+}
 
 const (
 	CfgBootloaderSwitch = iota

@@ -1,7 +1,6 @@
 package summercart64
 
 import (
-	"errors"
 	"io"
 )
 
@@ -52,6 +51,8 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
+	usbBuf.WritebackInvalidate()
+
 	pending := min(len(p), int(length), bufferSize)
 	_, _, err = execCommand(cmdUSBRead, uint32(usbBuf.Addr()), uint32(pending))
 	if err != nil {
@@ -63,7 +64,8 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	n, err1 := usbBuf.Read(p)
+	usbBuf.Seek(0, io.SeekStart)
+	n, err1 := usbBuf.Read(p[:pending])
 
 	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
 	if err != nil {
@@ -77,8 +79,6 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 
 	return n, err1
 }
-
-var ErrCommand error = errors.New("execute sc64 command")
 
 func waitUSB(cmd command) error {
 	for {
@@ -98,17 +98,17 @@ func execCommand(cmdId command, data0 uint32, data1 uint32) (result0 uint32, res
 	regs.data1.Store(data1)
 	regs.status.Store(status(cmdId))
 
-	for {
-		if regs.status.Load()&statusBusy == 0 {
-			break
-		}
-	}
-
-	if regs.status.Load()&statusError != 0 {
-		return 0, 0, ErrCommand
+	status := statusBusy
+	for status&statusBusy != 0 {
+		status = regs.status.Load()
 	}
 
 	result0 = regs.data0.Load()
 	result1 = regs.data1.Load()
+
+	if status&statusError != 0 {
+		err = errCodes[result0]
+	}
+
 	return
 }

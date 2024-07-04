@@ -190,6 +190,13 @@ func (v *Device) cacheInvalidate() {
 	v.valid = false
 }
 
+// Writes back and invalidates the single dword cache of this device.  Call this
+// before another component writes to the device.
+func (v *Device) WritebackInvalidate() {
+	v.cacheWriteback()
+	v.cacheInvalidate()
+}
+
 func (v *Device) cacheRead() uint32 {
 	if v.valid == false {
 		v.cache = v.cacheTarget().Load()
