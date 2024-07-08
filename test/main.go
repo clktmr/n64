@@ -64,6 +64,7 @@ func main() {
 			newInternalTest(rdp_test.TestDraw),
 			newInternalTest(periph_test.TestReadWriteSeeker),
 			newInternalTest(summercart64_test.TestUSBRead),
+			newInternalTest(summercart64_test.TestSaveStorage),
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(runtime_test.BenchmarkSchedule),

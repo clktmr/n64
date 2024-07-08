@@ -61,7 +61,32 @@ const (
 	cmdDiagnosticGet    command = '%'
 )
 
-type SummerCart64 struct{}
+const (
+	SaveNone = iota
+	SaveEEPROM4k
+	SaveEEPROM16k
+	SaveSRAM
+	SaveFlashRAM
+	SaveSRAMBanked
+	SaveSRAM1m
+)
+
+var saveStorageParams = [...]struct {
+	addr uint32
+	size uint32
+}{
+	{0x0800_0000, 0},
+	{0x1ffe_2000, 512},
+	{0x1ffe_2000, 2048},
+	{0x0800_0000, 32 * 1024},
+	{0x0800_0000, 128 * 1024},
+	{0x0800_0000, 3 * 32 * 1024},
+	{0x0800_0000, 128 * 1024},
+}
+
+type SummerCart64 struct {
+	saveStorage periph.Device
+}
 
 func Probe() *SummerCart64 {
 	// sc64 magic unlock sequence
@@ -70,9 +95,21 @@ func Probe() *SummerCart64 {
 	regs.key.Store(0x4f434b5f)
 
 	if regs.identifier.Load() == 0x53437632 { // SummerCart64 V2
-		return &SummerCart64{}
+		s := &SummerCart64{}
+		if st, err := s.Config(CfgSaveType); err == nil {
+			params := saveStorageParams[st]
+			s.saveStorage = *periph.NewDevice(uintptr(params.addr), params.size)
+		}
+		return s
 	}
 	return nil
+}
+
+// Returns the current storage for save files, configured by savetype.  Returns
+// a device with Size==0 if no savetype is configured.
+func (v *SummerCart64) SaveStorage() *periph.Device {
+	// FIXME no writeback triggered for EEPROM savetypes
+	return &v.saveStorage
 }
 
 //go:nosplit

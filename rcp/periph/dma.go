@@ -2,6 +2,7 @@ package periph
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"unsafe"
 
@@ -10,8 +11,10 @@ import (
 )
 
 const (
-	piBusStart = 0x0500_0000
-	piBusEnd   = 0x1fbf_ffff
+	piBus0Start = 0x0500_0000
+	piBus0End   = 0x1fbf_ffff
+	piBus1Start = 0x1fd0_0000
+	piBus1End   = 0x7fff_ffff
 )
 
 // Implememts io.ReadWriteSeeker for accessing devices on the PI bus.  It will
@@ -35,14 +38,20 @@ type Device struct {
 
 func NewDevice(piAddr uintptr, size uint32) *Device {
 	addr := cpu.PhysicalAddress(piAddr)
-	debug.Assert(addr >= piBusStart && addr+size <= piBusEnd, "invalid PI bus address")
+	debug.Assert((addr >= piBus0Start && addr+size <= piBus0End) ||
+		(addr >= piBus1Start && addr+size <= piBus1End),
+		fmt.Sprintf("invalid PI bus address 0x%x", piAddr))
 	return &Device{addr, size, 0x0, 0, false}
 }
 
 var ErrSeekOutOfRange = errors.New("seek out of range")
 
-func (v *Device) Addr() (piAddr uintptr) {
+func (v *Device) Addr() uintptr {
 	return uintptr(v.addr)
+}
+
+func (v *Device) Size() int {
+	return int(v.size)
 }
 
 func (v *Device) Write(p []byte) (n int, err error) {

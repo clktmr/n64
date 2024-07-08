@@ -2,6 +2,8 @@ package summercart64_test
 
 import (
 	"bytes"
+	"io"
+	"strconv"
 	"testing"
 
 	"github.com/clktmr/n64/drivers/carts/summercart64"
@@ -59,4 +61,32 @@ func TestUSBRead(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSaveStorage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
+	sc64 := mustSC64(t)
+	testBytes := []byte("hello savegame!")
+	if sc64.SaveStorage().Size() == 0 {
+		t.Skip("no savetype configured, use 'sc64deployer upload --save-type'")
+	}
+
+	buf := cpu.MakePaddedSlice[byte](len(testBytes))
+
+	_, err := sc64.SaveStorage().Read(buf)
+	if err != nil && err != io.EOF {
+		t.Fatal(err)
+	}
+	t.Log(strconv.Quote(string(buf)))
+
+	sc64.SaveStorage().Seek(0, io.SeekStart)
+	_, err = sc64.SaveStorage().Write([]byte("hello savegame!"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Log("Save must have been written back")
 }
