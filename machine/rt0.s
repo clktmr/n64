@@ -19,7 +19,7 @@ TEXT _rt0_mips64_noos(SB),NOSPLIT|NOFRAME,$0
 	SUBV R9, R8, R29 // init stack pointer
 	MOVV $0, RSB // init data pointer
 	MOVW $8, R2
-	MOVW R2, (0xbfc007fc) // magic N64 hardware init
+	MOVW R2, (0xbfc007fc) // trigger PIF command 'terminate boot process'
 
 	// Check if PI DMA transfer is required, knowing that IPL3 loads 1 MiB
 	// of ROM to RAM.

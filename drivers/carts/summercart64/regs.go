@@ -107,6 +107,9 @@ func Probe() *SummerCart64 {
 
 // Returns the current storage for save files, configured by savetype.  Returns
 // a device with Size==0 if no savetype is configured.
+// FIXME shouldn't be here, instead have a generic Probe function to get
+// storage.  Otherwise we could get multiple periph.Devices pointing to the same
+// address range, messing up the caching.
 func (v *SummerCart64) SaveStorage() *periph.Device {
 	// FIXME no writeback triggered for EEPROM savetypes
 	return &v.saveStorage

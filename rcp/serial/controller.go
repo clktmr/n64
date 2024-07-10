@@ -11,7 +11,7 @@ const (
 	DPadDown
 	DPadLeft
 	DPadRight
-	Reset // L+R+Start pressed simltaneously
+	Reset // L+R+Start pressed simultaneously
 	_
 	L
 	R
