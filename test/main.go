@@ -20,6 +20,7 @@ import (
 	"github.com/clktmr/n64/test/rcp/rdp_test"
 	"github.com/clktmr/n64/test/rcp/rsp_test"
 	"github.com/clktmr/n64/test/runtime_test"
+	"github.com/clktmr/n64/test/drivers/controller_test"
 
 	"github.com/embeddedgo/fs/termfs"
 )
@@ -65,6 +66,7 @@ func main() {
 			newInternalTest(periph_test.TestReadWriteSeeker),
 			newInternalTest(summercart64_test.TestUSBRead),
 			newInternalTest(summercart64_test.TestSaveStorage),
+			newInternalTest(controller_test.TestControllerState),
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(runtime_test.BenchmarkSchedule),

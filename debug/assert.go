@@ -7,3 +7,9 @@ func Assert(b bool, message string) {
 		panic(message)
 	}
 }
+
+func AssertErrNil(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
