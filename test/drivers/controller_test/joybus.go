@@ -1,10 +1,12 @@
 package controller_test
 
 import (
+	"io/fs"
 	"testing"
 	"time"
 
 	"github.com/clktmr/n64/drivers/controller"
+	"github.com/clktmr/n64/drivers/controller/pakfs"
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/serial/joybus"
 )
@@ -32,12 +34,25 @@ func TestControllerState(t *testing.T) {
 				t.Log(i, "unplugged")
 			}
 			if gamepad.PakInserted() {
+				t.Log(i, gamepad)
 				t.Log(i, "pak inserted")
 				pak, err := controller.ProbePak(byte(i))
 				if err != nil {
 					t.Error(err)
 				}
 				switch pak := pak.(type) {
+				case *controller.MemPak:
+					pfs, err := pakfs.Read(pak)
+					if err != nil {
+						t.Error(err)
+					}
+					for _, v := range pfs.Root() {
+						info, err := v.Info()
+						if err != nil {
+							t.Error(err)
+						}
+						t.Log(fs.FormatFileInfo(info))
+					}
 				case *controller.RumblePak:
 					t.Log(i, "rumble pak detected")
 					for range 6 {
@@ -47,6 +62,8 @@ func TestControllerState(t *testing.T) {
 						}
 						time.Sleep(500 * time.Millisecond)
 					}
+				default:
+					t.Log(i, "no pak type detected")
 				}
 			}
 			if gamepad.PakRemoved() {

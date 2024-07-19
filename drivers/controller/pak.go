@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/drivers/controller/pakfs"
 	"github.com/clktmr/n64/rcp/serial"
 	"github.com/clktmr/n64/rcp/serial/joybus"
 )
@@ -74,12 +75,12 @@ func NewPak(port uint8) (pak *Pak) {
 	return
 }
 
-func (pak *Pak) Read(p []byte) (n int, err error) {
-	startOffset := pak.offset & blockMask
+func (pak *Pak) ReadAt(p []byte, off int64) (n int, err error) {
+	startOffset := off & blockMask
 
 	for n < len(p) {
 		pak.readCmd.Reset() // TODO necessary?
-		pak.readCmd.SetAddress(pak.offset)
+		pak.readCmd.SetAddress(uint16(off))
 		serial.Run(&pak.readCmdBlock)
 
 		var rx []byte
@@ -91,28 +92,30 @@ func (pak *Pak) Read(p []byte) (n int, err error) {
 			return
 		}
 
-		_, err = pak.Seek(int64(copied), io.SeekCurrent)
-		if err != nil {
-			return
+		off += int64(copied)
+		if off >= pakSize {
+			return n, io.EOF
 		}
 	}
 
 	return
 }
 
-func (pak *Pak) Write(p []byte) (n int, err error) {
+func (pak *Pak) Read(p []byte) (n int, err error) {
+	n, err = pak.ReadAt(p, int64(pak.offset))
+	pak.offset += uint16(n)
+	return
+}
+
+func (pak *Pak) WriteAt(p []byte, off int64) (n int, err error) {
 	var tmp [blockSize]byte
 
-	startOffset := pak.offset & blockMask
+	startOffset := off & blockMask
 
 	for n < len(p) {
 		// read first and last blocks if only partly written
 		if startOffset != 0 || len(p[n:]) < blockSize {
-			_, err = pak.Seek(-int64(startOffset), io.SeekCurrent)
-			if err != nil {
-				return
-			}
-			_, err = pak.Read(tmp[:])
+			_, err = pak.ReadAt(tmp[:], off&^blockMask)
 			if err != nil {
 				return
 			}
@@ -127,7 +130,7 @@ func (pak *Pak) Write(p []byte) (n int, err error) {
 			return
 		}
 
-		pak.writeCmd.SetAddress(pak.offset)
+		pak.writeCmd.SetAddress(uint16(off))
 
 		serial.Run(&pak.writeCmdBlock)
 
@@ -138,12 +141,18 @@ func (pak *Pak) Write(p []byte) (n int, err error) {
 
 		n += copied
 
-		_, err = pak.Seek(blockSize, io.SeekCurrent)
-		if err != nil {
-			return
+		off += int64(copied)
+		if off >= pakSize {
+			return n, io.EOF
 		}
 	}
 
+	return
+}
+
+func (pak *Pak) Write(p []byte) (n int, err error) {
+	n, err = pak.WriteAt(p, int64(pak.offset))
+	pak.offset += uint16(n)
 	return
 }
 
@@ -152,7 +161,7 @@ func (pak *Pak) Seek(offset int64, whence int) (newoffset int64, err error) {
 	case io.SeekStart:
 		// newoffset = 0
 	case io.SeekCurrent:
-		newoffset += int64(pak.offset)
+		newoffset = int64(pak.offset)
 	case io.SeekEnd:
 		newoffset = pakSize
 	}
@@ -170,31 +179,59 @@ func ProbePak(port uint8) (io.ReadWriteSeeker, error) {
 	var err error
 	pak := NewPak(port)
 
+	// Controller Pak is special as it does use pakProbe for SRAM bank
+	// selection.  Probe by looking for a filesystem instead.
+	_, errFS := pakfs.Read(pak)
+	if errFS == nil {
+		return &MemPak{*pak}, nil
+	}
+
 	data := [1]byte{}
-
-	pak.Seek(pakProbe, io.SeekStart)
-	data[0] = probeRumble
-	_, _ = pak.Write(data[:])
-	if err != nil {
-		return nil, err
+	types := [...]struct {
+		probeVal byte
+		ctor     func(*Pak) (io.ReadWriteSeeker, error)
+	}{
+		{probeRumble, newRumblePak},
 	}
 
-	pak.Seek(pakProbe, io.SeekStart)
-	_, err = pak.Read(data[:])
-	if err != nil {
-		return nil, err
+	for _, t := range types {
+		pak.Seek(pakProbe, io.SeekStart)
+		data[0] = t.probeVal
+		_, _ = pak.Write(data[:])
+		if err != nil {
+			return nil, err
+		}
+
+		pak.Seek(pakProbe, io.SeekStart)
+		_, err = pak.Read(data[:])
+		if err != nil {
+			return nil, err
+		}
+
+		if data[0] == t.probeVal {
+			return t.ctor(pak)
+		}
 	}
 
-	if data[0] == probeRumble {
-		return &RumblePak{*pak, false}, nil
-	}
-
+	// No type detected, return generic Pak.
 	return pak, nil
+}
+
+type MemPak struct {
+	Pak
+}
+
+func newMemPak(pak *Pak) (io.ReadWriteSeeker, error) {
+	return &MemPak{*pak}, nil
 }
 
 type RumblePak struct {
 	Pak
 	on bool
+}
+
+func newRumblePak(pak *Pak) (io.ReadWriteSeeker, error) {
+	return &RumblePak{*pak, false}, nil
 }
 
 func (pak *RumblePak) Set(on bool) error {

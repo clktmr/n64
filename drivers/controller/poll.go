@@ -69,6 +69,6 @@ func PollInfo() {
 		states[i].lastInfo = states[i].currentInfo
 		info, pak := cmdAllInfoPorts[i].Info()
 		states[i].currentInfo.plugged = (info == joybus.Controller)
-		states[i].currentInfo.pak = (pak == 0x01)
+		states[i].currentInfo.pak = pak&0x01 != 0
 	}
 }
