@@ -3,6 +3,7 @@ package serial
 import (
 	"embedded/rtos"
 	"io"
+	"sync"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -24,6 +25,7 @@ const (
 var (
 	cmdFinished rtos.Note
 	buf         []byte // FIXME atomic
+	mtx         sync.Mutex
 )
 
 type CommandBlock struct {
@@ -50,6 +52,9 @@ func (c *CommandBlock) Free() int {
 }
 
 func Run(block *CommandBlock) {
+	mtx.Lock()
+	defer func() { mtx.Unlock() }()
+
 	buf = block.buf[:pifRamSize]
 	buf[len(buf)-1] = byte(block.cmd)
 

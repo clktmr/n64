@@ -34,37 +34,42 @@ func TestControllerState(t *testing.T) {
 				t.Log(i, "unplugged")
 			}
 			if gamepad.PakInserted() {
-				t.Log(i, gamepad)
-				t.Log(i, "pak inserted")
-				pak, err := controller.ProbePak(byte(i))
-				if err != nil {
-					t.Error(err)
-				}
-				switch pak := pak.(type) {
-				case *controller.MemPak:
-					pfs, err := pakfs.Read(pak)
+				go func() {
+					t.Log(i, gamepad)
+					t.Log(i, "pak inserted")
+					pak, err := controller.ProbePak(byte(i))
 					if err != nil {
 						t.Error(err)
 					}
-					for _, v := range pfs.Root() {
-						info, err := v.Info()
+					switch pak := pak.(type) {
+					case *controller.MemPak:
+						t.Log(i, "controller pak detected")
+						pfs, err := pakfs.Read(pak)
 						if err != nil {
 							t.Error(err)
+							return
 						}
-						t.Log(fs.FormatFileInfo(info))
-					}
-				case *controller.RumblePak:
-					t.Log(i, "rumble pak detected")
-					for range 6 {
-						err = pak.Toggle()
-						if err != nil {
-							t.Error(err)
+						for _, v := range pfs.Root() {
+							info, err := v.Info()
+							if err != nil {
+								t.Error(err)
+							}
+							t.Log(fs.FormatFileInfo(info))
 						}
-						time.Sleep(500 * time.Millisecond)
+					case *controller.RumblePak:
+						t.Log(i, "rumble pak detected")
+						for range 6 {
+							err = pak.Toggle()
+							if err != nil {
+								t.Error(err)
+								return
+							}
+							time.Sleep(500 * time.Millisecond)
+						}
+					default:
+						t.Log(i, "no pak type detected")
 					}
-				default:
-					t.Log(i, "no pak type detected")
-				}
+				}()
 			}
 			if gamepad.PakRemoved() {
 				t.Log(i, "pak removed")
