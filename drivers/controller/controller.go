@@ -19,6 +19,8 @@ type info struct {
 type Controller struct {
 	currentInfo, lastInfo info
 	current, last         state
+
+	err error
 }
 
 func (c *Controller) Changed() joybus.ButtonMask {

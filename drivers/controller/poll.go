@@ -53,7 +53,7 @@ func Poll() [4]Controller {
 	for i := range states {
 		states[i].last = states[i].current
 		cur := &states[i].current
-		cur.down, cur.xAxis, cur.yAxis = cmdAllStatesPorts[i].State()
+		cur.down, cur.xAxis, cur.yAxis, states[i].err = cmdAllStatesPorts[i].State()
 	}
 
 	return states
@@ -66,8 +66,10 @@ func PollInfo() {
 	serial.Run(cmdAllInfo)
 
 	for i := range states {
+		var err error
 		states[i].lastInfo = states[i].currentInfo
-		info, pak := cmdAllInfoPorts[i].Info()
+		info, pak, err := cmdAllInfoPorts[i].Info()
+		states[i].err = err
 		states[i].currentInfo.plugged = (info == joybus.Controller)
 		states[i].currentInfo.pak = pak&0x01 != 0
 	}

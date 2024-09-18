@@ -96,7 +96,7 @@ func (c Command) txData() []byte {
 }
 
 func (c Command) txSize() uint8 {
-	return uint8(c[0])
+	return uint8(c[0]) &^ flagMask
 }
 
 func (c Command) rxData() []byte {
@@ -110,7 +110,7 @@ func (c Command) rxSize() uint8 {
 	if c.txSize() == 0 {
 		return 0
 	}
-	return uint8(c[1]) &^ 0x80
+	return uint8(c[1]) &^ flagMask
 }
 
 type Device uint16
@@ -132,10 +132,12 @@ func NewInfoCommand(alloc Allocator) (InfoCommand, error) {
 	return InfoCommand{cmd}, err
 }
 
-func (c InfoCommand) Info() (dev Device, extra byte) {
-	validate(c.Command, cmdInfo)
+func (c InfoCommand) Info() (dev Device, extra byte, err error) {
+	if err = validate(c.Command, cmdInfo); err != nil {
+		return
+	}
 	rx := c.rxData()
-	return Device(uint16(rx[0])<<8 | uint16(rx[1])), rx[2]
+	return Device(uint16(rx[0])<<8 | uint16(rx[1])), rx[2], nil
 }
 
 // Reset command has the same data layout as an Info command
@@ -204,10 +206,12 @@ func NewControllerStateCommand(alloc Allocator) (ControllerStateCommand, error) 
 	return ControllerStateCommand{cmd}, err
 }
 
-func (c ControllerStateCommand) State() (b ButtonMask, x int8, y int8) {
-	validate(c.Command, cmdControllerState)
+func (c ControllerStateCommand) State() (b ButtonMask, x int8, y int8, err error) {
+	if err = validate(c.Command, cmdControllerState); err != nil {
+		return
+	}
 	rx := c.rxData()
-	return ButtonMask(uint16(rx[0])<<8 | uint16(rx[1])), int8(rx[2]), int8(rx[3])
+	return ButtonMask(uint16(rx[0])<<8 | uint16(rx[1])), int8(rx[2]), int8(rx[3]), nil
 }
 
 type PakCommand struct{ Command }
@@ -265,7 +269,7 @@ func NewWritePakCommand(alloc Allocator) (WritePakCommand, error) {
 	return WritePakCommand{PakCommand{cmd}, 0}, err
 }
 
-// len(src) must be match the payload size, i.e. 32 bytes.
+// len(src) must match the payload size, i.e. 32 bytes.
 func (c *WritePakCommand) SetData(src []byte) (err error) {
 	err = validate(c.Command, cmdWritePak)
 	if err != nil {
