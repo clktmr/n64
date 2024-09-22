@@ -114,7 +114,9 @@ func Read(dev io.ReaderAt) (fs *FS, err error) {
 	return nil, ErrInconsistent
 
 validId:
-	for _, r := range [...]*io.SectionReader{iNodesReader(dev, fs.id.BankCount), iNodesBakReader(dev, fs.id.BankCount)} {
+	for _, offsetFunc := range [...]func(uint8) (int64, int64){iNodesOffset, iNodesBakOffset} {
+		offset, n := offsetFunc(fs.id.BankCount)
+		r := io.NewSectionReader(dev, offset, n)
 		fs.inodes = make(iNodes, r.Size()>>1)
 		err = binary.Read(r, binary.BigEndian, &fs.inodes)
 		if err != nil {
@@ -275,16 +277,16 @@ func inodes(p *FS) func(func(int, uint16) bool) {
 	}
 }
 
-func iNodesReader(dev io.ReaderAt, bankCount uint8) *io.SectionReader {
-	off := int64(1 << pageBits)
-	n := int64(bankCount) << pageBits
-	return io.NewSectionReader(dev, off, n)
+func iNodesOffset(bankCount uint8) (offset, n int64) {
+	offset = int64(1 << pageBits)
+	n = int64(bankCount) << pageBits
+	return
 }
 
-func iNodesBakReader(dev io.ReaderAt, bankCount uint8) *io.SectionReader {
-	off := (1 + int64(bankCount)) << pageBits
-	n := int64(bankCount) << pageBits
-	return io.NewSectionReader(dev, off, n)
+func iNodesBakOffset(bankCount uint8) (offset, n int64) {
+	offset = (1 + int64(bankCount)) << pageBits
+	n = int64(bankCount) << pageBits
+	return
 }
 
 func notesReader(dev io.ReaderAt, bankCount uint8) *io.SectionReader {
