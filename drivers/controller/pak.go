@@ -27,7 +27,7 @@ const (
 // Values written to pakProbe to identify pak type.  If the pak is capable of
 // power on/off, writing the probe value also powers the pak on.
 const (
-	probeNone        = 0x00
+	probeMem         = 0x01
 	probeRumble      = 0x80
 	probeBioSensor   = 0x81
 	probeTransfer    = 0x84
@@ -191,7 +191,9 @@ func ProbePak(port uint8) (io.ReadWriteSeeker, error) {
 		probeVal byte
 		ctor     func(*Pak) (io.ReadWriteSeeker, error)
 	}{
+		{probeMem, nil}, // controller pak with damaged filesystem
 		{probeRumble, newRumblePak},
+		{probeTransfer, newTransferPak},
 	}
 
 	for _, t := range types {
@@ -209,6 +211,9 @@ func ProbePak(port uint8) (io.ReadWriteSeeker, error) {
 		}
 
 		if data[0] == t.probeVal {
+			if t.ctor == nil {
+				break
+			}
 			return t.ctor(pak)
 		}
 	}
@@ -252,4 +257,12 @@ func (pak *RumblePak) Set(on bool) error {
 
 func (pak *RumblePak) Toggle() error {
 	return pak.Set(!pak.on)
+}
+
+type TransferPak struct {
+	Pak
+}
+
+func newTransferPak(pak *Pak) (io.ReadWriteSeeker, error) {
+	return &TransferPak{*pak}, nil
 }

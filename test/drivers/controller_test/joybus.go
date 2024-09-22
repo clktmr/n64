@@ -66,6 +66,8 @@ func TestControllerState(t *testing.T) {
 							}
 							time.Sleep(500 * time.Millisecond)
 						}
+					case *controller.TransferPak:
+						t.Log(i, "transfer pak detected")
 					default:
 						t.Log(i, "no pak type detected")
 					}
