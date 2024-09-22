@@ -67,6 +67,10 @@ func TestReadFile(t *testing.T) {
 		t.Fatal("damaged testdata:", err)
 	}
 
+	if free := fs.Free(); free != 16896 {
+		t.Fatalf("free: expected %v, got %v", 16896, free)
+	}
+
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			file, err := fs.Open(tc.name)

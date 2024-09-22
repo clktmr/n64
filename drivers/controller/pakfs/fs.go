@@ -189,16 +189,12 @@ func (p *FS) Size() int64 {
 
 func (p *FS) Free() int64 {
 	freePages := 0
-	page := p.firstPage()
-	for range p.id.BankCount {
-		for page < pagesPerBank {
-			if p.inodes[page] == inodeFree {
-				freePages += 1
-			}
-			page += 1
+	inodes(p)(func(page int, inode uint16) bool {
+		if inode == inodeFree {
+			freePages += 1
 		}
-		page = 1
-	}
+		return true
+	})
 	return int64(freePages << pageBits)
 }
 
@@ -258,6 +254,25 @@ func (p *FS) validPage(page uint16) bool {
 	return !(page < uint16(p.firstPage()) ||
 		page >= uint16(len(p.inodes)) ||
 		page&pageMask == 0)
+}
+
+// rangefunc for iterating inodes
+// TODO use range syntax at callsites after updating to Go1.23
+func inodes(p *FS) func(func(int, uint16) bool) {
+	return func(yield func(int, uint16) bool) {
+		page := p.firstPage()
+		lastPage := pagesPerBank
+		for range p.id.BankCount {
+			for page < lastPage {
+				if !yield(page, p.inodes[page]) {
+					return
+				}
+				page += 1
+			}
+			page += 1 // skip csum
+			lastPage += pagesPerBank
+		}
+	}
 }
 
 func iNodesReader(dev io.ReaderAt, bankCount uint8) *io.SectionReader {
