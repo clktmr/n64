@@ -62,21 +62,6 @@ func (s idSector) valid() bool {
 
 type iNodes []uint16
 
-func (s iNodes) valid(firstPage int) bool {
-	for lastPage := pagesPerBank; lastPage <= len(s); lastPage += pagesPerBank {
-		var csum uint16
-		for _, v := range s[firstPage:lastPage] {
-			csum += v
-		}
-		if csum&0xff != s[0]&0xff {
-			return false
-		}
-
-		firstPage = 1
-	}
-	return true
-}
-
 // One of 16 game notes that the pak can store.
 type note struct {
 	GameCode      [4]byte
@@ -123,7 +108,7 @@ validId:
 			return nil, err
 		}
 
-		if fs.inodes.valid(fs.firstPage()) {
+		if fs.iNodesChecksum(false) {
 			goto validINodes
 		}
 	}
@@ -256,6 +241,28 @@ func (p *FS) validPage(page uint16) bool {
 	return !(page < uint16(p.firstPage()) ||
 		page >= uint16(len(p.inodes)) ||
 		page&pageMask == 0)
+}
+
+func (p *FS) iNodesChecksum(update bool) (valid bool) {
+	valid = true
+	var csum uint16
+	inodes(p)(func(page int, inode uint16) bool {
+		csum += inode
+		if (page+1)%pagesPerBank == 0 { // last page in this bank
+			csumIdx := page &^ (pagesPerBank - 1)
+			if csum&0xff != p.inodes[csumIdx]&0xff {
+				valid = false
+				if update {
+					p.inodes[csumIdx] = csum&0xff | p.inodes[csumIdx]&0xff00
+				} else {
+					return false
+				}
+			}
+			csum = 0
+		}
+		return true
+	})
+	return
 }
 
 // rangefunc for iterating inodes
