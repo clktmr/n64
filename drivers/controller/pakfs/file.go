@@ -56,7 +56,10 @@ func newFile(fs *FS, noteIdx int) (f *file) {
 
 func (f *file) Stat() (fs.FileInfo, error)                    { return f, nil }
 func (f *file) ReadAt(b []byte, off int64) (n int, err error) { return f.fs.readAt(f.noteIdx, b, off) }
-func (f *file) Close() error                                  { return nil }
+func (f *file) WriteAt(b []byte, off int64) (n int, err error) {
+	return f.fs.writeAt(f.noteIdx, b, off)
+}
+func (f *file) Close() error { return nil }
 
 func (p *file) Name() (s string) {
 	note := p.fs.notes[p.noteIdx]

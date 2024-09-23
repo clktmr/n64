@@ -187,22 +187,41 @@ func (p *FS) Free() int64 {
 	return int64(freePages << pageBits)
 }
 
-func (p *FS) readAt(noteIdx int, b []byte, off int64) (n int, err error) {
+// Returns the pages of a note and the offset in the first page in bytes, which
+// contain a section of the note with offset `off` and length `n`.  If the
+// section extends beyond EOF, pagesEOF is the number of pages to be allocated.
+func (p *FS) notePagesSection(noteIdx int, off int64, n int64) (pages []uint16, pageOff int64, pagesEOF int, err error) {
 	if off < 0 {
-		return 0, ErrInvalidOffset
+		err = ErrInvalidOffset
+		return
 	}
 
-	pages, err := p.notePages(noteIdx)
+	pages, err = p.notePages(noteIdx)
+	if err != nil {
+		return
+	}
 
 	startIdx := off >> pageBits
-	endIdx := ((off + int64(len(b))) >> pageBits) + 1
-	if endIdx > int64(len(pages)) {
-		err = io.EOF
-		endIdx = int64(len(pages))
+	endIdx := int((off+n)>>pageBits) + 1
+	if endIdx > len(pages) {
+		pagesEOF = endIdx - len(pages)
+		endIdx = len(pages)
 	}
 
 	pages = pages[startIdx:endIdx]
-	pageOff := off & pageMask
+	pageOff = off & pageMask
+
+	return
+}
+
+func (p *FS) readAt(noteIdx int, b []byte, off int64) (n int, err error) {
+	pages, pageOff, pagesEOF, err := p.notePagesSection(noteIdx, off, int64(len(b)))
+	if err != nil {
+		return
+	}
+	if pagesEOF > 0 {
+		err = io.EOF
+	}
 
 	for _, v := range pages {
 		pageAddr := int64(v) << pageBits
@@ -210,6 +229,36 @@ func (p *FS) readAt(noteIdx int, b []byte, off int64) (n int, err error) {
 		written, err := io.ReadFull(sr, b[n:])
 		n += written
 		if err != io.ErrUnexpectedEOF && err != nil {
+			return n, err
+		}
+
+		pageOff = 0
+	}
+
+	return
+}
+
+func (p *FS) writeAt(noteIdx int, b []byte, off int64) (n int, err error) {
+	dev, ok := p.dev.(io.WriterAt)
+	if !ok {
+		return 0, ErrReadOnly
+	}
+
+	pages, pageOff, pagesEOF, err := p.notePagesSection(noteIdx, off, int64(len(b)))
+	if err != nil {
+		return
+	}
+	err = p.allocPages(noteIdx, pagesEOF)
+	if err != nil {
+		return
+	}
+
+	for _, v := range pages {
+		pageAddr := int64(v) << pageBits
+		l := min(pageSize-int(pageOff), len(b[n:]))
+		written, err := dev.WriteAt(b[n:n+l], pageAddr+pageOff)
+		n += written
+		if err != nil {
 			return n, err
 		}
 
@@ -246,6 +295,10 @@ func (p *FS) validPage(page uint16) bool {
 }
 
 func (p *FS) allocPages(noteIdx int, pageCnt int) (err error) {
+	if pageCnt <= 0 {
+		return
+	}
+
 	newPages := make([]uint16, 0)
 	inodes(p)(func(page int, inode uint16) bool {
 		if inode == inodeFree {
