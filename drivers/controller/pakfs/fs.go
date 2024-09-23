@@ -11,6 +11,8 @@ import (
 
 var ErrInconsistent = errors.New("damaged filesystem")
 var ErrInvalidOffset = errors.New("invalid offset")
+var ErrNoSpace = errors.New("no space left")
+var ErrReadOnly = errors.New("read-only file system")
 
 const (
 	pagesPerBankBits = 7
@@ -241,6 +243,61 @@ func (p *FS) validPage(page uint16) bool {
 	return !(page < uint16(p.firstPage()) ||
 		page >= uint16(len(p.inodes)) ||
 		page&pageMask == 0)
+}
+
+func (p *FS) allocPages(noteIdx int, pageCnt int) (err error) {
+	newPages := make([]uint16, 0)
+	inodes(p)(func(page int, inode uint16) bool {
+		if inode == inodeFree {
+			newPages = append(newPages, uint16(page))
+		}
+		if len(newPages) >= pageCnt {
+			return false
+		}
+		return true
+	})
+
+	if len(newPages) < pageCnt {
+		return ErrNoSpace
+	}
+
+	pages, err := p.notePages(noteIdx)
+	if err != nil {
+		return
+	}
+
+	for i, page := range newPages[:len(newPages)-1] {
+		p.inodes[page] = newPages[i+1]
+	}
+	p.inodes[newPages[len(newPages)-1]] = inodeLast
+	p.inodes[pages[len(pages)-1]] = newPages[0]
+
+	if err = p.writeINodes(); err != nil {
+		return
+	}
+
+	return nil
+}
+
+// Write inodes back to disk.  Also updates the inode backup.
+func (p *FS) writeINodes() (err error) {
+	dev, ok := p.dev.(io.WriterAt)
+	if !ok {
+		return ErrReadOnly
+	}
+
+	p.iNodesChecksum(true)
+
+	for _, offsetFunc := range [...]func(uint8) (int64, int64){iNodesOffset, iNodesBakOffset} {
+		offset, _ := offsetFunc(p.id.BankCount)
+		iNodesWriter := io.NewOffsetWriter(dev, offset)
+		err = binary.Write(iNodesWriter, binary.BigEndian, p.inodes)
+		if err != nil {
+			return
+		}
+	}
+
+	return
 }
 
 func (p *FS) iNodesChecksum(update bool) (valid bool) {
