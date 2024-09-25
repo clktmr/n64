@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"math"
 	"strings"
 )
 
@@ -13,6 +14,7 @@ var ErrInconsistent = errors.New("damaged filesystem")
 var ErrInvalidOffset = errors.New("invalid offset")
 var ErrNoSpace = errors.New("no space left")
 var ErrReadOnly = errors.New("read-only file system")
+var ErrIsDir = errors.New("is directory")
 
 const (
 	pagesPerBankBits = 7
@@ -33,7 +35,10 @@ const (
 	baseIDBackup3 = 0x00c0
 )
 
-const noteCnt = 16
+const (
+	noteCnt  = 16
+	noteBits = 5
+)
 
 type idSector struct {
 	Repaired    uint32
@@ -117,7 +122,9 @@ validId:
 	return nil, ErrInconsistent
 
 validINodes:
-	err = binary.Read(notesReader(dev, fs.id.BankCount), binary.BigEndian, &fs.notes)
+	offset, n := notesOffset(fs.id.BankCount, 0)
+	sr := io.NewSectionReader(dev, offset, n)
+	err = binary.Read(sr, binary.BigEndian, &fs.notes)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +192,51 @@ func (p *FS) Free() int64 {
 		return true
 	})
 	return int64(freePages << pageBits)
+}
+
+func (p *FS) Remove(name string) (err error) {
+	fd, err := p.Open(name)
+	if err != nil {
+		return
+	}
+
+	f, ok := fd.(*file)
+	if !ok {
+		// If not a file this must be the root directory
+		return &fs.PathError{Op: "remove", Path: name, Err: ErrIsDir}
+	}
+
+	p.freePages(f.noteIdx, math.MaxInt)
+	p.notes[f.noteIdx] = note{}
+	err = p.writeNote(f.noteIdx)
+	return
+}
+
+func (p *FS) Truncate(name string, size int64) (err error) {
+	fd, err := p.Open(name)
+	if err != nil {
+		return
+	}
+
+	f, ok := fd.(*file)
+	if !ok {
+		// If not a file this must be the root directory
+		return &fs.PathError{Op: "truncate", Path: name, Err: ErrIsDir}
+	}
+
+	pages, err := p.notePages(f.noteIdx)
+	if err != nil {
+		return
+	}
+
+	pageDelta := int((size+pageMask)>>pageBits) - len(pages)
+	if pageDelta > 0 {
+		p.allocPages(f.noteIdx, pageDelta)
+	} else if pageDelta < 0 {
+		p.freePages(f.noteIdx, -pageDelta)
+	}
+
+	return
 }
 
 // Returns the pages of a note which contain a section of the note with offset
@@ -337,6 +389,32 @@ func (p *FS) allocPages(noteIdx int, pageCnt int) (err error) {
 	return nil
 }
 
+func (p *FS) freePages(noteIdx int, pageCnt int) (err error) {
+	pages, err := p.notePages(noteIdx)
+	if err != nil {
+		return
+	}
+
+	pageCnt = min(pageCnt, len(pages))
+	for _, page := range pages[len(pages)-pageCnt:] {
+		p.inodes[page] = inodeFree
+	}
+	pages = pages[:len(pages)-pageCnt]
+
+	if len(pages) == 0 {
+		p.notes[noteIdx].StartPage = inodeLast
+		err = p.writeNote(noteIdx)
+		if err != nil {
+			return
+		}
+	} else {
+		p.inodes[pages[len(pages)-1]] = inodeLast
+	}
+
+	err = p.writeINodes()
+	return
+}
+
 // Write inodes back to disk.  Also updates the inode backup.
 func (p *FS) writeINodes() (err error) {
 	dev, ok := p.dev.(io.WriterAt)
@@ -353,6 +431,23 @@ func (p *FS) writeINodes() (err error) {
 		if err != nil {
 			return
 		}
+	}
+
+	return
+}
+
+// Write game note back to disk.
+func (p *FS) writeNote(noteIdx int) (err error) {
+	dev, ok := p.dev.(io.WriterAt)
+	if !ok {
+		return ErrReadOnly
+	}
+
+	off, _ := notesOffset(p.id.BankCount, noteIdx)
+	ow := io.NewOffsetWriter(dev, off)
+	err = binary.Write(ow, binary.BigEndian, &p.notes[noteIdx])
+	if err != nil {
+		return
 	}
 
 	return
@@ -411,8 +506,9 @@ func iNodesBakOffset(bankCount uint8) (offset, n int64) {
 	return
 }
 
-func notesReader(dev io.ReaderAt, bankCount uint8) *io.SectionReader {
-	off := (1 + int64(bankCount)<<1) << pageBits
-	n := int64(2) << pageBits
-	return io.NewSectionReader(dev, off, n)
+func notesOffset(bankCount uint8, noteIdx int) (offset, n int64) {
+	offset = (1 + int64(bankCount)<<1) << pageBits
+	offset += int64(noteIdx << noteBits)
+	n = int64(2) << pageBits
+	return
 }
