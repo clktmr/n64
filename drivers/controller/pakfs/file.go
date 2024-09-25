@@ -38,15 +38,15 @@ func (d rootDir) IsDir() bool        { return true }
 func (d rootDir) Sys() any           { return nil }
 
 // Implements fs.File
-type file struct {
+type File struct {
 	io.Reader
 
 	fs      *FS
 	noteIdx int
 }
 
-func newFile(fs *FS, noteIdx int) (f *file) {
-	f = &file{
+func newFile(fs *FS, noteIdx int) (f *File) {
+	f = &File{
 		fs:      fs,
 		noteIdx: noteIdx,
 	}
@@ -54,14 +54,14 @@ func newFile(fs *FS, noteIdx int) (f *file) {
 	return
 }
 
-func (f *file) Stat() (fs.FileInfo, error)                    { return f, nil }
-func (f *file) ReadAt(b []byte, off int64) (n int, err error) { return f.fs.readAt(f.noteIdx, b, off) }
-func (f *file) WriteAt(b []byte, off int64) (n int, err error) {
+func (f *File) Stat() (fs.FileInfo, error)                    { return f, nil }
+func (f *File) ReadAt(b []byte, off int64) (n int, err error) { return f.fs.readAt(f.noteIdx, b, off) }
+func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
 	return f.fs.writeAt(f.noteIdx, b, off)
 }
-func (f *file) Close() error { return nil }
+func (f *File) Close() error { return nil }
 
-func (p *file) Name() (s string) {
+func (p *File) Name() (s string) {
 	note := p.fs.notes[p.noteIdx]
 
 	for _, v := range [...][]byte{note.FileName[:], note.Extension[:]} {
@@ -85,7 +85,7 @@ func (p *file) Name() (s string) {
 	return
 }
 
-func (p *file) Size() int64 {
+func (p *File) Size() int64 {
 	pages, err := p.fs.notePages(p.noteIdx)
 	if err != nil {
 		return 0
@@ -93,7 +93,7 @@ func (p *file) Size() int64 {
 	return int64(len(pages) << pageBits)
 }
 
-func (p *file) Mode() fs.FileMode  { return 0666 }
-func (p *file) ModTime() time.Time { return time.Unix(0, 0) }
-func (p *file) IsDir() bool        { return p.Mode().IsDir() }
-func (p *file) Sys() any           { return nil }
+func (p *File) Mode() fs.FileMode  { return 0666 }
+func (p *File) ModTime() time.Time { return time.Unix(0, 0) }
+func (p *File) IsDir() bool        { return p.Mode().IsDir() }
+func (p *File) Sys() any           { return nil }

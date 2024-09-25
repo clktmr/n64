@@ -170,7 +170,7 @@ func (p *FS) Root() rootDir {
 		if p.notes[i].StartPage == 0 {
 			continue
 		}
-		root = append(root, fs.FileInfoToDirEntry(&file{
+		root = append(root, fs.FileInfoToDirEntry(&File{
 			fs:      p,
 			noteIdx: i,
 		}))
@@ -200,7 +200,7 @@ func (p *FS) Remove(name string) (err error) {
 		return
 	}
 
-	f, ok := fd.(*file)
+	f, ok := fd.(*File)
 	if !ok {
 		// If not a file this must be the root directory
 		return &fs.PathError{Op: "remove", Path: name, Err: ErrIsDir}
@@ -218,7 +218,7 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 		return
 	}
 
-	f, ok := fd.(*file)
+	f, ok := fd.(*File)
 	if !ok {
 		// If not a file this must be the root directory
 		return &fs.PathError{Op: "truncate", Path: name, Err: ErrIsDir}
