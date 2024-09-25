@@ -225,10 +225,10 @@ func (p *FS) readAt(noteIdx int, b []byte, off int64) (n int, err error) {
 
 	for _, v := range pages {
 		pageAddr := int64(v) << pageBits
-		sr := io.NewSectionReader(p.dev, pageAddr+pageOff, pageSize-pageOff)
-		written, err := io.ReadFull(sr, b[n:])
+		l := min(pageSize-int(pageOff), len(b[n:]))
+		written, err := p.dev.ReadAt(b[n:n+l], pageAddr+pageOff)
 		n += written
-		if err != io.ErrUnexpectedEOF && err != nil {
+		if err != nil {
 			return n, err
 		}
 
