@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"math"
+	"path"
 	"strings"
 )
 
@@ -15,6 +16,7 @@ var ErrInvalidOffset = errors.New("invalid offset")
 var ErrNoSpace = errors.New("no space left")
 var ErrReadOnly = errors.New("read-only file system")
 var ErrIsDir = errors.New("is directory")
+var ErrNameTooLong = errors.New("file name too long")
 
 const (
 	pagesPerBankBits = 7
@@ -192,6 +194,52 @@ func (p *FS) Free() int64 {
 		return true
 	})
 	return int64(freePages << pageBits)
+}
+
+func (p *FS) Create(name string) (*File, error) {
+	if !fs.ValidPath(name) || path.Dir(name) != "." {
+		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrInvalid}
+	}
+
+	var noteIdx int
+	for noteIdx = range p.notes {
+		if p.notes[noteIdx].StartPage == 0 {
+			goto freeNote
+		}
+	}
+
+	return nil, &fs.PathError{Op: "create", Path: name, Err: ErrNoSpace}
+
+freeNote:
+	note := &p.notes[noteIdx]
+	note.StartPage = inodeLast
+	note.Status = 0x2
+
+	extension := path.Ext(name)
+	name = strings.TrimSuffix(name, extension)
+	extension = strings.TrimPrefix(extension, ".")
+
+	for _, v := range [...]struct {
+		dst []byte
+		src string
+	}{
+		{note.FileName[:], name},
+		{note.Extension[:], extension},
+	} {
+		s, err := N64FontCode.NewEncoder().String(v.src)
+		if err != nil {
+			return nil, err
+		}
+		if len(s) > len(v.dst[:]) {
+			return nil, &fs.PathError{Op: "create", Path: name, Err: ErrNameTooLong}
+		}
+		n := copy(v.dst[:], s)
+		for i := range v.dst[n:] {
+			v.dst[n+i] = 0
+		}
+	}
+
+	return newFile(p, noteIdx), nil
 }
 
 func (p *FS) Remove(name string) (err error) {
