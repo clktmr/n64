@@ -137,7 +137,7 @@ func (p *FS) Open(name string) (fs.File, error) {
 		return nil, fs.ErrInvalid
 	}
 
-	if strings.Compare(name, ".") == 0 {
+	if name == "." {
 		return p.Root(), nil
 	}
 
@@ -147,7 +147,7 @@ func (p *FS) Open(name string) (fs.File, error) {
 			return nil, err
 		}
 		l := min(len(entry.FileName), len(name))
-		if strings.Compare(name, string(entry.FileName[:l])) == 0 {
+		if name == string(entry.FileName[:l]) {
 			return newFile(p, i), nil
 		}
 	}
