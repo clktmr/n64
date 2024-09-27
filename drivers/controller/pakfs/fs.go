@@ -143,14 +143,13 @@ func (p *FS) Open(name string) (fs.File, error) {
 		return p.Root(), nil
 	}
 
-	for i, entry := range p.notes {
-		name, err := N64FontCode.NewEncoder().String(name)
-		if err != nil {
-			return nil, &fs.PathError{Op: "open", Path: name, Err: err}
+	for i := range p.notes {
+		if p.notes[i].StartPage == 0 {
+			continue
 		}
-		l := min(len(entry.FileName), len(name))
-		if name == string(entry.FileName[:l]) {
-			return newFile(p, i), nil
+		f := newFile(p, i)
+		if name == f.Name() {
+			return f, nil
 		}
 	}
 
