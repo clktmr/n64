@@ -216,8 +216,11 @@ func (p *FS) Create(name string) (*File, error) {
 
 freeNote:
 
-	extension := path.Ext(name)
-	filename := strings.TrimSuffix(name, extension)
+	filename := name
+	extension := path.Ext(filename)
+	if extension != "." {
+		filename = strings.TrimSuffix(filename, extension)
+	}
 	extension = strings.TrimPrefix(extension, ".")
 
 	note := &p.notes[noteIdx]
