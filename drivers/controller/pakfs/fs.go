@@ -136,7 +136,7 @@ validINodes:
 
 func (p *FS) Open(name string) (fs.File, error) {
 	if !fs.ValidPath(name) {
-		return nil, fs.ErrInvalid
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
 
 	if name == "." {
@@ -146,7 +146,7 @@ func (p *FS) Open(name string) (fs.File, error) {
 	for i, entry := range p.notes {
 		name, err := N64FontCode.NewEncoder().String(name)
 		if err != nil {
-			return nil, err
+			return nil, &fs.PathError{Op: "open", Path: name, Err: err}
 		}
 		l := min(len(entry.FileName), len(name))
 		if name == string(entry.FileName[:l]) {
@@ -154,7 +154,7 @@ func (p *FS) Open(name string) (fs.File, error) {
 		}
 	}
 
-	return nil, fs.ErrNotExist
+	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 }
 
 func (p *FS) Label() string {
@@ -201,6 +201,11 @@ func (p *FS) Create(name string) (*File, error) {
 		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrInvalid}
 	}
 
+	_, err := p.Open(name)
+	if err == nil {
+		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrExist}
+	}
+
 	var noteIdx int
 	for noteIdx = range p.notes {
 		if p.notes[noteIdx].StartPage == 0 {
@@ -216,19 +221,19 @@ freeNote:
 	note.Status = 0x2
 
 	extension := path.Ext(name)
-	name = strings.TrimSuffix(name, extension)
+	filename := strings.TrimSuffix(name, extension)
 	extension = strings.TrimPrefix(extension, ".")
 
 	for _, v := range [...]struct {
 		dst []byte
 		src string
 	}{
-		{note.FileName[:], name},
+		{note.FileName[:], filename},
 		{note.Extension[:], extension},
 	} {
 		s, err := N64FontCode.NewEncoder().String(v.src)
 		if err != nil {
-			return nil, err
+			return nil, &fs.PathError{Op: "create", Path: name, Err: err}
 		}
 		if len(s) > len(v.dst[:]) {
 			return nil, &fs.PathError{Op: "create", Path: name, Err: ErrNameTooLong}
@@ -274,7 +279,7 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 
 	pages, err := p.notePages(f.noteIdx)
 	if err != nil {
-		return
+		return &fs.PathError{Op: "truncate", Path: name, Err: err}
 	}
 
 	pageDelta := int((size+pageMask)>>pageBits) - len(pages)
