@@ -3,7 +3,9 @@ package pakfs
 import (
 	"bytes"
 	"crypto/sha1"
+	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"testing"
@@ -99,6 +101,81 @@ func TestReadFile(t *testing.T) {
 			if !bytes.Equal(hashsum, []byte(tc.sha1)) {
 				t.Fatal("hash mismatch")
 			}
+		})
+	}
+}
+
+func writeableTestdata(t *testing.T, name string) *os.File {
+	data, err := os.ReadFile(path.Join("testdata", "clktmr.mpk"))
+	if err != nil {
+		t.Fatal("missing testdata:", err)
+	}
+
+	tempTestdata := path.Join(t.TempDir(), "clktmr.mpk")
+	err = os.WriteFile(tempTestdata, data, 0666)
+	if err != nil {
+		t.Fatal("copying testdata:", err)
+	}
+
+	file, err := os.OpenFile(tempTestdata, os.O_RDWR, 0777)
+	if err != nil {
+		t.Fatal("open testdata:", err)
+	}
+	return file
+}
+
+func TestCreateFile(t *testing.T) {
+	tests := map[string]struct {
+		name string
+		err  error
+	}{
+		"ErrExist1":          {"PERFECT ", fs.ErrExist},
+		"ErrExist2":          {"PERFECT DARK", fs.ErrExist},
+		"ErrExist3":          {"V82, \"METIN\"", fs.ErrExist},
+		"Simple":             {"SIMPLE.TXT", nil},
+		"NoExtension":        {"NOEXT", nil},
+		"NoExtension2":       {"NOEXT2.", nil},
+		"OnlyExtension":      {".EXT", nil},
+		"DotInName":          {"DOT.IN.NAME", nil},
+		"NoNullTerm":         {"NONULLTERMINATOR", nil},
+		"NoNullTermExt":      {"NO.NULL", nil},
+		"ErrNameTooLongName": {"VERYLONGFILENAME!", ErrNameTooLong},
+		"ErrNameTooLongExt":  {"NAME.EXTEN", ErrNameTooLong},
+	}
+
+	testdata := writeableTestdata(t, "clktmr.mpk")
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pfs, err := Read(testdata)
+			if err != nil {
+				t.Fatal("damaged testdata:", err)
+			}
+			freeBefore := pfs.Free()
+			numFiles := len(pfs.Root())
+
+			f, err := pfs.Create(tc.name)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("expected %v, got %v", tc.err, err)
+			}
+
+			if err == nil {
+				numFiles += 1
+			}
+			if len(pfs.Root()) != numFiles {
+				t.Fatalf("expected %v files, got %v", numFiles, len(pfs.Root()))
+			}
+			if pfs.Free() != freeBefore {
+				t.Fatalf("free disk space changed")
+			}
+
+			if err != nil {
+				return
+			}
+			if f.Name() != tc.name {
+				t.Fatalf("expected filename '%v', got '%v'", tc.name, f.Name())
+			}
+
 		})
 	}
 }
