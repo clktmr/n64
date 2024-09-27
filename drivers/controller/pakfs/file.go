@@ -64,12 +64,10 @@ func (f *File) Close() error { return nil }
 func (p *File) Name() (s string) {
 	note := p.fs.notes[p.noteIdx]
 
-	for _, v := range [...][]byte{note.FileName[:], note.Extension[:]} {
+	for _, v := range [...][]byte{note.Extension[:], note.FileName[:]} {
 		// filename is null terminated
 		null := bytes.IndexByte(v, 0)
-		if null == 0 {
-			continue
-		} else if null == -1 {
+		if null == -1 {
 			null = len(v)
 		}
 
@@ -78,7 +76,7 @@ func (p *File) Name() (s string) {
 		if s == "" {
 			s = vs
 		} else {
-			s = strings.Join([]string{s, vs}, ".")
+			s = strings.Join([]string{vs, s}, ".")
 		}
 	}
 
