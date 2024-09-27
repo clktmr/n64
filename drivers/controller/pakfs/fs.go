@@ -216,14 +216,12 @@ func (p *FS) Create(name string) (*File, error) {
 	return nil, &fs.PathError{Op: "create", Path: name, Err: ErrNoSpace}
 
 freeNote:
-	note := &p.notes[noteIdx]
-	note.StartPage = inodeLast
-	note.Status = 0x2
 
 	extension := path.Ext(name)
 	filename := strings.TrimSuffix(name, extension)
 	extension = strings.TrimPrefix(extension, ".")
 
+	note := &p.notes[noteIdx]
 	for _, v := range [...]struct {
 		dst []byte
 		src string
@@ -243,6 +241,11 @@ freeNote:
 			v.dst[n+i] = 0
 		}
 	}
+
+	note.StartPage = inodeLast
+	note.Status = 0x2
+
+	p.writeNote(noteIdx)
 
 	return newFile(p, noteIdx), nil
 }
