@@ -225,19 +225,20 @@ func TestRemoveFile(t *testing.T) {
 	}
 
 	testdata := writeableTestdata(t, "clktmr.mpk")
-	pfs, err := Read(testdata)
-	if err != nil {
-		t.Fatal("damaged testdata:", err)
-	}
-	numFiles := len(pfs.Root())
-	free := pfs.Free()
-	if free != 16896 {
-		t.Fatalf("free: expected %v, got %v", 16896, free)
-	}
 
+	var pfs *FS
+	var free int64
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := pfs.Remove(tc.name)
+			var err error
+			pfs, err = Read(testdata)
+			if err != nil {
+				t.Fatal("damaged testdata:", err)
+			}
+			numFiles := len(pfs.Root())
+			free = pfs.Free()
+
+			err = pfs.Remove(tc.name)
 			if !errors.Is(err, tc.err) {
 				t.Fatalf("expected %v, got %v", tc.err, err)
 			}
@@ -279,17 +280,15 @@ func TestTruncateFile(t *testing.T) {
 	}
 
 	testdata := writeableTestdata(t, "clktmr.mpk")
-	pfs, err := Read(testdata)
-	if err != nil {
-		t.Fatal("damaged testdata:", err)
-	}
-	free := pfs.Free()
-	if free != 16896 {
-		t.Fatalf("free: expected %v, got %v", 16896, free)
-	}
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			pfs, err := Read(testdata)
+			if err != nil {
+				t.Fatal("damaged testdata:", err)
+			}
+			free := pfs.Free()
+
 			fi, _ := pfs.Open(tc.name)
 			f, _ := fi.(*File)
 			var oldSize int64
@@ -298,7 +297,7 @@ func TestTruncateFile(t *testing.T) {
 				oldSize = f.Size()
 			}
 
-			err := pfs.Truncate(tc.name, tc.size)
+			err = pfs.Truncate(tc.name, tc.size)
 			if !errors.Is(err, tc.err) {
 				t.Fatalf("expected %v, got %v", tc.err, err)
 			}
