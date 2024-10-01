@@ -277,6 +277,10 @@ func (p *FS) Remove(name string) (err error) {
 }
 
 func (p *FS) Truncate(name string, size int64) (err error) {
+	if size < 0 {
+		return fs.ErrInvalid
+	}
+
 	fd, err := p.Open(name)
 	if err != nil {
 		return
@@ -295,9 +299,9 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 
 	pageDelta := int((size+pageMask)>>pageBits) - len(pages)
 	if pageDelta > 0 {
-		p.allocPages(f.noteIdx, pageDelta)
+		err = p.allocPages(f.noteIdx, pageDelta)
 	} else if pageDelta < 0 {
-		p.freePages(f.noteIdx, -pageDelta)
+		err = p.freePages(f.noteIdx, -pageDelta)
 	}
 
 	return
@@ -420,6 +424,11 @@ func (p *FS) validPage(page uint16) bool {
 }
 
 func (p *FS) allocPages(noteIdx int, pageCnt int) (err error) {
+	dev, ok := p.dev.(io.WriterAt)
+	if !ok {
+		return ErrReadOnly
+	}
+
 	newPages := make([]uint16, 0)
 	inodes(p)(func(page int, inode uint16) bool {
 		if inode == inodeFree {
@@ -446,11 +455,17 @@ func (p *FS) allocPages(noteIdx int, pageCnt int) (err error) {
 	p.inodes[newPages[len(newPages)-1]] = inodeLast
 	p.inodes[pages[len(pages)-1]] = newPages[0]
 
-	if err = p.writeINodes(); err != nil {
-		return
+	// write zeroes to new pages
+	var buf [pageSize]byte
+	for _, v := range newPages {
+		pageAddr := int64(v) << pageBits
+		_, err = dev.WriteAt(buf[:], pageAddr)
+		if err != nil {
+			return
+		}
 	}
 
-	return nil
+	return p.writeINodes()
 }
 
 func (p *FS) freePages(noteIdx int, pageCnt int) (err error) {
@@ -475,8 +490,7 @@ func (p *FS) freePages(noteIdx int, pageCnt int) (err error) {
 		p.inodes[pages[len(pages)-1]] = inodeLast
 	}
 
-	err = p.writeINodes()
-	return
+	return p.writeINodes()
 }
 
 // Write inodes back to disk.  Also updates the inode backup.

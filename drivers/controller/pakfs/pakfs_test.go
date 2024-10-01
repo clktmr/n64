@@ -259,3 +259,74 @@ func TestRemoveFile(t *testing.T) {
 		t.Fatalf("expected empty filesystem, got free=%v size=%v", free, size)
 	}
 }
+
+func TestTruncateFile(t *testing.T) {
+	tests := map[string]struct {
+		name string
+		size int64
+		err  error
+	}{
+		"Root":        {".", 0, ErrIsDir},
+		"ErrNotExist": {"NOTEXIST", 0, os.ErrNotExist},
+		"ErrInvalid1": {"NOTEXIST", -1, fs.ErrInvalid},
+		"ErrInvalid2": {"PERFECT ", -1, fs.ErrInvalid},
+		"ErrNoSpace":  {"PERFECT ", 7168 + 16986 + 512, ErrNoSpace},
+		"Noop1":       {"PERFECT ", 7168, nil},
+		"Noop2":       {"PERFECT ", 7167, nil},
+		"Noop3":       {"PERFECT ", 6913, nil},
+		"Grow":        {"V82, \"METIN\"", 257, nil},
+		"Shrink":      {"PERFECT DARK", 6913, nil},
+	}
+
+	testdata := writeableTestdata(t, "clktmr.mpk")
+	pfs, err := Read(testdata)
+	if err != nil {
+		t.Fatal("damaged testdata:", err)
+	}
+	free := pfs.Free()
+	if free != 16896 {
+		t.Fatalf("free: expected %v, got %v", 16896, free)
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			fi, _ := pfs.Open(tc.name)
+			f, _ := fi.(*File)
+			var oldSize int64
+
+			if tc.err == nil {
+				oldSize = f.Size()
+			}
+
+			err := pfs.Truncate(tc.name, tc.size)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("expected %v, got %v", tc.err, err)
+			}
+
+			if err == nil {
+				expectedSize := (tc.size + pageMask) &^ pageMask
+				if f.Size() != expectedSize {
+					t.Fatalf("expected size %v, got %v", expectedSize, f.Size())
+				}
+				delta := f.Size() - oldSize
+				free -= delta
+
+				// Check if new bytes are zeroed
+				if delta > 0 {
+					buf := make([]byte, delta)
+					zeroes := make([]byte, delta)
+					_, err := f.ReadAt(buf, f.Size()-delta)
+					if err != nil && err != io.EOF {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(buf, zeroes) {
+						t.Fatal("new pages contain data")
+					}
+				}
+			}
+			if pfs.Free() != free {
+				t.Fatalf("expected %v free bytes, got %v", free, pfs.Free())
+			}
+		})
+	}
+}
