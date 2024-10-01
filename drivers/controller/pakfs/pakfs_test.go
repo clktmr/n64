@@ -11,6 +11,14 @@ import (
 	"testing"
 )
 
+const lorem = `Lorem ipsum dolor sit amet, consectetur adipisici elit, sed
+eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad
+minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid
+ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit
+esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat
+cupiditat non proident, sunt in culpa qui officia deserunt mollit anim
+id est laborum.`
+
 func prepareRead(t *testing.T, filename string, flipBytes []int) io.ReaderAt {
 	data, err := os.ReadFile(filename)
 	if err != nil {
@@ -118,6 +126,79 @@ func writeableTestdata(t *testing.T, name string) *os.File {
 		t.Fatal("open testdata:", err)
 	}
 	return file
+}
+
+func TestWriteFile(t *testing.T) {
+	tests := map[string]struct {
+		name   string
+		data   []byte
+		offset int64
+		err    error
+	}{
+		"Short1":     {"PERFECT ", []byte("foo"), 0, nil},
+		"Short2":     {"PERFECT ", []byte("foo"), 256, nil},
+		"Short3":     {"PERFECT ", []byte("foo"), 600, nil},
+		"Short4":     {"PERFECT ", []byte("foo"), 7168, nil},
+		"Long1":      {"PERFECT DARK", []byte(lorem), 100, nil},
+		"Long2":      {"PERFECT DARK", []byte(lorem), 7068, nil},
+		"LongEOF":    {"V82, \"METIN\"", []byte(lorem), 300, nil},
+		"ErrNoSpace": {"V82, \"METIN\"", []byte(lorem), 1000000, ErrNoSpace},
+	}
+
+	testdata := writeableTestdata(t, "clktmr.mpk")
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			pfs, err := Read(testdata)
+			if err != nil {
+				t.Fatal("damaged testdata:", err)
+			}
+
+			fi, err := pfs.Open(tc.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f, _ := fi.(*File)
+			oldSize := f.Size()
+
+			n, err := f.WriteAt(tc.data, tc.offset)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("expected %v, got %v", tc.err, err)
+			}
+			if err != nil {
+				return
+			}
+			if n != len(tc.data) {
+				t.Fatalf("expected %v written, got %v", len(tc.data), n)
+			}
+			buf := make([]byte, n)
+			_, err = f.ReadAt(buf, tc.offset)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(buf, tc.data) {
+				t.Fatalf("read unexpected data:\nexpected %q\ngot %q", tc.data, buf)
+			}
+
+			// Newly allocated bytes not written must be zeroed
+			end := tc.offset + int64(len(tc.data))
+			for _, gap := range [...]struct{ size, offset int64 }{
+				{tc.offset - oldSize, oldSize},
+				{pageSize - end&pageMask, end},
+			} {
+				if gap.size > 0 && gap.offset > oldSize {
+					buf := make([]byte, gap.size)
+					zeroes := make([]byte, gap.size)
+					_, err = f.ReadAt(buf, gap.offset)
+					if err != nil && err != io.EOF {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(buf, zeroes) {
+						t.Errorf("gap not zeroed: %v\n%q", gap, buf)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestCreateFile(t *testing.T) {
