@@ -137,6 +137,7 @@ func TestCreateFile(t *testing.T) {
 		"NoNullTermExt":      {"NO.NULL", nil},
 		"ErrNameTooLongName": {"VERYLONGFILENAME!", ErrNameTooLong},
 		"ErrNameTooLongExt":  {"NAME.EXTEN", ErrNameTooLong},
+		"ErrNotExist":        {"ISDIR/FILE", fs.ErrNotExist},
 	}
 
 	testdata := writeableTestdata(t, "clktmr.mpk")

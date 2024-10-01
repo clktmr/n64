@@ -12,10 +12,9 @@ import (
 )
 
 var ErrInconsistent = errors.New("damaged filesystem")
-var ErrInvalidOffset = errors.New("invalid offset")
-var ErrNoSpace = errors.New("no space left")
+var ErrNoSpace = errors.New("no space left on device")
 var ErrReadOnly = errors.New("read-only file system")
-var ErrIsDir = errors.New("is directory")
+var ErrIsDir = errors.New("is a directory")
 var ErrNameTooLong = errors.New("file name too long")
 
 const (
@@ -196,8 +195,11 @@ func (p *FS) Free() int64 {
 }
 
 func (p *FS) Create(name string) (*File, error) {
-	if !fs.ValidPath(name) || path.Dir(name) != "." {
+	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrInvalid}
+	}
+	if path.Dir(name) != "." {
+		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrNotExist}
 	}
 
 	_, err := p.Open(name)
@@ -306,7 +308,7 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 // number of pages to be allocated.
 func (p *FS) notePagesSection(noteIdx int, off int64, n int64) (pages []uint16, pagesEOF int, err error) {
 	if off < 0 {
-		err = ErrInvalidOffset
+		err = fs.ErrInvalid
 		return
 	}
 
