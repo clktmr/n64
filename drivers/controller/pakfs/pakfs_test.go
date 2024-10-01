@@ -179,3 +179,37 @@ func TestCreateFile(t *testing.T) {
 		})
 	}
 }
+
+func TestOpenFile(t *testing.T) {
+	tests := map[string]struct {
+		name string
+		err  error
+	}{
+		"Root":         {".", nil},
+		"Ok1":          {"PERFECT ", nil},
+		"Ok2":          {"PERFECT DARK", nil},
+		"Ok3":          {"V82, \"METIN\"", nil},
+		"ErrNotExist1": {"PERFECT", os.ErrNotExist},
+		"ErrNotExist2": {"PERFECT  ", os.ErrNotExist},
+		"ErrNotExist3": {"perfect ", os.ErrNotExist},
+		"ErrNotExist4": {"PERFECT .", os.ErrNotExist},
+		"ErrInvalid1":  {"", fs.ErrInvalid},
+		"ErrInvalid2":  {"./PERFECT ", fs.ErrInvalid},
+		"ErrInvalid3":  {"/PERFECT ", fs.ErrInvalid},
+	}
+
+	testdata := writeableTestdata(t, "clktmr.mpk")
+	pfs, err := Read(testdata)
+	if err != nil {
+		t.Fatal("damaged testdata:", err)
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := pfs.Open(tc.name)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("expected %v, got %v", tc.err, err)
+			}
+		})
+	}
+}
