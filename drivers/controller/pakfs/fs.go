@@ -264,7 +264,11 @@ func (p *FS) Remove(name string) (err error) {
 		return &fs.PathError{Op: "remove", Path: name, Err: ErrIsDir}
 	}
 
-	p.freePages(f.noteIdx, math.MaxInt)
+	err = p.freePages(f.noteIdx, math.MaxInt)
+	if err != nil {
+		return
+	}
+
 	p.notes[f.noteIdx] = note{}
 	err = p.writeNote(f.noteIdx)
 	return

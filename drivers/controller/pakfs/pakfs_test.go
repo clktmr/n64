@@ -69,10 +69,6 @@ func TestReadFile(t *testing.T) {
 		t.Fatal("damaged testdata:", err)
 	}
 
-	if free := fs.Free(); free != 16896 {
-		t.Fatalf("free: expected %v, got %v", 16896, free)
-	}
-
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			file, err := fs.Open(tc.name)
@@ -211,5 +207,54 @@ func TestOpenFile(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tc.err, err)
 			}
 		})
+	}
+}
+
+func TestRemoveFile(t *testing.T) {
+	tests := map[string]struct {
+		name string
+		size int64
+		err  error
+	}{
+		"Root":         {".", 0, ErrIsDir},
+		"ErrNotExist1": {"NOTEXIST", 0, os.ErrNotExist},
+		"Ok1":          {"PERFECT ", 7168, nil},
+		"Ok2":          {"PERFECT DARK", 7168, nil},
+		"Ok3":          {"V82, \"METIN\"", 256, nil},
+	}
+
+	testdata := writeableTestdata(t, "clktmr.mpk")
+	pfs, err := Read(testdata)
+	if err != nil {
+		t.Fatal("damaged testdata:", err)
+	}
+	numFiles := len(pfs.Root())
+	free := pfs.Free()
+	if free != 16896 {
+		t.Fatalf("free: expected %v, got %v", 16896, free)
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := pfs.Remove(tc.name)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("expected %v, got %v", tc.err, err)
+			}
+			if err == nil {
+				numFiles -= 1
+				free += tc.size
+			}
+			if len(pfs.Root()) != numFiles {
+				t.Fatalf("expected %v files, got %v", numFiles, len(pfs.Root()))
+			}
+			if pfs.Free() != free {
+				t.Fatalf("expected %v free bytes, got %v", free, pfs.Free())
+			}
+		})
+	}
+
+	size := pfs.Size()
+	if size != free {
+		t.Fatalf("expected empty filesystem, got free=%v size=%v", free, size)
 	}
 }
