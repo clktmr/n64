@@ -8,8 +8,12 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"slices"
 	"strings"
 	"testing"
+	"time"
+
+	"math/rand"
 )
 
 const lorem = `Lorem ipsum dolor sit amet, consectetur adipisici elit, sed
@@ -420,5 +424,119 @@ func TestTruncateFile(t *testing.T) {
 				t.Fatalf("expected %v free bytes, got %v", free, pfs.Free())
 			}
 		})
+	}
+}
+
+func TestParallel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
+	const maxFileSize = 1024
+	filenames := [...]string{
+		".",
+		"PERFECT ",
+		"PERFECT DARK",
+		"V82, \"METIN\"",
+		"NEWFILE.1",
+		"NEWFILE.2",
+	}
+	testdata := writeableTestdata(t, "clktmr.mpk")
+	pfs, err := Read(testdata)
+	if err != nil {
+		t.Fatal("damaged testdata:", err)
+	}
+
+	for _, filename := range filenames {
+		filename := filename
+		t.Run(filename, func(t *testing.T) {
+			var err error
+			t.Parallel()
+			timer := time.NewTimer(5 * time.Second)
+			f, _ := pfs.Open(filename)
+			switch f := f.(type) {
+			case *File:
+				for {
+					f.fs.Truncate(filename, int64(rand.Intn(maxFileSize)))
+					if err != nil {
+						t.Fatal(err)
+					}
+					offset := int64(rand.Intn(maxFileSize))
+					_, err = f.WriteAt([]byte(lorem), offset)
+					if err != nil {
+						t.Fatal(err)
+					}
+					buf := make([]byte, len(lorem))
+					_, err = f.ReadAt(buf, offset)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(buf, []byte(lorem)) {
+						t.Fatal("read unexpected data")
+					}
+
+					select {
+					case <-timer.C:
+						return
+					default:
+						continue
+					}
+				}
+			case rootDir:
+				for {
+					entries, err := f.ReadDir(4)
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, entry := range entries {
+						if !slices.Contains(filenames[:], entry.Name()) {
+							t.Fatal("unexpected file", entry.Name())
+						}
+					}
+					select {
+					case <-timer.C:
+						return
+					default:
+						continue
+					}
+				}
+			case nil:
+				for {
+					f, err = pfs.Create(filename)
+					if err != nil {
+						t.Fatal(err)
+					}
+					f, _ := f.(*File)
+					offset := int64(rand.Intn(maxFileSize))
+					_, err = f.WriteAt([]byte(lorem), offset)
+					if err != nil {
+						t.Fatal(err)
+					}
+					buf := make([]byte, len(lorem))
+					_, err = f.ReadAt(buf, offset)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(buf, []byte(lorem)) {
+						t.Fatal("read unexpected data")
+					}
+					err = pfs.Remove(filename)
+					if err != nil {
+						t.Fatal(err)
+					}
+					select {
+					case <-timer.C:
+						return
+					default:
+						continue
+					}
+				}
+			}
+		})
+	}
+
+	pfs, err = Read(testdata)
+	if err != nil {
+		t.Fatal("damaged testdata:", err)
 	}
 }

@@ -54,14 +54,27 @@ func newFile(fs *FS, noteIdx int) (f *File) {
 	return
 }
 
-func (f *File) Stat() (fs.FileInfo, error)                    { return f, nil }
-func (f *File) ReadAt(b []byte, off int64) (n int, err error) { return f.fs.readAt(f.noteIdx, b, off) }
+func (f *File) Stat() (fs.FileInfo, error) { return f, nil }
+func (f *File) Close() error               { return nil }
+
+func (f *File) ReadAt(b []byte, off int64) (n int, err error) {
+	f.fs.mtx.RLock()
+	defer f.fs.mtx.RUnlock()
+
+	return f.fs.readAt(f.noteIdx, b, off)
+}
+
 func (f *File) WriteAt(b []byte, off int64) (n int, err error) {
+	f.fs.mtx.Lock()
+	defer f.fs.mtx.Unlock()
+
 	return f.fs.writeAt(f.noteIdx, b, off)
 }
-func (f *File) Close() error { return nil }
 
 func (p *File) Name() (s string) {
+	p.fs.mtx.RLock()
+	defer p.fs.mtx.RUnlock()
+
 	note := p.fs.notes[p.noteIdx]
 
 	for _, v := range [...][]byte{note.Extension[:], note.FileName[:]} {
@@ -84,6 +97,9 @@ func (p *File) Name() (s string) {
 }
 
 func (p *File) Size() int64 {
+	p.fs.mtx.RLock()
+	defer p.fs.mtx.RUnlock()
+
 	pages, err := p.fs.notePages(p.noteIdx)
 	if err != nil {
 		return 0

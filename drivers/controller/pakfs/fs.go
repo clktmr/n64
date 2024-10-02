@@ -9,6 +9,7 @@ import (
 	"math"
 	"path"
 	"strings"
+	"sync"
 )
 
 var ErrInconsistent = errors.New("damaged filesystem")
@@ -83,6 +84,7 @@ type note struct {
 }
 
 type FS struct {
+	mtx sync.RWMutex
 	dev io.ReaderAt
 
 	id     idSector
@@ -142,20 +144,27 @@ func (p *FS) Open(name string) (fs.File, error) {
 		return p.Root(), nil
 	}
 
+	p.mtx.RLock()
 	for i := range p.notes {
 		if p.notes[i].StartPage == 0 {
 			continue
 		}
 		f := newFile(p, i)
+		p.mtx.RUnlock()
 		if name == f.Name() {
 			return f, nil
 		}
+		p.mtx.RLock()
 	}
+	p.mtx.RUnlock()
 
 	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 }
 
 func (p *FS) Label() string {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	label := [blockLen]byte{}
 	_, err := p.dev.ReadAt(label[:], baseLabel)
 	if err != nil {
@@ -165,6 +174,9 @@ func (p *FS) Label() string {
 }
 
 func (p *FS) Root() rootDir {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	root := make([]fs.DirEntry, 0, noteCnt)
 	for i := range p.notes {
 		if p.notes[i].StartPage == 0 {
@@ -179,11 +191,17 @@ func (p *FS) Root() rootDir {
 }
 
 func (p *FS) Size() int64 {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	totalPages := int64(len(p.inodes)) - int64(p.id.BankCount) - int64(p.id.BankCount<<1) - 2
 	return totalPages << pageBits
 }
 
 func (p *FS) Free() int64 {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
 	freePages := 0
 	inodes(p)(func(page int, inode uint16) bool {
 		if inode == inodeFree {
@@ -206,6 +224,9 @@ func (p *FS) Create(name string) (*File, error) {
 	if err == nil {
 		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrExist}
 	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 
 	var noteIdx int
 	for noteIdx = range p.notes {
@@ -260,6 +281,9 @@ func (p *FS) Remove(name string) (err error) {
 		return
 	}
 
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 	f, ok := fd.(*File)
 	if !ok {
 		// If not a file this must be the root directory
@@ -285,6 +309,9 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 	if err != nil {
 		return
 	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
 
 	f, ok := fd.(*File)
 	if !ok {
