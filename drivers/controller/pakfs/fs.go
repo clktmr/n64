@@ -453,7 +453,15 @@ func (p *FS) allocPages(noteIdx int, pageCnt int) (err error) {
 		p.inodes[page] = newPages[i+1]
 	}
 	p.inodes[newPages[len(newPages)-1]] = inodeLast
-	p.inodes[pages[len(pages)-1]] = newPages[0]
+	if len(pages) == 0 {
+		p.notes[noteIdx].StartPage = newPages[0]
+		err = p.writeNote(noteIdx)
+		if err != nil {
+			return
+		}
+	} else {
+		p.inodes[pages[len(pages)-1]] = newPages[0]
+	}
 
 	// write zeroes to new pages
 	var buf [pageSize]byte

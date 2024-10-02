@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"strings"
 	"testing"
 )
 
@@ -358,6 +359,7 @@ func TestTruncateFile(t *testing.T) {
 		"Noop3":       {"PERFECT ", 6913, nil},
 		"Grow":        {"V82, \"METIN\"", 257, nil},
 		"Shrink":      {"PERFECT DARK", 6913, nil},
+		"Create":      {"NEWFILE", 1000, nil},
 	}
 
 	testdata := writeableTestdata(t, "clktmr.mpk")
@@ -371,6 +373,9 @@ func TestTruncateFile(t *testing.T) {
 			free := pfs.Free()
 
 			fi, _ := pfs.Open(tc.name)
+			if strings.HasPrefix(name, "Create") {
+				fi, _ = pfs.Create(tc.name)
+			}
 			f, _ := fi.(*File)
 			var oldSize int64
 
@@ -383,7 +388,14 @@ func TestTruncateFile(t *testing.T) {
 				t.Fatalf("expected %v, got %v", tc.err, err)
 			}
 
-			if err == nil {
+			pfs, err = Read(testdata)
+			if err != nil {
+				t.Fatal("damaged testdata:", err)
+			}
+			fi, _ = pfs.Open(tc.name)
+			f, _ = fi.(*File)
+
+			if tc.err == nil {
 				expectedSize := (tc.size + pageMask) &^ pageMask
 				if f.Size() != expectedSize {
 					t.Fatalf("expected size %v, got %v", expectedSize, f.Size())
