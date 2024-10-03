@@ -136,6 +136,13 @@ validINodes:
 }
 
 func (p *FS) Open(name string) (fs.File, error) {
+	p.mtx.RLock()
+	defer p.mtx.RUnlock()
+
+	return p.open(name)
+}
+
+func (p *FS) open(name string) (fs.File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
 	}
@@ -144,19 +151,15 @@ func (p *FS) Open(name string) (fs.File, error) {
 		return &rootDir{p, nil}, nil
 	}
 
-	p.mtx.RLock()
 	for i := range p.notes {
 		if p.notes[i].StartPage == 0 {
 			continue
 		}
 		f := newFile(p, i)
-		p.mtx.RUnlock()
-		if name == f.Name() {
+		if name == f.name() {
 			return f, nil
 		}
-		p.mtx.RLock()
 	}
-	p.mtx.RUnlock()
 
 	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 }
@@ -220,13 +223,13 @@ func (p *FS) Create(name string) (*File, error) {
 		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrNotExist}
 	}
 
-	_, err := p.Open(name)
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	_, err := p.open(name)
 	if err == nil {
 		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrExist}
 	}
-
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
 
 	var noteIdx int
 	for noteIdx = range p.notes {
@@ -276,13 +279,13 @@ freeNote:
 }
 
 func (p *FS) Remove(name string) (err error) {
-	fd, err := p.Open(name)
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	fd, err := p.open(name)
 	if err != nil {
 		return
 	}
-
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
 
 	f, ok := fd.(*File)
 	if !ok {
@@ -305,13 +308,13 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 		return fs.ErrInvalid
 	}
 
-	fd, err := p.Open(name)
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	fd, err := p.open(name)
 	if err != nil {
 		return
 	}
-
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
 
 	f, ok := fd.(*File)
 	if !ok {

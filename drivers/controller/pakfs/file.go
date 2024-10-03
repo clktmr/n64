@@ -89,6 +89,10 @@ func (p *File) Name() (s string) {
 	p.fs.mtx.RLock()
 	defer p.fs.mtx.RUnlock()
 
+	return p.name()
+}
+
+func (p *File) name() (s string) {
 	note := p.fs.notes[p.noteIdx]
 
 	for _, v := range [...][]byte{note.Extension[:], note.FileName[:]} {
