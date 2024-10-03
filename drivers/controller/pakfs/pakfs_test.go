@@ -60,6 +60,48 @@ func TestRead(t *testing.T) {
 	}
 }
 
+func TestReadDir(t *testing.T) {
+	tests := map[string][]struct {
+		n   int
+		err error
+	}{
+		"Full":      {{0, nil}},
+		"Single":    {{1, nil}, {1, nil}, {1, io.EOF}},
+		"Multi":     {{2, nil}, {1, io.EOF}},
+		"Exceed":    {{2, nil}, {2, io.EOF}},
+		"Mixed1":    {{2, nil}, {0, nil}},
+		"Mixed2":    {{0, nil}, {2, io.EOF}},
+		"FullMulti": {{0, nil}, {0, nil}},
+	}
+
+	data, err := os.ReadFile(path.Join("testdata", "clktmr.mpk"))
+	if err != nil {
+		t.Fatal("missing testdata:", err)
+	}
+	pfs, err := Read(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal("damaged testdata:", err)
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			fi, _ := pfs.Open(".")
+			dir, _ := fi.(*rootDir)
+			for i, call := range tc {
+				entries, err := dir.ReadDir(call.n)
+				if err != call.err {
+					t.Fatalf("expected %v, got %v (i=%v)", call.err, err, i)
+				}
+				if err == nil && call.n > 0 {
+					if len(entries) != call.n {
+						t.Fatalf("expected %d entries, got %d (i=%v)", call.n, len(entries), i)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestReadFile(t *testing.T) {
 	// The following testcases were defined with the help of MPKEdit
 	tests := map[string]struct {
@@ -482,15 +524,13 @@ func TestParallel(t *testing.T) {
 						continue
 					}
 				}
-			case rootDir:
+			case *rootDir:
 				for {
-					entries, err := f.ReadDir(4)
-					if err != nil {
-						t.Fatal(err)
-					}
+					entries := pfs.Root()
 					for _, entry := range entries {
-						if !slices.Contains(filenames[:], entry.Name()) {
-							t.Fatal("unexpected file", entry.Name())
+						name := entry.Name()
+						if !slices.Contains(filenames[:], name) {
+							t.Fatalf("unexpected file %q", name)
 						}
 					}
 					select {

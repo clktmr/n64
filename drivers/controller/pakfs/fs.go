@@ -141,7 +141,7 @@ func (p *FS) Open(name string) (fs.File, error) {
 	}
 
 	if name == "." {
-		return p.Root(), nil
+		return &rootDir{p, nil}, nil
 	}
 
 	p.mtx.RLock()
@@ -173,7 +173,7 @@ func (p *FS) Label() string {
 	return string(label[:])
 }
 
-func (p *FS) Root() rootDir {
+func (p *FS) Root() []fs.DirEntry {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 

@@ -14,28 +14,42 @@ const (
 )
 
 // pakfs doesn't support subdirectories, only the root dir exists.
-type rootDir []fs.DirEntry
+type rootDir struct {
+	fs      *FS
+	entries []fs.DirEntry
+}
 
 // fs.File implementation
-func (d rootDir) Stat() (fs.FileInfo, error) { return d, nil }
-func (d rootDir) Read(p []byte) (int, error) { return 0, fs.ErrInvalid }
-func (d rootDir) Close() error               { return nil }
+func (d *rootDir) Stat() (fs.FileInfo, error) { return d, nil }
+func (d *rootDir) Read(p []byte) (int, error) { return 0, fs.ErrInvalid }
+func (d *rootDir) Close() error               { return nil }
 
-func (d rootDir) ReadDir(n int) ([]fs.DirEntry, error) {
-	// FIXME subsequent calls must return next n entries
-	if n <= 0 {
-		return d, nil
+func (d *rootDir) ReadDir(n int) (root []fs.DirEntry, err error) {
+	if d.entries == nil {
+		d.entries = d.fs.Root()
 	}
-	return d[:min(n, len(d))], nil
+
+	cut := len(d.entries)
+	if n > 0 {
+		if n >= cut {
+			err = io.EOF
+			n = cut
+		}
+		cut = n
+	}
+	root = d.entries[:cut]
+	d.entries = d.entries[cut:]
+
+	return
 }
 
 // fs.FileInfo implementation
-func (d rootDir) Name() string       { return "." }
-func (d rootDir) Size() int64        { return 0 }
-func (d rootDir) Mode() fs.FileMode  { return fs.ModeDir | 0777 }
-func (d rootDir) ModTime() time.Time { return time.Unix(0, 0) }
-func (d rootDir) IsDir() bool        { return true }
-func (d rootDir) Sys() any           { return nil }
+func (d *rootDir) Name() string       { return "." }
+func (d *rootDir) Size() int64        { return 0 }
+func (d *rootDir) Mode() fs.FileMode  { return fs.ModeDir | 0777 }
+func (d *rootDir) ModTime() time.Time { return time.Unix(0, 0) }
+func (d *rootDir) IsDir() bool        { return true }
+func (d *rootDir) Sys() any           { return nil }
 
 // Implements fs.File
 type File struct {
