@@ -181,14 +181,12 @@ func (p *FS) Root() []fs.DirEntry {
 	defer p.mtx.RUnlock()
 
 	root := make([]fs.DirEntry, 0, noteCnt)
-	for i := range p.notes {
-		if p.notes[i].StartPage == 0 {
+	for i, note := range p.notes {
+		if note.StartPage == 0 {
 			continue
 		}
-		root = append(root, fs.FileInfoToDirEntry(&File{
-			fs:      p,
-			noteIdx: i,
-		}))
+		f := newFile(p, i)
+		root = append(root, &dirEntry{p, f.name()})
 	}
 	return root
 }
