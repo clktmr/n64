@@ -105,14 +105,15 @@ func TestReadDir(t *testing.T) {
 func TestReadFile(t *testing.T) {
 	// The following testcases were defined with the help of MPKEdit
 	tests := map[string]struct {
-		name string
+		name, gamecode, companycode string
+
 		size int64
 		sha1 string
 		err  error
 	}{
-		"PerfectDark1": {"PERFECT ", 7168, "\x84\xc2\x88\x64\x69\xed\xab\xd5\x1b\x4d\xc0\x7d\x2b\xbe\x67\x86\xd4\x47\xc1\xd2", nil},
-		"PerfectDark2": {"PERFECT DARK", 7168, "\x01\x35\x24\x57\x45\x74\xf7\xb7\xe9\x1f\xfa\xda\x2e\xfb\x44\xe5\x74\x36\x55\x73", nil},
-		"Vigilante82":  {"V82, \"METIN\"", 256, "\x86\x99\x89\x88\x78\x19\x3d\x84\xb3\x2f\x8b\x49\x40\xb6\x22\x6b\x57\x28\x25\xdf", nil},
+		"PerfectDark1": {"PERFECT ", "NPDP", "4Y", 7168, "\x84\xc2\x88\x64\x69\xed\xab\xd5\x1b\x4d\xc0\x7d\x2b\xbe\x67\x86\xd4\x47\xc1\xd2", nil},
+		"PerfectDark2": {"PERFECT DARK", "NPDP", "4Y", 7168, "\x01\x35\x24\x57\x45\x74\xf7\xb7\xe9\x1f\xfa\xda\x2e\xfb\x44\xe5\x74\x36\x55\x73", nil},
+		"Vigilante82":  {"V82, \"METIN\"", "NVGP", "52", 256, "\x86\x99\x89\x88\x78\x19\x3d\x84\xb3\x2f\x8b\x49\x40\xb6\x22\x6b\x57\x28\x25\xdf", nil},
 	}
 
 	data, err := os.ReadFile(path.Join("testdata", "clktmr.mpk"))
@@ -151,6 +152,16 @@ func TestReadFile(t *testing.T) {
 			hashsum := hash.Sum([]byte{})
 			if !bytes.Equal(hashsum, []byte(tc.sha1)) {
 				t.Fatal("hash mismatch")
+			}
+
+			fi, _ := file.(*File)
+			gamecode := fi.GameCode()
+			if string(gamecode[:]) != tc.gamecode {
+				t.Fatal("gamecode code", string(gamecode[:]))
+			}
+			companycode := fi.CompanyCode()
+			if string(companycode[:]) != tc.companycode {
+				t.Fatal("company code", string(companycode[:]))
 			}
 		})
 	}

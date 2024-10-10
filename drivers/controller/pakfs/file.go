@@ -130,6 +130,36 @@ func (p *File) ModTime() time.Time { return time.Unix(0, 0) }
 func (p *File) IsDir() bool        { return p.Mode().IsDir() }
 func (p *File) Sys() any           { return nil }
 
+func (p *File) CompanyCode() [2]byte {
+	p.fs.mtx.RLock()
+	defer p.fs.mtx.RUnlock()
+
+	return p.fs.notes[p.noteIdx].PublisherCode
+}
+
+func (p *File) SetCompanyCode(code [2]byte) error {
+	p.fs.mtx.Lock()
+	defer p.fs.mtx.Unlock()
+
+	p.fs.notes[p.noteIdx].PublisherCode = code
+	return p.fs.writeNote(p.noteIdx)
+}
+
+func (p *File) GameCode() [4]byte {
+	p.fs.mtx.RLock()
+	defer p.fs.mtx.RUnlock()
+
+	return p.fs.notes[p.noteIdx].GameCode
+}
+
+func (p *File) SetGameCode(code [4]byte) error {
+	p.fs.mtx.Lock()
+	defer p.fs.mtx.Unlock()
+
+	p.fs.notes[p.noteIdx].GameCode = code
+	return p.fs.writeNote(p.noteIdx)
+}
+
 // Holds only the filename and tries to open it on Info().  This resembles the
 // behavoiur of the os package, at least on linux ext4.  fs.FileInfoToDirEntry
 // shouldn't be used create dir entries on writable filesystems, because Name()
