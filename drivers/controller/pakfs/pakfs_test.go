@@ -1,5 +1,7 @@
 package pakfs
 
+// TODO add tests for file system with multiple banks
+
 import (
 	"bytes"
 	"crypto/sha1"

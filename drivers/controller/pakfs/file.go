@@ -92,6 +92,8 @@ func (p *File) Name() (s string) {
 	return p.name()
 }
 
+// FIXME this can result in the same filename for two different notes, if the
+// extension was stored in note.FileName by another pakfs implementation.
 func (p *File) name() (s string) {
 	note := p.fs.notes[p.noteIdx]
 
