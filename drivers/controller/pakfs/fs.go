@@ -366,7 +366,7 @@ func (p *FS) notePagesSection(noteIdx int, off int64, n int64) (pages []uint16, 
 	}
 
 	startIdx := int(off >> pageBits)
-	endIdx := int((off+n)>>pageBits) + 1
+	endIdx := int((off + n + pageMask) >> pageBits)
 	if endIdx > len(pages) {
 		pagesEOF = endIdx - len(pages)
 		endIdx = len(pages)
