@@ -195,20 +195,22 @@ func TestWriteFile(t *testing.T) {
 		offset int64
 		err    error
 	}{
+		"Noop":       {"PERFECT ", []byte(""), 0, nil},
+		"NoopEOF":    {"PERFECT ", []byte(""), 9999, nil},
 		"Short1":     {"PERFECT ", []byte("foo"), 0, nil},
 		"Short2":     {"PERFECT ", []byte("foo"), 256, nil},
 		"Short3":     {"PERFECT ", []byte("foo"), 600, nil},
 		"Short4":     {"PERFECT ", []byte("foo"), 7168, nil},
+		"ShortEOF":   {"PERFECT ", []byte("foo"), 7421, nil},
 		"Long1":      {"PERFECT DARK", []byte(lorem), 100, nil},
 		"Long2":      {"PERFECT DARK", []byte(lorem), 7068, nil},
 		"LongEOF":    {"V82, \"METIN\"", []byte(lorem), 300, nil},
 		"ErrNoSpace": {"V82, \"METIN\"", []byte(lorem), 1000000, ErrNoSpace},
 	}
 
-	testdata := writeableTestdata(t, "clktmr.mpk")
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			pfs, err := Read(testdata)
+			pfs, err := Read(writeableTestdata(t, "clktmr.mpk"))
 			if err != nil {
 				t.Fatal("damaged testdata:", err)
 			}
@@ -229,6 +231,17 @@ func TestWriteFile(t *testing.T) {
 			}
 			if n != len(tc.data) {
 				t.Fatalf("expected %v written, got %v", len(tc.data), n)
+			}
+			if len(tc.data) > 0 {
+				expectedSize := max(oldSize, tc.offset+int64(len(tc.data)))
+				expectedSize = (expectedSize + pageMask) &^ pageMask
+				if f.Size() != expectedSize {
+					t.Fatalf("filesize: exptected %v, got %v", expectedSize, f.Size())
+				}
+			} else {
+				if oldSize != f.Size() {
+					t.Fatalf("filesize changed on empty write: old %v new %v", oldSize, f.Size())
+				}
 			}
 			buf := make([]byte, n)
 			_, err = f.ReadAt(buf, tc.offset)

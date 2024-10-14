@@ -359,6 +359,9 @@ func (p *FS) notePagesSection(noteIdx int, off int64, n int64) (pages []uint16, 
 		err = fs.ErrInvalid
 		return
 	}
+	if n <= 0 {
+		return
+	}
 
 	pages, err = p.notePages(noteIdx)
 	if err != nil {
