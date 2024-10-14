@@ -413,18 +413,19 @@ func TestTruncateFile(t *testing.T) {
 		"ErrInvalid1": {"NOTEXIST", -1, fs.ErrInvalid},
 		"ErrInvalid2": {"PERFECT ", -1, fs.ErrInvalid},
 		"ErrNoSpace":  {"PERFECT ", 7168 + 16986 + 512, ErrNoSpace},
-		"Noop1":       {"PERFECT ", 7168, nil},
-		"Noop2":       {"PERFECT ", 7167, nil},
-		"Noop3":       {"PERFECT ", 6913, nil},
+		"Noop":        {"PERFECT ", 7168, nil},
+		"Clear1":      {"PERFECT ", 7167, nil},
+		"Clear2":      {"PERFECT ", 6913, nil},
+		"Zero":        {"PERFECT ", 0, nil},
 		"Grow":        {"V82, \"METIN\"", 257, nil},
-		"Shrink":      {"PERFECT DARK", 6913, nil},
+		"Shrink1":     {"PERFECT DARK", 6912, nil},
+		"Shrink2":     {"PERFECT DARK", 1337, nil},
 		"Create":      {"NEWFILE", 1000, nil},
 	}
 
-	testdata := writeableTestdata(t, "clktmr.mpk")
-
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			testdata := writeableTestdata(t, "clktmr.mpk")
 			pfs, err := Read(testdata)
 			if err != nil {
 				t.Fatal("damaged testdata:", err)
@@ -473,6 +474,17 @@ func TestTruncateFile(t *testing.T) {
 					if !bytes.Equal(buf, zeroes) {
 						t.Fatal("new pages contain data")
 					}
+				}
+
+				// Check for zeroes after truncated size
+				buf := make([]byte, f.Size()-tc.size)
+				zeroes := make([]byte, len(buf))
+				_, err := f.ReadAt(buf, tc.size)
+				if err != nil && err != io.EOF {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(buf, zeroes) {
+					t.Fatal("data after truncated size")
 				}
 			}
 			if pfs.Free() != free {

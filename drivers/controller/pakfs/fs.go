@@ -302,6 +302,11 @@ func (p *FS) Remove(name string) (err error) {
 }
 
 func (p *FS) Truncate(name string, size int64) (err error) {
+	dev, ok := p.dev.(io.WriterAt)
+	if !ok {
+		return ErrReadOnly
+	}
+
 	if size < 0 {
 		return fs.ErrInvalid
 	}
@@ -328,8 +333,19 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 	pageDelta := int((size+pageMask)>>pageBits) - len(pages)
 	if pageDelta > 0 {
 		err = p.allocPages(f.noteIdx, pageDelta)
-	} else if pageDelta < 0 {
+	} else {
 		err = p.freePages(f.noteIdx, -pageDelta)
+		if err != nil {
+			return
+		}
+
+		lastPageIdx := len(pages) - 1 + pageDelta
+		if lastPageIdx >= 0 {
+			// write zeroes from `size` to end of last page
+			pageAddr := int64(pages[lastPageIdx]) << pageBits
+			zeroes := make([]byte, pageSize-(size&pageMask))
+			_, err = dev.WriteAt(zeroes, pageAddr+(size&pageMask))
+		}
 	}
 
 	return
