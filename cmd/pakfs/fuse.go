@@ -70,6 +70,14 @@ func (p *FS) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	return nil
 }
 
+func (p *FS) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
+	err := p.pakfs.Rename(req.OldName, req.NewName)
+	if err != nil {
+		return errno(err)
+	}
+	return nil
+}
+
 // File implements both Node and Handle.
 type File struct {
 	*pakfs.File

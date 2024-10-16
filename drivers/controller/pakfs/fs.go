@@ -243,7 +243,21 @@ func (p *FS) Create(name string) (*File, error) {
 	return nil, &fs.PathError{Op: "create", Path: name, Err: ErrNoSpace}
 
 freeNote:
+	err = p.renameNote(noteIdx, name)
+	if err != nil {
+		return nil, &fs.PathError{Op: "create", Path: name, Err: err}
+	}
 
+	note := &p.notes[noteIdx]
+	note.StartPage = inodeLast
+	note.Status = 0x2
+
+	p.writeNote(noteIdx)
+
+	return newFile(p, noteIdx), nil
+}
+
+func (p *FS) renameNote(noteIdx int, name string) error {
 	filename := name
 	extension := path.Ext(filename)
 	if extension != "." {
@@ -261,10 +275,10 @@ freeNote:
 	} {
 		s, err := N64FontCode.NewEncoder().String(v.src)
 		if err != nil {
-			return nil, &fs.PathError{Op: "create", Path: name, Err: err}
+			return err
 		}
 		if len(s) > len(v.dst[:]) {
-			return nil, &fs.PathError{Op: "create", Path: name, Err: ErrNameTooLong}
+			return ErrNameTooLong
 		}
 		n := copy(v.dst[:], s)
 		for i := range v.dst[n:] {
@@ -272,18 +286,17 @@ freeNote:
 		}
 	}
 
-	note.StartPage = inodeLast
-	note.Status = 0x2
-
-	p.writeNote(noteIdx)
-
-	return newFile(p, noteIdx), nil
+	return nil
 }
 
 func (p *FS) Remove(name string) (err error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
+	return p.remove(name)
+}
+
+func (p *FS) remove(name string) (err error) {
 	fd, err := p.open(name)
 	if err != nil {
 		return
@@ -303,6 +316,38 @@ func (p *FS) Remove(name string) (err error) {
 	p.notes[f.noteIdx] = note{}
 	err = p.writeNote(f.noteIdx)
 	return
+}
+
+func (p *FS) Rename(oldpath, newpath string) (err error) {
+	if oldpath == newpath {
+		return
+	}
+
+	if path.Dir(newpath) != "." {
+		return &fs.PathError{Op: "rename", Path: oldpath, Err: fs.ErrNotExist}
+	}
+
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	fd, err := p.open(oldpath)
+	if err != nil {
+		return
+	}
+
+	f, ok := fd.(*File)
+	if !ok {
+		// If not a file this must be the root directory
+		return &fs.PathError{Op: "rename", Path: oldpath, Err: ErrIsDir}
+	}
+
+	// Remove replaced note if we overwrite one
+	err = p.remove(newpath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return &fs.PathError{Op: "rename", Path: oldpath, Err: err}
+	}
+
+	return p.renameNote(f.noteIdx, newpath)
 }
 
 func (p *FS) Truncate(name string, size int64) (err error) {

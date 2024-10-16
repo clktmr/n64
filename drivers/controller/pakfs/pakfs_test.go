@@ -331,6 +331,53 @@ func TestCreateFile(t *testing.T) {
 	}
 }
 
+func TestRenameFile(t *testing.T) {
+	tests := map[string]struct {
+		oldname, newname string
+		replace          int
+		err              error
+	}{
+		"Noop":               {"PERFECT ", "PERFECT ", 0, nil},
+		"Simple":             {"PERFECT ", "PERFECT.BAK", 0, nil},
+		"Overwrite":          {"PERFECT ", "PERFECT DARK", 1, nil},
+		"ErrIsDir":           {"PERFECT ", ".", 0, ErrIsDir},
+		"ErrNotExist1":       {"PERFECT ", "ISDIR/PERFECT ", 0, fs.ErrNotExist},
+		"ErrNotExist2":       {"ISDIR/FILE", "NEW", 0, fs.ErrNotExist},
+		"ErrNameTooLongName": {"PERFECT ", "VERYLONGFILENAME!", 0, ErrNameTooLong},
+		"ErrNameTooLongExt":  {"PERFECT ", "NAME.EXTEN", 0, ErrNameTooLong},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			testdata := writeableTestdata(t, "clktmr.mpk")
+			pfs, err := Read(testdata)
+			if err != nil {
+				t.Fatal("damaged testdata:", err)
+			}
+			exptectedNumFiles := len(pfs.ReadDirRoot()) - tc.replace
+
+			err = pfs.Rename(tc.oldname, tc.newname)
+			if !errors.Is(err, tc.err) {
+				t.Fatalf("expected %v, got %v", tc.err, err)
+			}
+
+			numFiles := len(pfs.ReadDirRoot())
+			if numFiles != exptectedNumFiles {
+				t.Fatalf("file count: expected %v, got %v", exptectedNumFiles, numFiles)
+			}
+
+			if err != nil {
+				return
+			}
+
+			_, err = pfs.Open(tc.newname)
+			if err != nil {
+				t.Fatal("open renamed file:", err)
+			}
+		})
+	}
+}
+
 func TestOpenFile(t *testing.T) {
 	tests := map[string]struct {
 		name string
