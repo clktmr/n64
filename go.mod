@@ -9,4 +9,5 @@ require (
 	github.com/sigurn/crc8 v0.0.0-20220107193325-2243fe600f9f
 	golang.org/x/image v0.13.0
 	golang.org/x/text v0.13.0
+	rsc.io/rsc v0.0.0-20180427141835-fc6202590229
 )
