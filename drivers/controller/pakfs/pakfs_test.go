@@ -303,7 +303,7 @@ func TestCreateFile(t *testing.T) {
 				t.Fatal("damaged testdata:", err)
 			}
 			freeBefore := pfs.Free()
-			numFiles := len(pfs.Root())
+			numFiles := len(pfs.ReadDirRoot())
 
 			f, err := pfs.Create(tc.name)
 			if !errors.Is(err, tc.err) {
@@ -313,8 +313,8 @@ func TestCreateFile(t *testing.T) {
 			if err == nil {
 				numFiles += 1
 			}
-			if len(pfs.Root()) != numFiles {
-				t.Fatalf("expected %v files, got %v", numFiles, len(pfs.Root()))
+			if len(pfs.ReadDirRoot()) != numFiles {
+				t.Fatalf("expected %v files, got %v", numFiles, len(pfs.ReadDirRoot()))
 			}
 			if pfs.Free() != freeBefore {
 				t.Fatalf("free disk space changed")
@@ -389,7 +389,7 @@ func TestRemoveFile(t *testing.T) {
 			if err != nil {
 				t.Fatal("damaged testdata:", err)
 			}
-			numFiles := len(pfs.Root())
+			numFiles := len(pfs.ReadDirRoot())
 			free = pfs.Free()
 
 			err = pfs.Remove(tc.name)
@@ -400,8 +400,8 @@ func TestRemoveFile(t *testing.T) {
 				numFiles -= 1
 				free += tc.size
 			}
-			if len(pfs.Root()) != numFiles {
-				t.Fatalf("expected %v files, got %v", numFiles, len(pfs.Root()))
+			if len(pfs.ReadDirRoot()) != numFiles {
+				t.Fatalf("expected %v files, got %v", numFiles, len(pfs.ReadDirRoot()))
 			}
 			if pfs.Free() != free {
 				t.Fatalf("expected %v free bytes, got %v", free, pfs.Free())
@@ -564,7 +564,7 @@ func TestParallel(t *testing.T) {
 				}
 			case *rootDir:
 				for {
-					entries := pfs.Root()
+					entries := pfs.ReadDirRoot()
 					for _, entry := range entries {
 						name := entry.Name()
 						if !slices.Contains(filenames[:], name) {

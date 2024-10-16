@@ -26,7 +26,7 @@ func (d *rootDir) Close() error               { return nil }
 
 func (d *rootDir) ReadDir(n int) (root []fs.DirEntry, err error) {
 	if d.entries == nil {
-		d.entries = d.fs.Root()
+		d.entries = d.fs.ReadDirRoot()
 	}
 
 	cut := len(d.entries)

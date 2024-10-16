@@ -176,7 +176,11 @@ func (p *FS) Label() string {
 	return string(label[:])
 }
 
-func (p *FS) Root() []fs.DirEntry {
+func (p *FS) Root() fs.ReadDirFile {
+	return &rootDir{p, nil}
+}
+
+func (p *FS) ReadDirRoot() []fs.DirEntry {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 

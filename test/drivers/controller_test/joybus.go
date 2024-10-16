@@ -49,7 +49,7 @@ func TestControllerState(t *testing.T) {
 							t.Error(err)
 							return
 						}
-						for _, v := range pfs.Root() {
+						for _, v := range pfs.ReadDirRoot() {
 							info, err := v.Info()
 							if err != nil {
 								t.Error(err)

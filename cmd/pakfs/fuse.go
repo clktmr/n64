@@ -20,7 +20,7 @@ func (p *FS) Root() (fuse.Node, fuse.Error) {
 }
 
 func (p *FS) Attr() fuse.Attr {
-	dir := must(p.pakfs.Open("."))
+	dir := p.pakfs.Root()
 	stat := must(dir.Stat())
 	return fuse.Attr{
 		Mode:  stat.Mode(),
@@ -41,7 +41,7 @@ func (p *FS) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 }
 
 func (p *FS) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
-	entries := p.pakfs.Root()
+	entries := p.pakfs.ReadDirRoot()
 	fuseEntries := make([]fuse.Dirent, len(entries))
 	for i, v := range entries {
 		fuseEntries[i] = fuse.Dirent{
