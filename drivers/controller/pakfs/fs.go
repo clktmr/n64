@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"math"
 	"path"
-	"strings"
 	"sync"
 )
 
@@ -125,8 +124,8 @@ validId:
 	return nil, ErrInconsistent
 
 validINodes:
-	offset, n := notesOffset(fs.id.BankCount, 0)
-	sr := io.NewSectionReader(dev, offset, n)
+	offset := noteOffset(fs.id.BankCount, 0)
+	sr := io.NewSectionReader(dev, offset, int64(2)<<pageBits)
 	err = binary.Read(sr, binary.BigEndian, &fs.notes)
 	if err != nil {
 		return nil, err
@@ -151,8 +150,8 @@ func (p *FS) open(name string) (fs.File, error) {
 		return &rootDir{p, nil}, nil
 	}
 
-	for i := range p.notes {
-		if p.notes[i].StartPage == 0 {
+	for i, note := range p.notes {
+		if note.StartPage == 0 {
 			continue
 		}
 		f := newFile(p, i)
@@ -243,50 +242,21 @@ func (p *FS) Create(name string) (*File, error) {
 	return nil, &fs.PathError{Op: "create", Path: name, Err: ErrNoSpace}
 
 freeNote:
-	err = p.renameNote(noteIdx, name)
+
+	f := newFile(p, noteIdx)
+	err = f.setName(name)
 	if err != nil {
 		return nil, &fs.PathError{Op: "create", Path: name, Err: err}
 	}
 
-	note := &p.notes[noteIdx]
-	note.StartPage = inodeLast
-	note.Status = 0x2
+	f.note.StartPage = inodeLast
+	f.note.Status = 0x2
 
-	p.writeNote(noteIdx)
-
-	return newFile(p, noteIdx), nil
-}
-
-func (p *FS) renameNote(noteIdx int, name string) error {
-	filename := name
-	extension := path.Ext(filename)
-	if extension != "." {
-		filename = strings.TrimSuffix(filename, extension)
-	}
-	extension = strings.TrimPrefix(extension, ".")
-
-	note := &p.notes[noteIdx]
-	for _, v := range [...]struct {
-		dst []byte
-		src string
-	}{
-		{note.FileName[:], filename},
-		{note.Extension[:], extension},
-	} {
-		s, err := N64FontCode.NewEncoder().String(v.src)
-		if err != nil {
-			return err
-		}
-		if len(s) > len(v.dst[:]) {
-			return ErrNameTooLong
-		}
-		n := copy(v.dst[:], s)
-		for i := range v.dst[n:] {
-			v.dst[n+i] = 0
-		}
+	if err = f.sync(); err != nil {
+		return nil, err
 	}
 
-	return nil
+	return f, nil
 }
 
 func (p *FS) Remove(name string) (err error) {
@@ -308,13 +278,12 @@ func (p *FS) remove(name string) (err error) {
 		return &fs.PathError{Op: "remove", Path: name, Err: ErrIsDir}
 	}
 
-	err = p.freePages(f.noteIdx, math.MaxInt)
-	if err != nil {
+	if err = f.freePages(math.MaxInt); err != nil {
 		return
 	}
 
-	p.notes[f.noteIdx] = note{}
-	err = p.writeNote(f.noteIdx)
+	*f.note = note{}
+	err = f.sync()
 	return
 }
 
@@ -347,7 +316,7 @@ func (p *FS) Rename(oldpath, newpath string) (err error) {
 		return &fs.PathError{Op: "rename", Path: oldpath, Err: err}
 	}
 
-	return p.renameNote(f.noteIdx, newpath)
+	return f.setName(newpath)
 }
 
 func (p *FS) Truncate(name string, size int64) (err error) {
@@ -374,16 +343,16 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 		return &fs.PathError{Op: "truncate", Path: name, Err: ErrIsDir}
 	}
 
-	pages, err := p.notePages(f.noteIdx)
+	pages, err := f.pages()
 	if err != nil {
 		return &fs.PathError{Op: "truncate", Path: name, Err: err}
 	}
 
 	pageDelta := int((size+pageMask)>>pageBits) - len(pages)
 	if pageDelta > 0 {
-		err = p.allocPages(f.noteIdx, pageDelta)
+		err = f.allocPages(pageDelta)
 	} else {
-		err = p.freePages(f.noteIdx, -pageDelta)
+		err = f.freePages(-pageDelta)
 		if err != nil {
 			return
 		}
@@ -400,205 +369,8 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 	return
 }
 
-// Returns the pages of a note which contain a section of the note with offset
-// `off` and length `n`.  If the section extends beyond EOF, pagesEOF is the
-// number of pages to be allocated.
-func (p *FS) notePagesSection(noteIdx int, off int64, n int64) (pages []uint16, pagesEOF int, err error) {
-	if off < 0 {
-		err = fs.ErrInvalid
-		return
-	}
-	if n <= 0 {
-		return
-	}
-
-	pages, err = p.notePages(noteIdx)
-	if err != nil {
-		return
-	}
-
-	startIdx := int(off >> pageBits)
-	endIdx := int((off + n + pageMask) >> pageBits)
-	if endIdx > len(pages) {
-		pagesEOF = endIdx - len(pages)
-		endIdx = len(pages)
-		startIdx = min(startIdx, endIdx)
-	}
-
-	pages = pages[startIdx:endIdx]
-
-	return
-}
-
-func (p *FS) readAt(noteIdx int, b []byte, off int64) (n int, err error) {
-	pages, pagesEOF, err := p.notePagesSection(noteIdx, off, int64(len(b)))
-	if err != nil {
-		return
-	}
-	if pagesEOF > 0 {
-		err = io.EOF
-	}
-
-	pageOff := off & pageMask
-	for _, v := range pages {
-		pageAddr := int64(v) << pageBits
-		l := min(pageSize-int(pageOff), len(b[n:]))
-		written, err := p.dev.ReadAt(b[n:n+l], pageAddr+pageOff)
-		n += written
-		if err != nil {
-			return n, err
-		}
-
-		pageOff = 0
-	}
-
-	return
-}
-
-func (p *FS) writeAt(noteIdx int, b []byte, off int64) (n int, err error) {
-	dev, ok := p.dev.(io.WriterAt)
-	if !ok {
-		return 0, ErrReadOnly
-	}
-
-	pages, pagesEOF, err := p.notePagesSection(noteIdx, off, int64(len(b)))
-	if err != nil {
-		return
-	}
-
-	if pagesEOF > 0 {
-		err = p.allocPages(noteIdx, pagesEOF)
-		if err != nil {
-			return
-		}
-		pages, _, err = p.notePagesSection(noteIdx, off, int64(len(b)))
-		if err != nil {
-			return
-		}
-	}
-
-	pageOff := off & pageMask
-	for _, v := range pages {
-		pageAddr := int64(v) << pageBits
-		l := min(pageSize-int(pageOff), len(b[n:]))
-		written, err := dev.WriteAt(b[n:n+l], pageAddr+pageOff)
-		n += written
-		if err != nil {
-			return n, err
-		}
-
-		pageOff = 0
-	}
-
-	return
-}
-
-func (p *FS) notePages(noteIdx int) ([]uint16, error) {
-	pages := []uint16{}
-	page := p.notes[noteIdx].StartPage
-	if page == 0 {
-		return pages, nil
-	}
-	for page != inodeLast {
-		if !p.validPage(page) {
-			return nil, ErrInconsistent
-		}
-		pages = append(pages, page)
-		page = p.inodes[page]
-	}
-	return pages, nil
-}
-
-func (p *FS) firstPage() int {
-	return 1 + int(p.id.BankCount)<<1 + 2
-}
-
-func (p *FS) validPage(page uint16) bool {
-	return !(page < uint16(p.firstPage()) ||
-		page >= uint16(len(p.inodes)) ||
-		page&pageMask == 0)
-}
-
-func (p *FS) allocPages(noteIdx int, pageCnt int) (err error) {
-	dev, ok := p.dev.(io.WriterAt)
-	if !ok {
-		return ErrReadOnly
-	}
-
-	newPages := make([]uint16, 0)
-	inodes(p)(func(page int, inode uint16) bool {
-		if inode == inodeFree {
-			newPages = append(newPages, uint16(page))
-		}
-		if len(newPages) >= pageCnt {
-			return false
-		}
-		return true
-	})
-
-	if len(newPages) < pageCnt {
-		return ErrNoSpace
-	}
-
-	pages, err := p.notePages(noteIdx)
-	if err != nil {
-		return
-	}
-
-	for i, page := range newPages[:len(newPages)-1] {
-		p.inodes[page] = newPages[i+1]
-	}
-	p.inodes[newPages[len(newPages)-1]] = inodeLast
-	if len(pages) == 0 {
-		p.notes[noteIdx].StartPage = newPages[0]
-		err = p.writeNote(noteIdx)
-		if err != nil {
-			return
-		}
-	} else {
-		p.inodes[pages[len(pages)-1]] = newPages[0]
-	}
-
-	// write zeroes to new pages
-	var buf [pageSize]byte
-	for _, v := range newPages {
-		pageAddr := int64(v) << pageBits
-		_, err = dev.WriteAt(buf[:], pageAddr)
-		if err != nil {
-			return
-		}
-	}
-
-	return p.writeINodes()
-}
-
-func (p *FS) freePages(noteIdx int, pageCnt int) (err error) {
-	pages, err := p.notePages(noteIdx)
-	if err != nil {
-		return
-	}
-
-	pageCnt = min(pageCnt, len(pages))
-	for _, page := range pages[len(pages)-pageCnt:] {
-		p.inodes[page] = inodeFree
-	}
-	pages = pages[:len(pages)-pageCnt]
-
-	if len(pages) == 0 {
-		p.notes[noteIdx].StartPage = inodeLast
-		err = p.writeNote(noteIdx)
-		if err != nil {
-			return
-		}
-	} else {
-		p.inodes[pages[len(pages)-1]] = inodeLast
-	}
-
-	return p.writeINodes()
-}
-
 // Write inodes back to disk.  Also updates the inode backup.
-func (p *FS) writeINodes() (err error) {
+func (p *FS) sync() (err error) {
 	dev, ok := p.dev.(io.WriterAt)
 	if !ok {
 		return ErrReadOnly
@@ -618,21 +390,14 @@ func (p *FS) writeINodes() (err error) {
 	return
 }
 
-// Write game note back to disk.
-func (p *FS) writeNote(noteIdx int) (err error) {
-	dev, ok := p.dev.(io.WriterAt)
-	if !ok {
-		return ErrReadOnly
-	}
+func (p *FS) firstPage() int {
+	return 1 + int(p.id.BankCount)<<1 + 2
+}
 
-	off, _ := notesOffset(p.id.BankCount, noteIdx)
-	ow := io.NewOffsetWriter(dev, off)
-	err = binary.Write(ow, binary.BigEndian, &p.notes[noteIdx])
-	if err != nil {
-		return
-	}
-
-	return
+func (p *FS) validPage(page uint16) bool {
+	return !(page < uint16(p.firstPage()) ||
+		page >= uint16(len(p.inodes)) ||
+		page&pageMask == 0)
 }
 
 func (p *FS) iNodesChecksum(update bool) (valid bool) {
@@ -688,9 +453,8 @@ func iNodesBakOffset(bankCount uint8) (offset, n int64) {
 	return
 }
 
-func notesOffset(bankCount uint8, noteIdx int) (offset, n int64) {
+func noteOffset(bankCount uint8, noteIdx int) (offset int64) {
 	offset = (1 + int64(bankCount)<<1) << pageBits
 	offset += int64(noteIdx << noteBits)
-	n = int64(2) << pageBits
 	return
 }
