@@ -292,6 +292,7 @@ func TestCreateFile(t *testing.T) {
 		"ErrNameTooLongName": {"VERYLONGFILENAME!", ErrNameTooLong},
 		"ErrNameTooLongExt":  {"NAME.EXTEN", ErrNameTooLong},
 		"ErrNotExist":        {"ISDIR/FILE", fs.ErrNotExist},
+		"ErrEncoding":        {"smallcaps", ErrEncoding},
 	}
 
 	testdata := writeableTestdata(t, "clktmr.mpk")

@@ -38,26 +38,40 @@ var encode = map[rune]byte{
 	'パ': 144, 'ピ': 145, 'プ': 146, 'ペ': 147, 'ポ': 148,
 }
 
-type charmap struct{}
+var ErrEncoding = errors.New("unsupported character")
 
-var N64FontCode encoding.Encoding = &charmap{}
+type charmap struct {
+	strict bool // Don't allow replacement characters
+}
+
+var (
+	N64FontCode       encoding.Encoding = &charmap{false}
+	N64FontCodeStrict encoding.Encoding = &charmap{true}
+)
 
 func (m *charmap) NewDecoder() *encoding.Decoder {
-	return &encoding.Decoder{Transformer: &decoder{}}
+	return &encoding.Decoder{Transformer: &decoder{m.strict}}
 }
 
 func (m *charmap) NewEncoder() *encoding.Encoder {
-	return &encoding.Encoder{Transformer: &encoder{}}
+	return &encoding.Encoder{Transformer: &encoder{m.strict}}
 }
 
-type decoder struct{}
+type decoder struct {
+	strict bool // Return error if stream contains illegal character
+}
 
+// N64FontCode to UTF-8
 func (d *decoder) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
 	for _, c := range src {
 		nSrc += 1
 		var r rune = rcd
 		if c < byte(len(decode)) {
 			r = decode[c]
+		}
+		if r == rcd && d.strict {
+			err = ErrEncoding
+			return
 		}
 		rlen := utf8.RuneLen(r) // r is always valid
 		if rlen > len(dst)-nDst {
@@ -72,30 +86,36 @@ func (d *decoder) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err er
 
 func (d *decoder) Reset() {}
 
-type encoder struct{}
+type encoder struct {
+	strict bool // Return error if character can't be represented
+}
 
+// UTF-8 to N64FontCode
 func (d *encoder) Transform(dst, src []byte, atEOF bool) (nDst, nSrc int, err error) {
-	if atEOF == false {
-		// TODO
-		err = errors.New("not implemented")
-		return
-	}
 	for {
 		r, size := utf8.DecodeRune(src[nSrc:])
 		if size < 1 {
 			break
-		}
-		nSrc += size
-		// TODO handle incomplete rune with atEOF == false
-		if nDst >= len(dst) {
-			err = transform.ErrShortDst
-			// FIXME nSrc -= size ?
+		} else if size == 1 && r == utf8.RuneError {
+			err = encoding.ErrInvalidUTF8
+			if !atEOF && !utf8.FullRune(src[nSrc:]) {
+				err = transform.ErrShortSrc
+			}
 			break
 		}
+		if nDst >= len(dst) {
+			err = transform.ErrShortDst
+			break
+		}
+		nSrc += size
+
 		if c, ok := encode[r]; ok {
 			dst[nDst] = c
-		} else {
+		} else if !d.strict {
 			dst[nDst] = rce
+		} else {
+			err = ErrEncoding
+			break
 		}
 		nDst += 1
 	}

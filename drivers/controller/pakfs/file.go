@@ -253,7 +253,7 @@ func (f *File) name() (s string) {
 			null = len(v)
 		}
 
-		decoder := N64FontCode.NewDecoder()
+		decoder := N64FontCodeStrict.NewDecoder()
 		vs, _ := decoder.String(string(v[:null]))
 		if s == "" {
 			s = vs
@@ -279,7 +279,7 @@ func (f *File) setName(filename string) error {
 		{f.note.FileName[:], filename},
 		{f.note.Extension[:], extension},
 	} {
-		s, err := N64FontCode.NewEncoder().String(v.src)
+		s, err := N64FontCodeStrict.NewEncoder().String(v.src)
 		if err != nil {
 			return err
 		}
