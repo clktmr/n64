@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"io/fs"
+	"syscall"
 
 	"github.com/clktmr/n64/drivers/controller/pakfs"
 	"rsc.io/rsc/fuse"
@@ -29,10 +30,8 @@ func (p *FS) Attr() fuse.Attr {
 
 func (p *FS) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	f, err := p.pakfs.Open(name)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fuse.ENOENT
-	} else if err != nil {
-		return nil, fuse.EIO
+	if err != nil {
+		return nil, errno(err)
 	}
 	pakfile, ok := f.(*pakfs.File)
 	if !ok {
@@ -56,7 +55,7 @@ func (p *FS) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 func (p *FS) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fuse.Intr) (fuse.Node, fuse.Handle, fuse.Error) {
 	f, err := p.pakfs.Create(req.Name)
 	if err != nil {
-		return nil, nil, fuse.EIO
+		return nil, nil, errno(err)
 	}
 
 	file := &File{f, p.pakfs}
@@ -66,7 +65,7 @@ func (p *FS) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fuse
 func (p *FS) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	err := p.pakfs.Remove(req.Name)
 	if err != nil {
-		return fuse.EIO
+		return errno(err)
 	}
 	return nil
 }
@@ -90,7 +89,7 @@ func (p *File) ReadAll(intr fuse.Intr) ([]byte, fuse.Error) {
 	b := make([]byte, p.Size())
 	_, err := p.ReadAt(b, 0)
 	if err != io.EOF && err != nil {
-		return nil, fuse.EIO
+		return nil, errno(err)
 	}
 	return b, nil
 }
@@ -101,12 +100,12 @@ func (p *File) ReadAll(intr fuse.Intr) ([]byte, fuse.Error) {
 func (p *File) WriteAll(data []byte, intr fuse.Intr) fuse.Error {
 	err := p.pakfs.Truncate(p.File.Name(), int64(len(data)))
 	if err != nil {
-		return fuse.EIO
+		return errno(err)
 	}
 
 	_, err = p.WriteAt(data, 0)
 	if err != nil {
-		return fuse.EIO
+		return errno(err)
 	}
 
 	return nil
@@ -114,4 +113,24 @@ func (p *File) WriteAll(data []byte, intr fuse.Intr) fuse.Error {
 
 func (p *File) Fsync(req *fuse.FsyncRequest, intr fuse.Intr) fuse.Error {
 	return nil
+}
+
+func errno(err error) fuse.Error {
+	if errors.Is(err, pakfs.ErrNoSpace) {
+		return fuse.Errno(syscall.ENOSPC)
+	} else if errors.Is(err, pakfs.ErrReadOnly) {
+		return fuse.Errno(syscall.EROFS)
+	} else if errors.Is(err, pakfs.ErrIsDir) {
+		return fuse.Errno(syscall.EISDIR)
+	} else if errors.Is(err, pakfs.ErrNameTooLong) {
+		return fuse.Errno(syscall.ENAMETOOLONG)
+	} else if errors.Is(err, fs.ErrInvalid) {
+		return fuse.Errno(syscall.EINVAL)
+	} else if errors.Is(err, fs.ErrExist) {
+		return fuse.Errno(syscall.EEXIST)
+	} else if errors.Is(err, fs.ErrNotExist) {
+		return fuse.Errno(syscall.ENOENT)
+	} else {
+		return fuse.EIO
+	}
 }
