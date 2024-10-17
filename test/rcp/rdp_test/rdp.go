@@ -86,13 +86,10 @@ func checkerboard(img video.Drawer) {
 
 func absDiffInt(a int, b int) int {
 	diff := a - b
-	if diff < 0 {
-		return -diff
-	}
-	return diff
+	return max(diff, -diff)
 }
 
-// Returns true if both colors are almost identical.  Alpha channel is ignored.
+// Returns the absolute difference in RGB.  Alpha channel is ignored.
 func absDiffColor(a color.Color, b color.Color) int {
 	ac := color.RGBAModel.Convert(a).(color.RGBA)
 	bc := color.RGBAModel.Convert(b).(color.RGBA)
