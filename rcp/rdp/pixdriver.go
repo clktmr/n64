@@ -149,10 +149,10 @@ func (fb *Rdp) drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Co
 		_, _, _, ma := mask.RGBA()
 		m := uint32(ma)
 		fill = color.RGBA64{
-			uint16((uint32(rf) * m) >> 16),
-			uint16((uint32(gf) * m) >> 16),
-			uint16((uint32(bf) * m) >> 16),
-			uint16((uint32(af) * m) >> 16),
+			uint16((rf * m) >> 16),
+			uint16((gf * m) >> 16),
+			uint16((bf * m) >> 16),
+			uint16((af * m) >> 16),
 		}
 	}
 	fb.dlist.SetFillColor(fill)

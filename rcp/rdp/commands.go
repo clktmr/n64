@@ -382,7 +382,7 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
 // Sets the color for subsequent FillRectangle() calls.
 func (dl *DisplayList) SetFillColor(c color.Color) {
 	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
-	if c == dl.fillColor {
+	if cRGBA == dl.fillColor {
 		return
 	}
 	dl.fillColor = cRGBA
