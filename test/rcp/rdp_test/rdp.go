@@ -14,6 +14,7 @@ import (
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rdp"
+	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 )
 
@@ -64,7 +65,12 @@ func TestFillRect(t *testing.T) {
 }
 
 // Fills an image with a checkerboard test pattern
-func checkerboard(img video.Drawer) {
+func checkerboard(img interface {
+	Draw(r image.Rectangle, src image.Image, sp image.Point,
+		mask image.Image, mp image.Point, op draw.Op)
+	Flush()
+	Bounds() image.Rectangle
+}) {
 	const size = 16
 	b := img.Bounds()
 	colors := []color.RGBA{
@@ -106,14 +112,14 @@ func TestDraw(t *testing.T) {
 	})
 
 	// Split the screen into four viewports
-	fb := video.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
+	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
 	bounds := image.Rect(0, 0, video.WIDTH/2, video.HEIGHT/2)
-	expected := fb.SubImage(bounds).(*video.RGBA32)
-	result := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, 0})).(*video.RGBA32)
+	expected := fb.SubImage(bounds).(*texture.RGBA32)
+	result := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, 0})).(*texture.RGBA32)
 	result.Rect = bounds
-	diff := fb.SubImage(bounds.Add(image.Point{0, video.HEIGHT / 2})).(*video.RGBA32)
+	diff := fb.SubImage(bounds.Add(image.Point{0, video.HEIGHT / 2})).(*texture.RGBA32)
 	diff.Rect = bounds
-	err := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, video.HEIGHT / 2})).(*video.RGBA32)
+	err := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, video.HEIGHT / 2})).(*texture.RGBA32)
 	err.Rect = bounds
 
 	video.SetFramebuffer(fb)
@@ -126,14 +132,14 @@ func TestDraw(t *testing.T) {
 	imgGreen := &image.Uniform{color.RGBA{G: 0xff, A: 0xff}}
 	imgTransparentGreen := &image.Uniform{color.RGBA{G: 0xff, A: 0xaf}}
 	imgTransparentGray := &image.Uniform{color.RGBA{0x7f, 0x7f, 0x7f, 0xaf}}
-	imgNRGBA := video.NewNRGBA32(imgN64LogoSmall.Bounds())
+	imgNRGBA := texture.NewNRGBA32(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(&imgNRGBA.NRGBA, imgNRGBA.Bounds(), imgN64LogoSmall, image.Point{})
 	imgNRGBA.Flush()
-	imgRGBA := video.NewRGBA32(imgN64LogoSmall.Bounds())
+	imgRGBA := texture.NewRGBA32(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(&imgRGBA.RGBA, imgRGBA.Bounds(), imgN64LogoSmall, image.Point{})
 	imgRGBA.Flush()
 
-	imgLarge := video.NewNRGBA32(imgN64LogoLarge.Bounds())
+	imgLarge := texture.NewNRGBA32(imgN64LogoLarge.Bounds())
 	draw.Src.Draw(&imgLarge.NRGBA, imgLarge.Bounds(), imgN64LogoLarge, image.Point{})
 	imgLarge.Flush()
 

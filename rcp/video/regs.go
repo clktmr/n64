@@ -9,6 +9,12 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
+const (
+	// TODO support other resolutions
+	WIDTH  = 320
+	HEIGHT = 240
+)
+
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
 const baseAddr uintptr = cpu.KSEG1 | 0x0440_0000
@@ -77,6 +83,7 @@ func SetupPAL(bbp ColorDepth) {
 	regs.control.Store(uint32(bbp) | (3 << 8))
 }
 
-func SetFramebuffer(fb Framebuffer) {
+// TODO use texture.Texture interface
+func SetFramebuffer(fb interface{ Addr() uintptr }) {
 	regs.framebuffer.Store(uint32(fb.Addr()))
 }

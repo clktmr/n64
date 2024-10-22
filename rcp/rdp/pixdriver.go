@@ -8,7 +8,7 @@ import (
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
-	"github.com/clktmr/n64/rcp/video"
+	"github.com/clktmr/n64/rcp/texture"
 
 	"github.com/embeddedgo/display/images"
 )
@@ -31,10 +31,10 @@ func NewRdp(fb image.Image) *Rdp {
 	case *image.Gray:
 		imgBuf := uintptr(unsafe.Pointer(unsafe.SliceData(img.Pix)))
 		rdp.dlist.SetColorImage(imgBuf, uint32(img.Stride), I, BBP8)
-	case *video.RGBA16:
+	case *texture.RGBA16:
 		imgBuf := uintptr(unsafe.Pointer(unsafe.SliceData(img.Pix)))
 		rdp.dlist.SetColorImage(imgBuf, uint32(img.Stride)>>1, RGBA, BBP16)
-	case *video.RGBA32:
+	case *texture.RGBA32:
 		imgBuf := uintptr(unsafe.Pointer(unsafe.SliceData(img.Pix)))
 		rdp.dlist.SetColorImage(imgBuf, uint32(img.Stride)>>2, RGBA, BBP32)
 	default:
@@ -55,7 +55,7 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	r = r.Bounds().Sub(fb.target.Bounds().Min)
 
 	switch srcImg := src.(type) {
-	case *video.RGBA16:
+	case *texture.RGBA16:
 		switch mask.(type) {
 		case nil:
 			fb.drawColorImage(r, Texture{
@@ -68,7 +68,7 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 			}, sp, image.Point{1, 1}, nil, op)
 			return
 		}
-	case *video.RGBA32:
+	case *texture.RGBA32:
 		switch mask.(type) {
 		case nil:
 			fb.drawColorImage(r, Texture{
@@ -81,7 +81,7 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 			}, sp, image.Point{1, 1}, nil, op)
 			return
 		}
-	case *video.NRGBA32:
+	case *texture.NRGBA32:
 		switch mask.(type) {
 		case nil:
 			fb.drawColorImage(r, Texture{

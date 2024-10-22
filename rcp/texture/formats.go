@@ -1,4 +1,6 @@
-package video
+// Package texture provides a common datastructure for images used by the rcp,
+// e.g. textures and framebuffers.
+package texture
 
 import (
 	"image"
@@ -8,24 +10,6 @@ import (
 
 	"github.com/clktmr/n64/rcp/cpu"
 )
-
-const (
-	// TODO support other resolutions
-	WIDTH  = 320
-	HEIGHT = 240
-)
-
-// Represents an image that the DAC can read and output on a screen.
-type Framebuffer interface {
-	Addr() uintptr
-}
-
-type Drawer interface {
-	Draw(r image.Rectangle, src image.Image, sp image.Point,
-		mask image.Image, mp image.Point, op draw.Op)
-	Flush()
-	Bounds() image.Rectangle
-}
 
 const Alignment = 64
 
