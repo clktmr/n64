@@ -30,6 +30,7 @@ func TestFPUPreemption(t *testing.T) {
 
 	wg.Add(numGoroutines)
 	for i := range numGoroutines {
+		i := i
 		go func(f float64) {
 			for range 1000000 {
 				f += 0.125
