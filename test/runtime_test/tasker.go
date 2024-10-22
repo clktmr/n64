@@ -1,10 +1,12 @@
 package runtime_test
 
 import (
+	"image"
 	"sync"
 	"testing"
 
 	"github.com/clktmr/n64/rcp"
+	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 )
 
@@ -22,7 +24,9 @@ func TestFPUPreemption(t *testing.T) {
 		rcp.DisableInterrupts(rcp.VideoInterface)
 		rcp.SetHandler(rcp.VideoInterface, video.Handler)
 	})
-	video.SetupPAL(video.BBP32) // generate some fpu using hardware interrupts
+
+	// generate some fpu using hardware interrupts
+	video.SetupPAL(texture.NewNRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT)))
 
 	const numGoroutines = 10
 	results := [numGoroutines]float64{}

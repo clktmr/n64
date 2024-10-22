@@ -11,6 +11,7 @@ import (
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/texture"
 )
 
 type Command uint64
@@ -29,8 +30,8 @@ type RDPState struct {
 	blendColor       color.RGBA
 	primitiveColor   color.RGBA
 	environmentColor color.RGBA
-	format           ImageFormat
-	bbp              BitDepth
+	format           texture.ImageFormat
+	bbp              texture.BitDepth
 }
 
 const DisplayListLength = 256
@@ -69,51 +70,26 @@ func Run(dl *DisplayList) {
 	// TODO runtime.KeepAlive(cmds) until next call
 }
 
-type ImageFormat uint64
-
-const (
-	RGBA ImageFormat = iota << 53
-	YUV
-	ColorIdx // Color Palette
-	IA       // Intensity with alpha
-	I        // Intensity
-)
-
-type BitDepth uint64
-
-const (
-	BBP4 BitDepth = iota << 51
-	BBP8
-	BBP16
-	BBP32
-)
-
 func (dl *DisplayList) push(cmd Command) {
 	dl.commands = dl.commands[:len(dl.commands)+1]
 	dl.commands[len(dl.commands)-1] = cmd
 }
 
-// Shift a number of pixels left by pixelsToBytes to get their size in bytes.
-func pixelsToBytes(pixels int, bbp BitDepth) int {
-	shift := int(bbp)>>51 - 1
-	if shift < 0 {
-		return pixels >> -shift
-	}
-	return pixels << shift
-}
-
 // Sets the framebuffer to render the final image into.
-func (dl *DisplayList) SetColorImage(addr uintptr, width uint32, format ImageFormat, bbp BitDepth) {
-	debug.Assert(addr%64 == 0, fmt.Sprintf("rdp framebuffer must be 64 byte aligned %x", addr))
-	debug.Assert(width < 1<<9, "rdp framebuffer width too big")
+func (dl *DisplayList) SetColorImage(img texture.Texture) {
+	debug.Assert(img.Addr()%64 == 0, fmt.Sprintf("rdp framebuffer must be 64 byte aligned %x", img.Addr()))
+	debug.Assert(img.Stride() < 1<<9, "rdp framebuffer width too big")
+	debug.Assert(img.Format() == texture.RGBA && img.BPP() == texture.BBP16 ||
+		img.Format() == texture.RGBA && img.BPP() == texture.BBP32 ||
+		img.Format() == texture.I && img.BPP() == texture.BBP8, "rdp unsupported format")
 
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
-	dl.push(((0xff << 56) | Command(format) | Command(bbp) | Command(width-1)<<32) |
-		Command(cpu.PhysicalAddress(addr)))
+	dl.push(((0xff << 56) | Command(img.Format()) | Command(img.BPP()) | Command(img.Stride()-1)<<32) |
+		Command(cpu.PhysicalAddress(img.Addr())))
 
-	dl.format = format
-	dl.bbp = bbp
+	dl.format = img.Format()
+	dl.bbp = img.BPP()
 }
 
 // Sets the zbuffer.  Width is taken from SetColorImage, bbp is always 18.
@@ -124,13 +100,13 @@ func (dl *DisplayList) SetDepthImage(addr uintptr) {
 }
 
 // Sets the image where LoadTile and LoadBlock will copy their data from.
-func (dl *DisplayList) SetTextureImage(addr uintptr, width uint32, bbp BitDepth) {
-	debug.Assert(addr%8 == 0, "rdp texture must be 8 byte aligned")
-	debug.Assert(width < 1<<9, "rdp texture width too big")
+func (dl *DisplayList) SetTextureImage(img texture.Texture) {
+	debug.Assert(img.Addr()%8 == 0, "rdp texture must be 8 byte aligned")
+	debug.Assert(img.Stride() < 1<<9, "rdp texture width too big")
 
 	// according to wiki, format[23:21] has no effect
-	dl.push((0xfd << 56) | Command(bbp) | Command(width-1)<<32 |
-		Command(cpu.PhysicalAddress(addr)))
+	dl.push((0xfd << 56) | Command(img.BPP()) | Command(img.Stride()-1)<<32 |
+		Command(cpu.PhysicalAddress(img.Addr())))
 }
 
 type TileDescFlags uint64
@@ -142,17 +118,17 @@ const (
 	ClampT  TileDescFlags = 1 << 19
 )
 
-var supportedFormat = map[ImageFormat]map[BitDepth]bool{
-	RGBA:     {BBP16: true, BBP32: true},
-	YUV:      {BBP16: true},
-	ColorIdx: {BBP4: true, BBP8: true},
-	IA:       {BBP4: true, BBP8: true, BBP16: true},
-	I:        {BBP4: true, BBP8: true},
+var supportedFormat = map[texture.ImageFormat]map[texture.BitDepth]bool{
+	texture.RGBA:     {texture.BBP16: true, texture.BBP32: true},
+	texture.YUV:      {texture.BBP16: true},
+	texture.ColorIdx: {texture.BBP4: true, texture.BBP8: true},
+	texture.IA:       {texture.BBP4: true, texture.BBP8: true, texture.BBP16: true},
+	texture.I:        {texture.BBP4: true, texture.BBP8: true},
 }
 
 type TileDescriptor struct {
-	Format         ImageFormat
-	Size           BitDepth
+	Format         texture.ImageFormat
+	Size           texture.BitDepth
 	Line           uint16 // 9 bit; line length in qwords
 	Addr           uint16 // 9 bit; TMEM address in qwords
 	Idx            uint8  // 3 bit; Tile index
@@ -177,7 +153,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	debug.Assert(supportedFormat[ts.Format][ts.Size], fmt.Sprintf("tile unsupported format: %x %x", ts.Format, ts.Size))
 
 	// some formats must indicate 16 byte instead of 8 byte texels
-	if ts.Size == BBP32 && (ts.Format == RGBA || ts.Format == YUV) {
+	if ts.Size == texture.BBP32 && (ts.Format == texture.RGBA || ts.Format == texture.YUV) {
 		ts.Line = ts.Line >> 1
 	}
 
@@ -338,8 +314,8 @@ func (dl *DisplayList) SetOtherModes(
 	cvgDest CvgDest,
 	blend BlendMode,
 ) {
-	debug.Assert(!(ct == CycleTypeCopy && dl.bbp == BBP32), "COPY mode unavailable for 32-bit framebuffer")
-	debug.Assert(!(ct == CycleTypeFill && dl.bbp == BBP4), "FILL mode unavailable for 4-bit framebuffer")
+	debug.Assert(!(ct == CycleTypeCopy && dl.bbp == texture.BBP32), "COPY mode unavailable for 32-bit framebuffer")
+	debug.Assert(!(ct == CycleTypeFill && dl.bbp == texture.BBP4), "FILL mode unavailable for 4-bit framebuffer")
 
 	m := flags | blend.modeFlags()
 	m |= ModeFlags(ct) | ModeFlags(cDith) | ModeFlags(aDith) | ModeFlags(zMode) | ModeFlags(cvgDest)
@@ -391,12 +367,12 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 
 	r, g, b, a := dl.fillColor.RGBA()
 	var ci uint32
-	if dl.bbp == BBP32 {
+	if dl.bbp == texture.BBP32 {
 		ci = ((r >> 8) << 24) | ((g >> 8) << 16) | ((b >> 8) << 8) | (a >> 8)
-	} else if dl.bbp == BBP16 {
+	} else if dl.bbp == texture.BBP16 {
 		ci = ((r >> 11) << 11) | ((g >> 11) << 6) | ((b >> 11) << 1) | (a >> 15)
 		ci |= ci << 16
-	} else if dl.bbp == BBP8 {
+	} else if dl.bbp == texture.BBP8 {
 		ci = ((a >> 8) << 24) | ((a >> 8) << 16) | ((a >> 8) << 8) | (a >> 8)
 	} else {
 		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")

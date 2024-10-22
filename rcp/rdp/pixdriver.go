@@ -5,7 +5,6 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-	"unsafe"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/texture"
@@ -14,33 +13,20 @@ import (
 )
 
 type Rdp struct {
-	target image.Image // TODO use video.Framebuffer instead
+	target texture.Texture
 	bounds image.Rectangle
 	dlist  *DisplayList
 
 	fill image.Uniform
 }
 
-func NewRdp(fb image.Image) *Rdp {
+func NewRdp(fb texture.Texture) *Rdp {
 	rdp := &Rdp{
 		target: fb,
 		dlist:  NewDisplayList(),
 	}
 
-	switch img := fb.(type) {
-	case *image.Gray:
-		imgBuf := uintptr(unsafe.Pointer(unsafe.SliceData(img.Pix)))
-		rdp.dlist.SetColorImage(imgBuf, uint32(img.Stride), I, BBP8)
-	case *texture.RGBA16:
-		imgBuf := uintptr(unsafe.Pointer(unsafe.SliceData(img.Pix)))
-		rdp.dlist.SetColorImage(imgBuf, uint32(img.Stride)>>1, RGBA, BBP16)
-	case *texture.RGBA32:
-		imgBuf := uintptr(unsafe.Pointer(unsafe.SliceData(img.Pix)))
-		rdp.dlist.SetColorImage(imgBuf, uint32(img.Stride)>>2, RGBA, BBP32)
-	default:
-		debug.Assert(false, "rdp unsupported format")
-	}
-
+	rdp.dlist.SetColorImage(fb)
 	rdp.dlist.SetScissor(rdp.target.Bounds().Sub(rdp.target.Bounds().Min), InterlaceNone)
 
 	return rdp
@@ -55,43 +41,10 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	r = r.Bounds().Sub(fb.target.Bounds().Min)
 
 	switch srcImg := src.(type) {
-	case *texture.RGBA16:
+	case texture.Texture:
 		switch mask.(type) {
 		case nil:
-			fb.drawColorImage(r, Texture{
-				image:   src,
-				addr:    srcImg.Addr(),
-				stride:  uint32(srcImg.Stride >> 1),
-				format:  RGBA,
-				bpp:     BBP16,
-				premult: true,
-			}, sp, image.Point{1, 1}, nil, op)
-			return
-		}
-	case *texture.RGBA32:
-		switch mask.(type) {
-		case nil:
-			fb.drawColorImage(r, Texture{
-				image:   src,
-				addr:    srcImg.Addr(),
-				stride:  uint32(srcImg.Stride >> 2),
-				format:  RGBA,
-				bpp:     BBP32,
-				premult: true,
-			}, sp, image.Point{1, 1}, nil, op)
-			return
-		}
-	case *texture.NRGBA32:
-		switch mask.(type) {
-		case nil:
-			fb.drawColorImage(r, Texture{
-				image:   src,
-				addr:    srcImg.Addr(),
-				stride:  uint32(srcImg.Stride >> 2),
-				format:  RGBA,
-				bpp:     BBP32,
-				premult: false,
-			}, sp, image.Point{1, 1}, nil, op)
+			fb.drawColorImage(r, srcImg, sp, image.Point{1, 1}, nil, op)
 			return
 		}
 	case *image.Uniform:
@@ -115,27 +68,13 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 				fb.drawUniformOver(r, srcImg.C, maskImg.C)
 				return
 			}
-		case *image.Alpha:
-			fb.drawColorImage(r, Texture{
-				image:   mask,
-				addr:    uintptr(unsafe.Pointer(unsafe.SliceData(maskImg.Pix))),
-				stride:  uint32(maskImg.Stride),
-				format:  I,
-				bpp:     BBP8,
-				premult: false,
-			}, mp, image.Point{1, 1}, srcImg.C, op)
+		case *texture.I8:
+			fb.drawColorImage(r, maskImg, mp, image.Point{1, 1}, srcImg.C, op)
 			return
 		case *images.Magnifier:
-			maskAlpha, ok := maskImg.Image.(*image.Alpha)
+			maskAlpha, ok := maskImg.Image.(*texture.I8)
 			debug.Assert(ok, fmt.Sprintf("rdp unsupported format: magnified %T", maskAlpha))
-			fb.drawColorImage(r, Texture{
-				image:   mask,
-				addr:    uintptr(unsafe.Pointer(unsafe.SliceData(maskAlpha.Pix))),
-				stride:  uint32(maskAlpha.Stride),
-				format:  I,
-				bpp:     BBP8,
-				premult: false,
-			}, mp, image.Point{maskImg.Sx, maskImg.Sy}, srcImg.C, op)
+			fb.drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, srcImg.C, op)
 			return
 		}
 	}
@@ -202,16 +141,7 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 	fb.dlist.FillRectangle(r)
 }
 
-type Texture struct {
-	image   image.Image
-	addr    uintptr
-	stride  uint32
-	format  ImageFormat
-	bpp     BitDepth
-	premult bool // premultiplied alpha
-}
-
-func (fb *Rdp) drawColorImage(r image.Rectangle, src Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
+func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
 	colorSource := CombineTex0
 
 	if fill != nil {
@@ -220,7 +150,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src Texture, p image.Point, sca
 	}
 
 	var cp CombineParams
-	if src.premult {
+	if src.Premult() {
 		cp = CombineParams{0, 0, 0, colorSource} // cc = src
 	} else {
 		cp = CombineParams{colorSource, CombineBColorZero, CombineCColorTex0Alpha, CombineDColorZero} // cc = src_alpha*src
@@ -258,23 +188,23 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src Texture, p image.Point, sca
 		})
 	}
 
-	fb.dlist.SetTextureImage(src.addr, src.stride, src.bpp)
+	fb.dlist.SetTextureImage(src)
 
-	step := maxTile(src.bpp)
+	step := maxTile(src.BPP())
 	const idx = 0
 	ts := TileDescriptor{
-		Format: src.format,
-		Size:   src.bpp,
+		Format: src.Format(),
+		Size:   src.BPP(),
 		Addr:   0x0,
-		Line:   uint16(pixelsToBytes(step.Dx()/scale.X, src.bpp) >> 3),
+		Line:   uint16(texture.PixelsToBytes(step.Dx()/scale.X, src.BPP()) >> 3),
 		Idx:    idx,
 
 		MaskS: 5, MaskT: 5, // ignore fractional part
 	}
 
-	bounds := src.image.Bounds().Intersect(r.Sub(r.Min.Sub(p)))
-	bounds = bounds.Sub(src.image.Bounds().Min)        // draw area in src image space
-	origin := r.Min.Add(src.image.Bounds().Min).Sub(p) // draw origin in screen space
+	bounds := src.Bounds().Intersect(r.Sub(r.Min.Sub(p)))
+	bounds = bounds.Sub(src.Bounds().Min)        // draw area in src image space
+	origin := r.Min.Add(src.Bounds().Min).Sub(p) // draw origin in screen space
 
 	// iterate tile over the whole drawing area
 	var pt image.Point
@@ -298,7 +228,7 @@ func (fb *Rdp) Flush() {
 	fb.dlist.commands = fb.dlist.commands[:2] // TODO ugly displaylist reset
 }
 
-func maxTile(bpp BitDepth) image.Rectangle {
+func maxTile(bpp texture.BitDepth) image.Rectangle {
 	size := 256 >> uint(bpp>>51)
 	return image.Rect(0, 0, size, size)
 }

@@ -6,7 +6,9 @@ import (
 	"embedded/mmio"
 	"unsafe"
 
+	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/texture"
 )
 
 const (
@@ -39,11 +41,11 @@ type registers struct {
 type ColorDepth uint32
 
 const (
-	BBP16 ColorDepth = 2
-	BBP32 ColorDepth = 3
+	BPP16 ColorDepth = 2
+	BPP32 ColorDepth = 3
 )
 
-func SetupNTSC(bbp ColorDepth) {
+func SetupNTSC(fb texture.Texture) {
 	// Avoid crash by disabling output while changing registers
 	regs.control.Store(0)
 
@@ -60,13 +62,14 @@ func SetupNTSC(bbp ColorDepth) {
 	regs.hScale.Store((1024*WIDTH + WIDTH) / 640)
 	regs.vScale.Store((1024*HEIGHT + 120) / HEIGHT)
 
-	regs.control.Store(uint32(bbp) | (3 << 8))
+	regs.control.Store(uint32(bpp(fb.BPP())) | (3 << 8))
 }
 
-func SetupPAL(bbp ColorDepth) {
+func SetupPAL(fb texture.Texture) {
 	// Avoid crash by disabling output while changing registers
 	regs.control.Store(0)
 
+	regs.framebuffer.Store(uint32(fb.Addr()))
 	regs.width.Store(WIDTH)
 	regs.vInt.Store(2)
 	regs.currentLine.Store(0)
@@ -80,10 +83,17 @@ func SetupPAL(bbp ColorDepth) {
 	regs.hScale.Store((1024*WIDTH + WIDTH) / 640)
 	regs.vScale.Store((1024*HEIGHT + 120) / HEIGHT)
 
-	regs.control.Store(uint32(bbp) | (3 << 8))
+	regs.control.Store(uint32(bpp(fb.BPP())) | (3 << 8))
 }
 
-// TODO use texture.Texture interface
-func SetFramebuffer(fb interface{ Addr() uintptr }) {
-	regs.framebuffer.Store(uint32(fb.Addr()))
+func bpp(bpp texture.BitDepth) ColorDepth {
+	switch bpp {
+	case texture.BBP16:
+		return BPP16
+	case texture.BBP32:
+		return BPP32
+	default:
+		debug.Assert(false, "video: unsupported framebuffer format")
+	}
+	return 0
 }

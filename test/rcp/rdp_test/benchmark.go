@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/clktmr/n64/rcp"
+	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
@@ -40,7 +41,7 @@ func BenchmarkTextureRectangle(b *testing.B) {
 	imgN64LogoLarge, _ := png.Decode(bytes.NewReader(pngN64LogoLarge))
 	imgLarge := texture.NewNRGBA32(imgN64LogoLarge.Bounds())
 	draw.Src.Draw(&imgLarge.NRGBA, imgLarge.Bounds(), imgN64LogoLarge, image.Point{})
-	imgLarge.Flush()
+	cpu.WritebackSlice(imgLarge.Pix)
 
 	for i := 0; i < b.N; i++ {
 		rasterizer.Draw(fb.Rect, imgLarge, image.Point{}, nil, image.Point{}, draw.Over)

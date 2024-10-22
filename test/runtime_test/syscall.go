@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"embedded/rtos"
+	"image"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/clktmr/n64/drivers/carts/summercart64"
 	"github.com/clktmr/n64/rcp"
+	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 )
 
@@ -71,7 +73,7 @@ func TestInterruptPrio(t *testing.T) {
 
 			// generate single 5 second blocking low prio interrupt
 			start := time.Now()
-			video.SetupPAL(video.BBP32)
+			video.SetupPAL(texture.NewNRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT)))
 			rcp.SetHandler(rcp.VideoInterface, blockingHandler)
 			rcp.EnableInterrupts(rcp.VideoInterface)
 			t.Cleanup(func() {

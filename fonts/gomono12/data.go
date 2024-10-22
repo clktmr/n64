@@ -3,13 +3,15 @@ package gomono12
 import (
 	_ "embed"
 	"image"
-	_ "image/png"
+	"image/png"
 	"strings"
+
+	"github.com/clktmr/n64/rcp/texture"
 )
 
 type fontData struct {
 	positions []byte
-	fontMap   *image.Alpha
+	fontMap   *texture.I8
 }
 
 func (p *fontData) Advance(i int) int {
@@ -35,17 +37,16 @@ var X0000_png string
 
 func load() *fontData {
 	f := &fontData{}
-	f.positions = make([]byte, len(X0000_pos))
-	copy(f.positions, []byte(X0000_pos))
+	f.positions = []byte(X0000_pos)
 
 	fontMapReader := strings.NewReader(X0000_png)
-	fontMap, _, _ := image.Decode(fontMapReader)
+	fontMap, _ := png.Decode(fontMapReader)
 	imgGray, _ := fontMap.(*image.Gray)
-	f.fontMap = &image.Alpha{
+	f.fontMap = texture.NewI8FromImage(&image.Alpha{
 		Pix:    imgGray.Pix,
 		Stride: imgGray.Stride,
 		Rect:   imgGray.Rect,
-	}
+	})
 
 	return f
 }

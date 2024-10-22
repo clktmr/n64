@@ -2,51 +2,42 @@
 // e.g. textures and framebuffers.
 package texture
 
+// TODO ensure alignment in New*FromImage() and *.SubImage()
+
 import (
 	"image"
-	"image/color"
-	"image/draw"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-const Alignment = 64
+const (
+	AlignFramebuffer = 64
+	AlignTexture     = 8
+)
 
 // Stores pixels in RGBA with 32bit (8:8:8:8)
-//
-// draw.DrawMask will chose optimized implementations based on type assertions.
-// Thats why it's important to be an image.RGBA specifically, a type that the
-// image/draw package knows.  Still all rendering done this way is without
-// hardware acceleration and rather slow.
-type RGBA32 struct {
-	image.RGBA
-}
+type RGBA32 struct{ image.RGBA }
 
 func NewRGBA32(r image.Rectangle) *RGBA32 {
 	return &RGBA32{image.RGBA{
-		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, Alignment),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, AlignFramebuffer),
 		Stride: 4 * r.Dx(),
 		Rect:   r,
 	}}
 }
 
-func (p *RGBA32) Draw(r image.Rectangle, src image.Image, sp image.Point,
-	mask image.Image, mp image.Point, op draw.Op) {
-	// TODO optimize drawing glyphs via type assertion
-	// text: src *image.Uniform, mask *images.ImmAlphaN
-	draw.DrawMask(&p.RGBA, r, src, sp, mask, mp, op)
+func NewRGBA32FromImage(img *image.RGBA) *RGBA32 {
+	return &RGBA32{*img}
 }
 
-func (p *RGBA32) Flush() {
-	cpu.WritebackSlice(p.Pix)
-}
+func (p *RGBA32) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
+func (p *RGBA32) Stride() int         { return p.RGBA.Stride >> 2 }
+func (p *RGBA32) Format() ImageFormat { return RGBA }
+func (p *RGBA32) BPP() BitDepth       { return BBP32 }
+func (p *RGBA32) Premult() bool       { return true }
 
-func (p *RGBA32) Addr() uintptr {
-	return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix)))
-}
-
-func (p *RGBA32) SubImage(r image.Rectangle) image.Image {
+func (p *RGBA32) SubImage(r image.Rectangle) *RGBA32 {
 	subImg, _ := p.RGBA.SubImage(r).(*image.RGBA)
 	return &RGBA32{*subImg}
 }
@@ -54,112 +45,74 @@ func (p *RGBA32) SubImage(r image.Rectangle) image.Image {
 // Stores pixels in RGBA with 32bit (8:8:8:8)
 //
 // Same as RGBA32, but not premultiplied-alpha.
-type NRGBA32 struct {
-	image.NRGBA
-}
+type NRGBA32 struct{ image.NRGBA }
 
 func NewNRGBA32(r image.Rectangle) *NRGBA32 {
 	return &NRGBA32{image.NRGBA{
-		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, Alignment),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, AlignFramebuffer),
 		Stride: 4 * r.Dx(),
 		Rect:   r,
 	}}
 }
 
-func (p *NRGBA32) Draw(r image.Rectangle, src image.Image, sp image.Point,
-	mask image.Image, mp image.Point, op draw.Op) {
-	// TODO optimize drawing glyphs via type assertion
-	// text: src *image.Uniform, mask *images.ImmAlphaN
-	draw.DrawMask(&p.NRGBA, r, src, sp, mask, mp, op)
+func NewNRGBA32FromImage(img *image.NRGBA) *NRGBA32 {
+	return &NRGBA32{*img}
 }
 
-func (p *NRGBA32) Flush() {
-	cpu.WritebackSlice(p.Pix)
-}
+func (p *NRGBA32) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
+func (p *NRGBA32) Stride() int         { return p.NRGBA.Stride >> 2 }
+func (p *NRGBA32) Format() ImageFormat { return RGBA }
+func (p *NRGBA32) BPP() BitDepth       { return BBP32 }
+func (p *NRGBA32) Premult() bool       { return false }
 
-func (p *NRGBA32) Addr() uintptr {
-	return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix)))
-}
-
-func (p *NRGBA32) SubImage(r image.Rectangle) image.Image {
+func (p *NRGBA32) SubImage(r image.Rectangle) *NRGBA32 {
 	subImg, _ := p.NRGBA.SubImage(r).(*image.NRGBA)
 	return &NRGBA32{*subImg}
 }
 
 // Stores pixels in RGBA with 16bit (5:5:5:1)
-//
-// Implements draw.Image, so all the drawing tools from the standard library can
-// be used.  It's slower than RGBA32 though, because there are no optimiztions
-// for this type in the image/draw package.
-type RGBA16 struct {
-	Pix    []uint8
-	Stride int
-	Rect   image.Rectangle
-}
+type RGBA16 struct{ imageRGBA16 }
 
 func NewRGBA16(r image.Rectangle) *RGBA16 {
-	return &RGBA16{
-		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*2, Alignment),
+	return &RGBA16{imageRGBA16{
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*2, AlignFramebuffer),
 		Stride: 2 * r.Dx(),
 		Rect:   r,
-	}
+	}}
 }
 
-func (p *RGBA16) Draw(r image.Rectangle, src image.Image, sp image.Point,
-	mask image.Image, mp image.Point, op draw.Op) {
-	// TODO write optimized version instead of calling draw.DrawMask
-	draw.DrawMask(p, r, src, sp, mask, mp, op)
+func NewRGBA16FromImage(img *imageRGBA16) *RGBA16 {
+	return &RGBA16{*img}
 }
 
-func (p *RGBA16) Flush() {
-	cpu.WritebackSlice(p.Pix)
+func (p *RGBA16) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
+func (p *RGBA16) Stride() int         { return p.imageRGBA16.Stride >> 1 }
+func (p *RGBA16) Format() ImageFormat { return RGBA }
+func (p *RGBA16) BPP() BitDepth       { return BBP16 }
+func (p *RGBA16) Premult() bool       { return true }
+
+// Stores pixels intensity with 8bit
+type I8 struct{ image.Alpha }
+
+func NewI8(r image.Rectangle) *I8 {
+	return &I8{image.Alpha{
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy(), AlignFramebuffer),
+		Stride: r.Dx(),
+		Rect:   r,
+	}}
 }
 
-func (p *RGBA16) Addr() uintptr {
-	return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix)))
+func NewI8FromImage(img *image.Alpha) *I8 {
+	return &I8{*img}
 }
 
-func (p *RGBA16) ColorModel() color.Model { return RGBA16Model }
+func (p *I8) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
+func (p *I8) Stride() int         { return p.Alpha.Stride }
+func (p *I8) Format() ImageFormat { return I }
+func (p *I8) BPP() BitDepth       { return BBP8 }
+func (p *I8) Premult() bool       { return false }
 
-func (p *RGBA16) Bounds() image.Rectangle {
-	return p.Rect
-}
-
-func (p *RGBA16) At(x, y int) color.Color {
-	if !(image.Point{x, y}.In(p.Rect)) {
-		return color.RGBA{}
-	}
-	offset := p.PixOffset(x, y)
-	return colorRGBA16(uint16(p.Pix[offset])<<8 | uint16(p.Pix[offset+1]))
-}
-
-func (p *RGBA16) Set(x, y int, c color.Color) {
-	if !(image.Point{x, y}.In(p.Rect)) {
-		return
-	}
-	offset := p.PixOffset(x, y)
-	col, _ := rgba16Model(c).(colorRGBA16)
-	p.Pix[offset] = uint8(col >> 8)
-	p.Pix[offset+1] = uint8(col & 0xff)
-}
-
-func (p *RGBA16) PixOffset(x, y int) int {
-	return (y-p.Rect.Min.Y)*p.Stride + (x-p.Rect.Min.X)*2
-}
-
-type colorRGBA16 uint16
-
-func (c colorRGBA16) RGBA() (r, g, b, a uint32) {
-	return uint32(c & 0xf800), uint32(c<<5) & 0xf800,
-		uint32(c<<10) & 0xf800, uint32(c&1) * 0xffff
-}
-
-var RGBA16Model color.Model = color.ModelFunc(rgba16Model)
-
-func rgba16Model(c color.Color) color.Color {
-	if _, ok := c.(colorRGBA16); ok {
-		return c
-	}
-	r, g, b, a := c.RGBA()
-	return colorRGBA16((r & 0xf800) | (g&0xf800)>>5 | (b&0xf800)>>10 | a>>15)
+func (p *I8) SubImage(r image.Rectangle) *I8 {
+	subImg, _ := p.Alpha.SubImage(r).(*image.Alpha)
+	return &I8{*subImg}
 }

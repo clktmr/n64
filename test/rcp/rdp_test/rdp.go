@@ -8,9 +8,7 @@ import (
 	"image/draw"
 	"image/png"
 	"testing"
-	"unsafe"
 
-	"github.com/clktmr/n64/framebuffer"
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rdp"
@@ -31,12 +29,11 @@ func TestFillRect(t *testing.T) {
 	})
 
 	testcolor := color.RGBA{R: 0, G: 0x37, B: 0x77, A: 0xff}
-	img := framebuffer.NewRGBA32(image.Rect(0, 0, 32, 32))
-	imgBuf := uintptr(unsafe.Pointer(&img.Pix[:1][0]))
+	img := texture.NewRGBA32(image.Rect(0, 0, 32, 32))
 
 	dl := rdp.NewDisplayList()
 
-	dl.SetColorImage(imgBuf, 32, rdp.RGBA, rdp.BBP32)
+	dl.SetColorImage(img)
 
 	bounds := image.Rectangle{
 		image.Point{0, 0},
@@ -65,12 +62,7 @@ func TestFillRect(t *testing.T) {
 }
 
 // Fills an image with a checkerboard test pattern
-func checkerboard(img interface {
-	Draw(r image.Rectangle, src image.Image, sp image.Point,
-		mask image.Image, mp image.Point, op draw.Op)
-	Flush()
-	Bounds() image.Rectangle
-}) {
+func checkerboard(img *texture.RGBA32) {
 	const size = 16
 	b := img.Bounds()
 	colors := []color.RGBA{
@@ -82,12 +74,12 @@ func checkerboard(img interface {
 		square := squareStart
 		for y := b.Min.Y; y < b.Max.Y; y += size {
 			i := (x/size + y/size) % 2
-			img.Draw(square, &image.Uniform{colors[i]}, image.Point{}, nil, image.Point{}, draw.Src)
+			draw.Src.Draw(&img.RGBA, square, &image.Uniform{colors[i]}, image.Point{})
 			square = square.Add(image.Point{0, size})
 		}
 		squareStart = squareStart.Add(image.Point{size, 0})
 	}
-	img.Flush()
+	cpu.WritebackSlice(img.Pix)
 }
 
 func absDiffInt(a int, b int) int {
@@ -114,16 +106,15 @@ func TestDraw(t *testing.T) {
 	// Split the screen into four viewports
 	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
 	bounds := image.Rect(0, 0, video.WIDTH/2, video.HEIGHT/2)
-	expected := fb.SubImage(bounds).(*texture.RGBA32)
-	result := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, 0})).(*texture.RGBA32)
+	expected := fb.SubImage(bounds)
+	result := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, 0}))
 	result.Rect = bounds
-	diff := fb.SubImage(bounds.Add(image.Point{0, video.HEIGHT / 2})).(*texture.RGBA32)
+	diff := fb.SubImage(bounds.Add(image.Point{0, video.HEIGHT / 2}))
 	diff.Rect = bounds
-	err := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, video.HEIGHT / 2})).(*texture.RGBA32)
+	err := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, video.HEIGHT / 2}))
 	err.Rect = bounds
 
-	video.SetFramebuffer(fb)
-	video.SetupPAL(video.BBP32)
+	video.SetupPAL(fb)
 
 	// Load some test images
 	imgN64LogoSmall, _ := png.Decode(bytes.NewReader(pngN64LogoSmall))
@@ -132,20 +123,21 @@ func TestDraw(t *testing.T) {
 	imgGreen := &image.Uniform{color.RGBA{G: 0xff, A: 0xff}}
 	imgTransparentGreen := &image.Uniform{color.RGBA{G: 0xff, A: 0xaf}}
 	imgTransparentGray := &image.Uniform{color.RGBA{0x7f, 0x7f, 0x7f, 0xaf}}
+
 	imgNRGBA := texture.NewNRGBA32(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(&imgNRGBA.NRGBA, imgNRGBA.Bounds(), imgN64LogoSmall, image.Point{})
-	imgNRGBA.Flush()
+	cpu.WritebackSlice(imgNRGBA.Pix)
 	imgRGBA := texture.NewRGBA32(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(&imgRGBA.RGBA, imgRGBA.Bounds(), imgN64LogoSmall, image.Point{})
-	imgRGBA.Flush()
+	cpu.WritebackSlice(imgRGBA.Pix)
 
 	imgLarge := texture.NewNRGBA32(imgN64LogoLarge.Bounds())
 	draw.Src.Draw(&imgLarge.NRGBA, imgLarge.Bounds(), imgN64LogoLarge, image.Point{})
-	imgLarge.Flush()
+	cpu.WritebackSlice(imgLarge.Pix)
 
-	imgAlpha := image.NewAlpha(imgN64LogoSmall.Bounds())
+	imgAlpha := texture.NewI8(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(imgAlpha, imgAlpha.Bounds(), imgN64LogoSmall, image.Point{})
-	// FIXME imgAlpha.Flush()
+	cpu.WritebackSlice(imgAlpha.Pix)
 
 	// Define testcases
 	tests := map[string]struct {
@@ -181,14 +173,14 @@ func TestDraw(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// prepare
-			diff.Draw(bounds, imgTransparentGray, image.Point{}, nil, image.Point{}, draw.Src)
-			err.Draw(bounds, image.Black, image.Point{}, nil, image.Point{}, draw.Src)
+			draw.Src.Draw(&diff.RGBA, bounds, imgTransparentGray, image.Point{})
+			draw.Src.Draw(&err.RGBA, bounds, image.Black, image.Point{})
 			checkerboard(expected)
 			checkerboard(result)
 
 			// draw
-			expected.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
-			expected.Flush()
+			draw.DrawMask(&expected.RGBA, tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
+			cpu.WritebackSlice(expected.Pix)
 			cpu.InvalidateSlice(result.Pix)
 			rasterizer.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
 			rasterizer.Flush()
