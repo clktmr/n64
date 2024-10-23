@@ -9,9 +9,8 @@ import (
 	"image/png"
 	"testing"
 
-	rdpdraw "github.com/clktmr/n64/drivers/draw"
+	n64draw "github.com/clktmr/n64/drivers/draw"
 	"github.com/clktmr/n64/rcp"
-	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 )
@@ -40,7 +39,7 @@ func checkerboard(img *texture.RGBA32) {
 		}
 		squareStart = squareStart.Add(image.Point{size, 0})
 	}
-	cpu.WritebackSlice(img.Pix)
+	img.Writeback()
 }
 
 func absDiffInt(a int, b int) int {
@@ -87,18 +86,18 @@ func TestDraw(t *testing.T) {
 
 	imgNRGBA := texture.NewNRGBA32(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(&imgNRGBA.NRGBA, imgNRGBA.Bounds(), imgN64LogoSmall, image.Point{})
-	cpu.WritebackSlice(imgNRGBA.Pix)
+	imgNRGBA.Writeback()
 	imgRGBA := texture.NewRGBA32(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(&imgRGBA.RGBA, imgRGBA.Bounds(), imgN64LogoSmall, image.Point{})
-	cpu.WritebackSlice(imgRGBA.Pix)
+	imgRGBA.Writeback()
 
 	imgLarge := texture.NewNRGBA32(imgN64LogoLarge.Bounds())
 	draw.Src.Draw(&imgLarge.NRGBA, imgLarge.Bounds(), imgN64LogoLarge, image.Point{})
-	cpu.WritebackSlice(imgLarge.Pix)
+	imgLarge.Writeback()
 
 	imgAlpha := texture.NewI8(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(imgAlpha, imgAlpha.Bounds(), imgN64LogoSmall, image.Point{})
-	cpu.WritebackSlice(imgAlpha.Pix)
+	imgAlpha.Writeback()
 
 	// Define testcases
 	tests := map[string]struct {
@@ -130,7 +129,8 @@ func TestDraw(t *testing.T) {
 	}
 
 	// Run all testcases
-	rasterizer := rdpdraw.NewRdp(result)
+	drawerHW := n64draw.NewRdp(result)
+	drawerSW := n64draw.NewCpu(expected)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// prepare
@@ -138,13 +138,13 @@ func TestDraw(t *testing.T) {
 			draw.Src.Draw(&err.RGBA, bounds, image.Black, image.Point{})
 			checkerboard(expected)
 			checkerboard(result)
+			result.Invalidate()
 
 			// draw
-			draw.DrawMask(&expected.RGBA, tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
-			cpu.WritebackSlice(expected.Pix)
-			cpu.InvalidateSlice(result.Pix)
-			rasterizer.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
-			rasterizer.Flush()
+			drawerSW.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
+			drawerSW.Flush()
+			drawerHW.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
+			drawerHW.Flush()
 
 			// compare
 			const showThreshold = 3

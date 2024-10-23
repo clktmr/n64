@@ -6,6 +6,7 @@ package texture
 
 import (
 	"image"
+	"image/draw"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -31,11 +32,14 @@ func NewRGBA32FromImage(img *image.RGBA) *RGBA32 {
 	return &RGBA32{*img}
 }
 
+func (p *RGBA32) Image() draw.Image   { return &p.RGBA }
 func (p *RGBA32) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
 func (p *RGBA32) Stride() int         { return p.RGBA.Stride >> 2 }
 func (p *RGBA32) Format() ImageFormat { return RGBA }
 func (p *RGBA32) BPP() BitDepth       { return BBP32 }
 func (p *RGBA32) Premult() bool       { return true }
+func (p *RGBA32) Writeback()          { cpu.WritebackSlice(p.Pix) }
+func (p *RGBA32) Invalidate()         { cpu.InvalidateSlice(p.Pix) }
 
 func (p *RGBA32) SubImage(r image.Rectangle) *RGBA32 {
 	subImg, _ := p.RGBA.SubImage(r).(*image.RGBA)
@@ -59,11 +63,14 @@ func NewNRGBA32FromImage(img *image.NRGBA) *NRGBA32 {
 	return &NRGBA32{*img}
 }
 
+func (p *NRGBA32) Image() draw.Image   { return &p.NRGBA }
 func (p *NRGBA32) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
 func (p *NRGBA32) Stride() int         { return p.NRGBA.Stride >> 2 }
 func (p *NRGBA32) Format() ImageFormat { return RGBA }
 func (p *NRGBA32) BPP() BitDepth       { return BBP32 }
 func (p *NRGBA32) Premult() bool       { return false }
+func (p *NRGBA32) Writeback()          { cpu.WritebackSlice(p.Pix) }
+func (p *NRGBA32) Invalidate()         { cpu.InvalidateSlice(p.Pix) }
 
 func (p *NRGBA32) SubImage(r image.Rectangle) *NRGBA32 {
 	subImg, _ := p.NRGBA.SubImage(r).(*image.NRGBA)
@@ -85,11 +92,14 @@ func NewRGBA16FromImage(img *imageRGBA16) *RGBA16 {
 	return &RGBA16{*img}
 }
 
+func (p *RGBA16) Image() draw.Image   { return &p.imageRGBA16 }
 func (p *RGBA16) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
 func (p *RGBA16) Stride() int         { return p.imageRGBA16.Stride >> 1 }
 func (p *RGBA16) Format() ImageFormat { return RGBA }
 func (p *RGBA16) BPP() BitDepth       { return BBP16 }
 func (p *RGBA16) Premult() bool       { return true }
+func (p *RGBA16) Writeback()          { cpu.WritebackSlice(p.Pix) }
+func (p *RGBA16) Invalidate()         { cpu.InvalidateSlice(p.Pix) }
 
 // Stores pixels intensity with 8bit
 type I8 struct{ image.Alpha }
@@ -106,11 +116,14 @@ func NewI8FromImage(img *image.Alpha) *I8 {
 	return &I8{*img}
 }
 
+func (p *I8) Image() draw.Image   { return &p.Alpha }
 func (p *I8) Addr() uintptr       { return uintptr(unsafe.Pointer(unsafe.SliceData(p.Pix))) }
 func (p *I8) Stride() int         { return p.Alpha.Stride }
 func (p *I8) Format() ImageFormat { return I }
 func (p *I8) BPP() BitDepth       { return BBP8 }
 func (p *I8) Premult() bool       { return false }
+func (p *I8) Writeback()          { cpu.WritebackSlice(p.Pix) }
+func (p *I8) Invalidate()         { cpu.InvalidateSlice(p.Pix) }
 
 func (p *I8) SubImage(r image.Rectangle) *I8 {
 	subImg, _ := p.Alpha.SubImage(r).(*image.Alpha)

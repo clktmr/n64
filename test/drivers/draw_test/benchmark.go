@@ -7,7 +7,7 @@ import (
 	"image/png"
 	"testing"
 
-	rdpdraw "github.com/clktmr/n64/drivers/draw"
+	n64draw "github.com/clktmr/n64/drivers/draw"
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
@@ -21,7 +21,7 @@ func BenchmarkFillScreen(b *testing.B) {
 	})
 
 	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
-	rasterizer := rdpdraw.NewRdp(fb)
+	rasterizer := n64draw.NewRdp(fb)
 
 	for i := 0; i < b.N; i++ {
 		rasterizer.Draw(fb.Rect, image.Black, image.Point{}, nil, image.Point{}, draw.Src)
@@ -36,7 +36,7 @@ func BenchmarkTextureRectangle(b *testing.B) {
 	})
 
 	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
-	rasterizer := rdpdraw.NewRdp(fb)
+	rasterizer := n64draw.NewRdp(fb)
 
 	imgN64LogoLarge, _ := png.Decode(bytes.NewReader(pngN64LogoLarge))
 	imgLarge := texture.NewNRGBA32(imgN64LogoLarge.Bounds())

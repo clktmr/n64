@@ -1,6 +1,9 @@
 package texture
 
-import "image"
+import (
+	"image"
+	"image/draw"
+)
 
 type ImageFormat uint64
 
@@ -28,6 +31,19 @@ type Texture interface {
 	Format() ImageFormat
 	BPP() BitDepth
 	Premult() bool
+}
+
+// A texture that provides a draw.Image implementation.  This is useful to get
+// the underlying image type when passing to the stdlib, e.g. draw.DrawMask().
+// The image/draw will use optimized implementations via type assertions, so
+// it's important to pass an image type image/draw knows.
+type ImageTexture interface {
+	Image() draw.Image
+}
+
+type CachedTexture interface {
+	Writeback()
+	Invalidate()
 }
 
 // For a number of pixels returns their size in bytes.
