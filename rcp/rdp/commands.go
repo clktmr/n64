@@ -34,7 +34,7 @@ type RDPState struct {
 	bbp              texture.BitDepth
 }
 
-const DisplayListLength = 256
+const DisplayListLength = 4096
 
 func NewDisplayList() *DisplayList {
 	return &DisplayList{
@@ -68,6 +68,10 @@ func Run(dl *DisplayList) {
 	FullSync.Sleep(-1)
 
 	// TODO runtime.KeepAlive(cmds) until next call
+}
+
+func (dl *DisplayList) Reset() {
+	dl.commands = dl.commands[:2] // TODO ugly
 }
 
 func (dl *DisplayList) push(cmd Command) {
@@ -496,4 +500,9 @@ func (dl *DisplayList) sync(s SyncCommand) {
 	}
 
 	dl.push(Command(s))
+}
+
+func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
+	size := 256 >> uint(bpp>>51)
+	return image.Rect(0, 0, size, size)
 }

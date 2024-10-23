@@ -15,12 +15,13 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 
 	"github.com/clktmr/n64/test/drivers/carts/summercart64_test"
+	"github.com/clktmr/n64/test/drivers/controller_test"
+	"github.com/clktmr/n64/test/drivers/draw_test"
 	"github.com/clktmr/n64/test/rcp/cpu_test"
 	"github.com/clktmr/n64/test/rcp/periph_test"
 	"github.com/clktmr/n64/test/rcp/rdp_test"
 	"github.com/clktmr/n64/test/rcp/rsp_test"
 	"github.com/clktmr/n64/test/runtime_test"
-	"github.com/clktmr/n64/test/drivers/controller_test"
 
 	"github.com/embeddedgo/fs/termfs"
 )
@@ -62,7 +63,7 @@ func main() {
 			newInternalTest(rsp_test.TestRun),
 			newInternalTest(rsp_test.TestInterrupt),
 			newInternalTest(rdp_test.TestFillRect),
-			newInternalTest(rdp_test.TestDraw),
+			newInternalTest(draw_test.TestDraw),
 			newInternalTest(periph_test.TestReadWriteSeeker),
 			newInternalTest(summercart64_test.TestUSBRead),
 			newInternalTest(summercart64_test.TestSaveStorage),
@@ -70,8 +71,8 @@ func main() {
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(runtime_test.BenchmarkSchedule),
-			newInternalBenchmark(rdp_test.BenchmarkFillScreen),
-			newInternalBenchmark(rdp_test.BenchmarkTextureRectangle),
+			newInternalBenchmark(draw_test.BenchmarkFillScreen),
+			newInternalBenchmark(draw_test.BenchmarkTextureRectangle),
 		}, nil,
 	)
 }

@@ -1,4 +1,4 @@
-package rdp
+package draw
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"image/draw"
 
 	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/texture"
 
 	"github.com/embeddedgo/display/images"
@@ -14,29 +15,22 @@ import (
 
 type Rdp struct {
 	target texture.Texture
-	bounds image.Rectangle
-	dlist  *DisplayList
-
-	fill image.Uniform
+	dlist  *rdp.DisplayList
 }
 
 func NewRdp(fb texture.Texture) *Rdp {
-	rdp := &Rdp{
+	r := &Rdp{
 		target: fb,
-		dlist:  NewDisplayList(),
+		dlist:  rdp.NewDisplayList(),
 	}
 
-	rdp.dlist.SetColorImage(fb)
-	rdp.dlist.SetScissor(rdp.target.Bounds().Sub(rdp.target.Bounds().Min), InterlaceNone)
+	r.dlist.SetColorImage(fb)
+	r.dlist.SetScissor(r.target.Bounds().Sub(r.target.Bounds().Min), rdp.InterlaceNone)
 
-	return rdp
+	return r
 }
 
 func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
-	if len(fb.dlist.commands) >= DisplayListLength/2 { // TODO ugly
-		fb.Flush()
-	}
-
 	// Readjust r if we draw to a viewport/subimage of the framebuffer
 	r = r.Bounds().Sub(fb.target.Bounds().Min)
 
@@ -96,7 +90,7 @@ func (fb *Rdp) drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Co
 	}
 	fb.dlist.SetFillColor(fill)
 	fb.dlist.SetOtherModes(
-		0, CycleTypeFill, RGBDitherNone, AlphaDitherNone, ZmodeOpaque, CvgDestClamp, BlendMode{},
+		0, rdp.CycleTypeFill, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, rdp.BlendMode{},
 	)
 	fb.dlist.FillRectangle(r)
 }
@@ -121,20 +115,28 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 	fb.dlist.SetPrimitiveColor(fill)
 	fb.dlist.SetEnvironmentColor(mask)
 
-	cp := CombineParams{CombinePrimitive, CombineBColorZero, CombineCColorEnvironmentAlpha, CombineDColorZero} // cc = env_alpha*primitive_color
-	cpA := CombineParams{CombineAAlphaZero, CombineEnvironment, CombinePrimitive, CombineDAlphaOne}            // cc_alpha = 1-env_alpha*primitive_alpha
-	fb.dlist.SetCombineMode(CombineMode{
-		Two: CombinePass{RGB: cp, Alpha: cpA},
+	// cc = env_alpha*primitive_color
+	cp := rdp.CombineParams{
+		rdp.CombinePrimitive, rdp.CombineBColorZero,
+		rdp.CombineCColorEnvironmentAlpha, rdp.CombineDColorZero,
+	}
+	// cc_alpha = 1-env_alpha*primitive_alpha
+	cpA := rdp.CombineParams{
+		rdp.CombineAAlphaZero, rdp.CombineEnvironment,
+		rdp.CombinePrimitive, rdp.CombineDAlphaOne,
+	}
+	fb.dlist.SetCombineMode(rdp.CombineMode{
+		Two: rdp.CombinePass{RGB: cp, Alpha: cpA},
 	})
 
 	fb.dlist.SetOtherModes(
-		ForceBlend|ImageRead,
-		CycleTypeOne, RGBDitherNone, AlphaDitherNone, ZmodeOpaque, CvgDestClamp,
-		BlendMode{ // dst = cc_alpha*dst + cc
-			P1: BlenderPMFramebuffer,
-			A1: BlenderAColorCombinerAlpha,
-			M1: BlenderPMColorCombiner,
-			B1: BlenderBOne,
+		rdp.ForceBlend|rdp.ImageRead,
+		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
+		rdp.BlendMode{ // dst = cc_alpha*dst + cc
+			P1: rdp.BlenderPMFramebuffer,
+			A1: rdp.BlenderAColorCombinerAlpha,
+			M1: rdp.BlenderPMColorCombiner,
+			B1: rdp.BlenderBOne,
 		},
 	)
 
@@ -142,57 +144,61 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 }
 
 func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
-	colorSource := CombineTex0
+	colorSource := rdp.CombineTex0
 
 	if fill != nil {
 		fb.dlist.SetEnvironmentColor(fill)
-		colorSource = CombineEnvironment
+		colorSource = rdp.CombineEnvironment
 	}
 
-	var cp CombineParams
+	var cp, cpA rdp.CombineParams
 	if src.Premult() {
-		cp = CombineParams{0, 0, 0, colorSource} // cc = src
+		cp = rdp.CombineParams{0, 0, 0, colorSource} // cc = src
 	} else {
-		cp = CombineParams{colorSource, CombineBColorZero, CombineCColorTex0Alpha, CombineDColorZero} // cc = src_alpha*src
+		// cc = src_alpha*src
+		cp = rdp.CombineParams{
+			colorSource, rdp.CombineBColorZero,
+			rdp.CombineCColorTex0Alpha, rdp.CombineDColorZero,
+		}
 	}
 
 	if op == draw.Over {
 		fb.dlist.SetOtherModes(
-			ForceBlend|ImageRead|BiLerp0,
-			CycleTypeOne, RGBDitherNone, AlphaDitherNone, ZmodeOpaque, CvgDestClamp,
-			BlendMode{ // dst = cc_alpha*dst + cc
-				P1: BlenderPMFramebuffer,
-				A1: BlenderAColorCombinerAlpha,
-				M1: BlenderPMColorCombiner,
-				B1: BlenderBOne,
+			rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
+			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
+			rdp.BlendMode{ // dst = cc_alpha*dst + cc
+				P1: rdp.BlenderPMFramebuffer,
+				A1: rdp.BlenderAColorCombinerAlpha,
+				M1: rdp.BlenderPMColorCombiner,
+				B1: rdp.BlenderBOne,
 			},
 		)
-		cpA := CombineParams{CombineAAlphaZero, CombineBAlphaOne, CombineTex0, CombineDAlphaOne} // cc_alpha = 1-tex0_alpha
-
-		fb.dlist.SetCombineMode(CombineMode{
-			Two: CombinePass{RGB: cp, Alpha: cpA},
-		})
+		// cc_alpha = 1-tex0_alpha
+		cpA = rdp.CombineParams{
+			rdp.CombineAAlphaZero, rdp.CombineBAlphaOne,
+			rdp.CombineTex0, rdp.CombineDAlphaOne,
+		}
 	} else {
 		fb.dlist.SetOtherModes(
-			ForceBlend|BiLerp0,
-			CycleTypeOne, RGBDitherNone, AlphaDitherNone, ZmodeOpaque, CvgDestClamp,
-			BlendMode{ // dst = cc
-				A1: BlenderAZero,
-				M1: BlenderPMColorCombiner,
-				B1: BlenderBOne,
+			rdp.ForceBlend|rdp.BiLerp0,
+			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
+			rdp.BlendMode{ // dst = cc
+				A1: rdp.BlenderAZero,
+				M1: rdp.BlenderPMColorCombiner,
+				B1: rdp.BlenderBOne,
 			},
 		)
-		cpA := CombineParams{0, 0, 0, colorSource} // cc_alpha = src_alpha
-		fb.dlist.SetCombineMode(CombineMode{
-			Two: CombinePass{RGB: cp, Alpha: cpA},
-		})
+		cpA = rdp.CombineParams{0, 0, 0, colorSource} // cc_alpha = src_alpha
 	}
 
+	fb.dlist.SetCombineMode(rdp.CombineMode{
+		Two: rdp.CombinePass{RGB: cp, Alpha: cpA},
+	})
 	fb.dlist.SetTextureImage(src)
 
-	step := maxTile(src.BPP())
+	step := rdp.MaxTileSize(src.BPP())
 	const idx = 0
-	ts := TileDescriptor{
+	ts := rdp.TileDescriptor{
 		Format: src.Format(),
 		Size:   src.BPP(),
 		Addr:   0x0,
@@ -224,27 +230,6 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 }
 
 func (fb *Rdp) Flush() {
-	Run(fb.dlist)
-	fb.dlist.commands = fb.dlist.commands[:2] // TODO ugly displaylist reset
-}
-
-func maxTile(bpp texture.BitDepth) image.Rectangle {
-	size := 256 >> uint(bpp>>51)
-	return image.Rect(0, 0, size, size)
-}
-
-func (fb *Rdp) Fill(rect image.Rectangle) {
-	fb.Draw(rect, &fb.fill, image.Point{}, nil, image.Point{}, draw.Over)
-}
-
-func (fb *Rdp) SetColor(c color.Color) {
-	fb.fill.C = c
-}
-
-func (fb *Rdp) SetDir(dir int) image.Rectangle {
-	return fb.target.Bounds()
-}
-
-func (fb *Rdp) Err(clear bool) error {
-	return nil
+	rdp.Run(fb.dlist)
+	fb.dlist.Reset()
 }
