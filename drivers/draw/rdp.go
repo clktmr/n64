@@ -1,7 +1,6 @@
 package draw
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -67,13 +66,13 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 			return
 		case *images.Magnifier:
 			maskAlpha, ok := maskImg.Image.(*texture.I8)
-			debug.Assert(ok, fmt.Sprintf("rdp unsupported format: magnified %T", maskAlpha))
+			debug.Assert(ok, "rdp unsupported magnifier format")
 			fb.drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, srcImg.C, op)
 			return
 		}
 	}
 
-	debug.Assert(false, fmt.Sprintf("rdp unsupported format: %T with %T mask", src, mask))
+	debug.Assert(false, "rdp unsupported format")
 }
 
 func (fb *Rdp) drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Color) {

@@ -4,7 +4,6 @@
 package rdp
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"unsafe"
@@ -81,7 +80,7 @@ func (dl *DisplayList) push(cmd Command) {
 
 // Sets the framebuffer to render the final image into.
 func (dl *DisplayList) SetColorImage(img texture.Texture) {
-	debug.Assert(img.Addr()%64 == 0, fmt.Sprintf("rdp framebuffer must be 64 byte aligned %x", img.Addr()))
+	debug.Assert(img.Addr()%64 == 0, "rdp framebuffer alignment")
 	debug.Assert(img.Stride() < 1<<9, "rdp framebuffer width too big")
 	debug.Assert(img.Format() == texture.RGBA && img.BPP() == texture.BBP16 ||
 		img.Format() == texture.RGBA && img.BPP() == texture.BBP32 ||
@@ -122,12 +121,20 @@ const (
 	ClampT  TileDescFlags = 1 << 19
 )
 
-var supportedFormat = map[texture.ImageFormat]map[texture.BitDepth]bool{
-	texture.RGBA:     {texture.BBP16: true, texture.BBP32: true},
-	texture.YUV:      {texture.BBP16: true},
-	texture.ColorIdx: {texture.BBP4: true, texture.BBP8: true},
-	texture.IA:       {texture.BBP4: true, texture.BBP8: true, texture.BBP16: true},
-	texture.I:        {texture.BBP4: true, texture.BBP8: true},
+func supportedFormat(fmt texture.ImageFormat, bpp texture.BitDepth) bool {
+	switch fmt {
+	case texture.RGBA:
+		return bpp == texture.BBP16 || bpp == texture.BBP32
+	case texture.YUV:
+		return bpp == texture.BBP16
+	case texture.IA:
+		return bpp == texture.BBP4 || bpp == texture.BBP8 || bpp == texture.BBP16
+	case texture.I:
+		fallthrough
+	case texture.ColorIdx:
+		return bpp == texture.BBP4 || bpp == texture.BBP8
+	}
+	return false
 }
 
 type TileDescriptor struct {
@@ -154,7 +161,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	debug.Assert(ts.MaskS < 1<<4, "tile mask out of bounds")
 	debug.Assert(ts.ShiftT < 1<<4, "tile shift out of bounds")
 	debug.Assert(ts.ShiftS < 1<<4, "tile shift out of bounds")
-	debug.Assert(supportedFormat[ts.Format][ts.Size], fmt.Sprintf("tile unsupported format: %x %x", ts.Format, ts.Size))
+	debug.Assert(supportedFormat(ts.Format, ts.Size), "tile unsupported format")
 
 	// some formats must indicate 16 byte instead of 8 byte texels
 	if ts.Size == texture.BBP32 && (ts.Format == texture.RGBA || ts.Format == texture.YUV) {
