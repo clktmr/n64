@@ -21,7 +21,7 @@ func TestFillRect(t *testing.T) {
 	testcolor := color.RGBA{R: 0, G: 0x37, B: 0x77, A: 0xff}
 	img := texture.NewRGBA32(image.Rect(0, 0, 32, 32))
 
-	dl := rdp.NewDisplayList()
+	dl := &rdp.RDP
 
 	dl.SetColorImage(img)
 
@@ -39,7 +39,7 @@ func TestFillRect(t *testing.T) {
 
 	cpu.InvalidateSlice(img.Pix)
 
-	rdp.Run(dl)
+	dl.Flush()
 
 	for x := range bounds.Max.X {
 		for y := range bounds.Max.Y {

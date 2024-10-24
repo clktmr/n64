@@ -16,66 +16,59 @@ import (
 type Command uint64
 
 type DisplayList struct {
-	RDPState
+	state
 
-	beginState RDPState
-	commands   []Command
+	commands   [64]Command
+	start, end uintptr
 }
 
-type RDPState struct {
+type state struct {
 	combineMode      CombineMode
 	otherModes       ModeFlags
 	fillColor        color.RGBA
 	blendColor       color.RGBA
 	primitiveColor   color.RGBA
 	environmentColor color.RGBA
-	format           texture.ImageFormat
-	bbp              texture.BitDepth
+
+	format texture.ImageFormat
+	bbp    texture.BitDepth
 }
 
-const DisplayListLength = 4096
+var RDP DisplayList
 
-func NewDisplayList() *DisplayList {
-	return &DisplayList{
-		commands: cpu.MakePaddedSlice[Command](DisplayListLength)[:0],
+func init() {
+	RDP.start = uintptr(unsafe.Pointer(&RDP.commands))
+	RDP.end = RDP.start
+
+	regs.status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
+	regs.start.Store(cpu.PhysicalAddress(RDP.start))
+	regs.end.Store(cpu.PhysicalAddress(RDP.end))
+}
+
+func (dl *DisplayList) Flush() {
+	for regs.current.Load() != regs.end.Load() {
+		// wait
 	}
 }
 
-var state RDPState
-
-func Run(dl *DisplayList) {
-	dl.sync(Full)
-
-	cmds := dl.commands
-	elemSize := unsafe.Sizeof(cmds[0])
-	start := uintptr(unsafe.Pointer(&cmds[0]))
-	end := uintptr(unsafe.Pointer(&cmds[len(cmds)-1])) + elemSize
-
-	cpu.WritebackSlice(dl.commands)
-
-	debug.Assert(regs.status.LoadBits(startPending|endPending) == 0, "concurrent rdp access")
-
-	regs.status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
-
-	FullSync.Clear()
-
-	state = dl.RDPState
-
-	regs.start.Store(uint32(cpu.PhysicalAddress(start)))
-	regs.end.Store(uint32(cpu.PhysicalAddress(end)))
-
-	FullSync.Sleep(-1)
-
-	// TODO runtime.KeepAlive(cmds) until next call
-}
-
-func (dl *DisplayList) Reset() {
-	dl.commands = dl.commands[:2] // TODO ugly
-}
-
 func (dl *DisplayList) push(cmd Command) {
-	dl.commands = dl.commands[:len(dl.commands)+1]
-	dl.commands[len(dl.commands)-1] = cmd
+	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= uint32(dl.end) {
+		// wait
+	}
+
+	idx := int(dl.end-dl.start) >> 3
+	dl.commands[idx] = cmd
+
+	cpu.Writeback(dl.end, 8)
+	dl.end += 8
+
+	regs.end.Store(cpu.PhysicalAddress(dl.end))
+
+	if idx == len(dl.commands)-1 {
+		regs.start.Store(cpu.PhysicalAddress(dl.start))
+		regs.end.Store(cpu.PhysicalAddress(dl.start))
+		dl.end = dl.start
+	}
 }
 
 // Sets the framebuffer to render the final image into.
@@ -181,7 +174,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 // Copies a tile into TMEM.  The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
-	dl.sync(Load)
+	dl.push(Load)
 
 	cmd := 0xf4<<56 | Command(r.Min.X)<<46 | Command(r.Min.Y)<<34
 	cmd |= Command(idx)<<24 | Command(r.Max.X-1)<<14 | Command(r.Max.Y-1)<<2
@@ -336,7 +329,7 @@ func (dl *DisplayList) SetOtherModes(
 	}
 	dl.otherModes = m
 
-	dl.sync(Pipe)
+	dl.push(Pipe)
 
 	// TODO merge with previous command if also SetOtherModes
 
@@ -374,7 +367,7 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	}
 	dl.fillColor = cRGBA
 
-	dl.sync(Pipe)
+	dl.push(Pipe)
 
 	r, g, b, a := dl.fillColor.RGBA()
 	var ci uint32
@@ -398,7 +391,7 @@ func (dl *DisplayList) SetBlendColor(c color.Color) {
 	}
 	dl.blendColor = cRGBA
 
-	dl.sync(Pipe)
+	dl.push(Pipe)
 
 	dl.push(0xf9<<56 |
 		Command(dl.blendColor.R)<<24 | Command(dl.blendColor.G)<<16 |
@@ -424,7 +417,7 @@ func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
 	}
 	dl.environmentColor = cRGBA
 
-	dl.sync(Pipe)
+	dl.push(Pipe)
 
 	dl.push(0xfb<<56 |
 		Command(dl.environmentColor.R)<<24 | Command(dl.environmentColor.G)<<16 |
@@ -437,7 +430,7 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 	}
 	dl.combineMode = m
 
-	dl.sync(Pipe)
+	dl.push(Pipe)
 
 	cmd := Command(0xfc<<56 |
 		m.One.RGB.A<<52 | m.One.RGB.C<<47 |
@@ -476,38 +469,27 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 		Command(((0x8000/scale.X)>>5)<<16|(0x8000/scale.Y)>>5))
 }
 
-type SyncCommand uint64
-
 const (
 	// Waits until all previous commands have finished reading and writing
 	// to RDRAM.  Additionally raises the RDP interrupt.  Use to sync memory
 	// access between RDP and other components (e.g. switching framebuffers)
 	// or when changing RDPs RDRAM buffers (e.g. Render to texture).
-	Full SyncCommand = 0xe9 << 56
+	Full Command = 0xe9 << 56
 
 	// Stalls pipeline for exactly 25 GCLK cycles.  Guarantees loading
 	// pipeline is safe for use.
-	Load SyncCommand = 0xf1 << 56
+	Load Command = 0xf1 << 56
 
 	// Stalls pipeline for exactly 50 GCLK cycles.  Guarantees any
 	// preceeding primitives have finished rendering and it's safe to change
 	// rendering modes.
-	Pipe SyncCommand = 0xe7 << 56
+	Pipe Command = 0xe7 << 56
 
 	// Stalls pipeline for exactly 33 GCLK cycles.  Guarantees that any
 	// preceding primitives have finished using tile information and
 	// it's safe to modify tile descriptors.
-	Tile SyncCommand = 0xe8 << 56
+	Tile Command = 0xe8 << 56
 )
-
-func (dl *DisplayList) sync(s SyncCommand) {
-	last := SyncCommand(dl.commands[len(dl.commands)-1])
-	if s == last {
-		return
-	}
-
-	dl.push(Command(s))
-}
 
 func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
 	size := 256 >> uint(bpp>>51)

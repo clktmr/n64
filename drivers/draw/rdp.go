@@ -20,7 +20,7 @@ type Rdp struct {
 func NewRdp(fb texture.Texture) *Rdp {
 	r := &Rdp{
 		target: fb,
-		dlist:  rdp.NewDisplayList(),
+		dlist: &rdp.RDP,
 	}
 
 	r.dlist.SetColorImage(fb)
@@ -229,6 +229,5 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 }
 
 func (fb *Rdp) Flush() {
-	rdp.Run(fb.dlist)
-	fb.dlist.Reset()
+	fb.dlist.Flush()
 }
