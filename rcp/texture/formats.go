@@ -29,7 +29,9 @@ func NewRGBA32(r image.Rectangle) *RGBA32 {
 }
 
 func NewRGBA32FromImage(img *image.RGBA) *RGBA32 {
-	return &RGBA32{*img}
+	tex := &RGBA32{*img}
+	tex.Writeback()
+	return tex
 }
 
 func (p *RGBA32) Image() draw.Image   { return &p.RGBA }
@@ -60,7 +62,9 @@ func NewNRGBA32(r image.Rectangle) *NRGBA32 {
 }
 
 func NewNRGBA32FromImage(img *image.NRGBA) *NRGBA32 {
-	return &NRGBA32{*img}
+	tex := &NRGBA32{*img}
+	tex.Writeback()
+	return tex
 }
 
 func (p *NRGBA32) Image() draw.Image   { return &p.NRGBA }
@@ -89,7 +93,9 @@ func NewRGBA16(r image.Rectangle) *RGBA16 {
 }
 
 func NewRGBA16FromImage(img *imageRGBA16) *RGBA16 {
-	return &RGBA16{*img}
+	tex := &RGBA16{*img}
+	tex.Writeback()
+	return tex
 }
 
 func (p *RGBA16) Image() draw.Image   { return &p.imageRGBA16 }
@@ -113,7 +119,9 @@ func NewI8(r image.Rectangle) *I8 {
 }
 
 func NewI8FromImage(img *image.Alpha) *I8 {
-	return &I8{*img}
+	tex := &I8{*img}
+	tex.Writeback()
+	return tex
 }
 
 func (p *I8) Image() draw.Image   { return &p.Alpha }
