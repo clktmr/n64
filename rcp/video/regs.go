@@ -11,12 +11,6 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
-const (
-	// TODO support other resolutions
-	WIDTH  = 320
-	HEIGHT = 240
-)
-
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
 const baseAddr uintptr = cpu.KSEG1 | 0x0440_0000
@@ -49,9 +43,6 @@ func SetupNTSC(fb texture.Texture) {
 	// Avoid crash by disabling output while changing registers
 	regs.control.Store(0)
 
-	regs.width.Store(WIDTH)
-	regs.vIntr.Store(2)
-	regs.vCurrent.Store(0)
 	regs.burst.Store(0x3e5_2239)
 	regs.vSync.Store(0x20d)
 	regs.hSync.Store(0x0c15)
@@ -59,20 +50,14 @@ func SetupNTSC(fb texture.Texture) {
 	regs.hVideo.Store(0x006c_02ec)
 	regs.vVideo.Store(0x0025_01ff)
 	regs.vBurst.Store(0x000e_0204)
-	regs.xScale.Store((1024*WIDTH + WIDTH) / 640)
-	regs.yScale.Store((1024*HEIGHT + 120) / HEIGHT)
 
-	regs.control.Store(uint32(bpp(fb.BPP())) | (3 << 8))
+	setupCommon(fb)
 }
 
 func SetupPAL(fb texture.Texture) {
 	// Avoid crash by disabling output while changing registers
 	regs.control.Store(0)
 
-	regs.origin.Store(uint32(fb.Addr()))
-	regs.width.Store(WIDTH)
-	regs.vIntr.Store(2)
-	regs.vCurrent.Store(0)
 	regs.burst.Store(0x0404_233a)
 	regs.vSync.Store(0x271)
 	regs.hSync.Store(0x0015_0c69)
@@ -80,14 +65,25 @@ func SetupPAL(fb texture.Texture) {
 	regs.hVideo.Store(0x0080_0300)
 	regs.vVideo.Store(0x005f_0239)
 	regs.vBurst.Store(0x0009_026b)
-	regs.xScale.Store((1024*WIDTH + WIDTH) / 640)
-	regs.yScale.Store((1024*HEIGHT + 120) / HEIGHT)
+
+	setupCommon(fb)
+}
+
+func setupCommon(fb texture.Texture) {
+	SetFrambuffer(fb)
+
+	width, height := uint32(fb.Bounds().Dx()), uint32(fb.Bounds().Dy())
+	regs.width.Store(width)
+	regs.vIntr.Store(2)
+
+	regs.xScale.Store((1024*width + 320) / 640)
+	regs.yScale.Store((1024*height + 120) / 240)
 
 	regs.control.Store(uint32(bpp(fb.BPP())) | (3 << 8))
 }
 
 func SetFrambuffer(fb texture.Texture) {
-	regs.origin.Store(uint32(fb.Addr()))
+	regs.origin.Store(cpu.PhysicalAddress(fb.Addr()))
 }
 
 func bpp(bpp texture.BitDepth) ColorDepth {

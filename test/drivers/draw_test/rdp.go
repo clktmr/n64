@@ -64,14 +64,14 @@ func TestDraw(t *testing.T) {
 	})
 
 	// Split the screen into four viewports
-	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
-	bounds := image.Rect(0, 0, video.WIDTH/2, video.HEIGHT/2)
+	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
+	bounds := image.Rectangle{Max: fb.Bounds().Max.Div(2)}
 	expected := fb.SubImage(bounds)
-	result := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, 0}))
+	result := fb.SubImage(bounds.Add(image.Pt(bounds.Max.X, 0)))
 	result.Rect = bounds
-	diff := fb.SubImage(bounds.Add(image.Point{0, video.HEIGHT / 2}))
+	diff := fb.SubImage(bounds.Add(image.Pt(0, bounds.Max.Y)))
 	diff.Rect = bounds
-	err := fb.SubImage(bounds.Add(image.Point{video.WIDTH / 2, video.HEIGHT / 2}))
+	err := fb.SubImage(bounds.Add(bounds.Max))
 	err.Rect = bounds
 
 	video.SetupPAL(fb)

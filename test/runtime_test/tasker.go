@@ -26,7 +26,7 @@ func TestFPUPreemption(t *testing.T) {
 	})
 
 	// generate some fpu using hardware interrupts
-	video.SetupPAL(texture.NewNRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT)))
+	video.SetupPAL(texture.NewNRGBA32(image.Rect(0, 0, 320, 240)))
 
 	const numGoroutines = 10
 	results := [numGoroutines]float64{}

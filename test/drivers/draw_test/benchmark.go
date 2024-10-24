@@ -11,7 +11,6 @@ import (
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
-	"github.com/clktmr/n64/rcp/video"
 )
 
 func BenchmarkFillScreen(b *testing.B) {
@@ -20,7 +19,7 @@ func BenchmarkFillScreen(b *testing.B) {
 		rcp.DisableInterrupts(rcp.DisplayProcessor)
 	})
 
-	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
+	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
 	rasterizer := n64draw.NewRdp()
 	rasterizer.SetFramebuffer(fb)
 
@@ -36,7 +35,7 @@ func BenchmarkTextureRectangle(b *testing.B) {
 		rcp.DisableInterrupts(rcp.DisplayProcessor)
 	})
 
-	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
+	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
 	rasterizer := n64draw.NewRdp()
 	rasterizer.SetFramebuffer(fb)
 
