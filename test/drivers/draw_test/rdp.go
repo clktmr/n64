@@ -75,6 +75,7 @@ func TestDraw(t *testing.T) {
 	err.Rect = bounds
 
 	video.SetupPAL(fb)
+	video.SetFrambuffer(fb)
 
 	// Load some test images
 	imgN64LogoSmall, _ := png.Decode(bytes.NewReader(pngN64LogoSmall))
@@ -129,8 +130,10 @@ func TestDraw(t *testing.T) {
 	}
 
 	// Run all testcases
-	drawerHW := n64draw.NewRdp(result)
-	drawerSW := n64draw.NewCpu(expected)
+	drawerHW := n64draw.NewRdp()
+	drawerHW.SetFramebuffer(result)
+	drawerSW := n64draw.NewCpu()
+	drawerSW.SetFramebuffer(expected)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// prepare

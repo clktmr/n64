@@ -86,6 +86,10 @@ func SetupPAL(fb texture.Texture) {
 	regs.control.Store(uint32(bpp(fb.BPP())) | (3 << 8))
 }
 
+func SetFrambuffer(fb texture.Texture) {
+	regs.framebuffer.Store(uint32(fb.Addr()))
+}
+
 func bpp(bpp texture.BitDepth) ColorDepth {
 	switch bpp {
 	case texture.BBP16:

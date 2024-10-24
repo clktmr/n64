@@ -15,8 +15,12 @@ type Cpu struct {
 	target texture.ImageTexture
 }
 
-func NewCpu(fb texture.ImageTexture) *Cpu {
-	return &Cpu{fb}
+func NewCpu() *Cpu {
+	return &Cpu{}
+}
+
+func (p *Cpu) SetFramebuffer(fb texture.ImageTexture) {
+	p.target = fb
 }
 
 func (p *Cpu) Draw(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {

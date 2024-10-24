@@ -17,16 +17,18 @@ type Rdp struct {
 	dlist  *rdp.DisplayList
 }
 
-func NewRdp(fb texture.Texture) *Rdp {
+func NewRdp() *Rdp {
 	r := &Rdp{
-		target: fb,
 		dlist: &rdp.RDP,
 	}
 
-	r.dlist.SetColorImage(fb)
-	r.dlist.SetScissor(r.target.Bounds().Sub(r.target.Bounds().Min), rdp.InterlaceNone)
-
 	return r
+}
+
+func (fb *Rdp) SetFramebuffer(tex texture.Texture) {
+	fb.target = tex
+	fb.dlist.SetColorImage(fb.target)
+	fb.dlist.SetScissor(image.Rectangle{Max: fb.target.Bounds().Size()}, rdp.InterlaceNone)
 }
 
 func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {

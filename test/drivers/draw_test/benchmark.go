@@ -21,7 +21,8 @@ func BenchmarkFillScreen(b *testing.B) {
 	})
 
 	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
-	rasterizer := n64draw.NewRdp(fb)
+	rasterizer := n64draw.NewRdp()
+	rasterizer.SetFramebuffer(fb)
 
 	for i := 0; i < b.N; i++ {
 		rasterizer.Draw(fb.Rect, image.Black, image.Point{}, nil, image.Point{}, draw.Src)
@@ -36,7 +37,8 @@ func BenchmarkTextureRectangle(b *testing.B) {
 	})
 
 	fb := texture.NewRGBA32(image.Rect(0, 0, video.WIDTH, video.HEIGHT))
-	rasterizer := n64draw.NewRdp(fb)
+	rasterizer := n64draw.NewRdp()
+	rasterizer.SetFramebuffer(fb)
 
 	imgN64LogoLarge, _ := png.Decode(bytes.NewReader(pngN64LogoLarge))
 	imgLarge := texture.NewNRGBA32(imgN64LogoLarge.Bounds())
