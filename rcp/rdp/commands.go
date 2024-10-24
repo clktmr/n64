@@ -354,7 +354,7 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
 	}
 
 	cmd := 0xed<<56 | Command(il)
-	cmd |= Command(r.Min.X<<46) | Command(r.Min.Y<<34) | Command(r.Max.X<<14) | Command(r.Max.Y<<3)
+	cmd |= Command(r.Min.X<<46) | Command(r.Min.Y<<34) | Command(r.Max.X<<14) | Command(r.Max.Y<<2)
 
 	dl.push(Command(cmd))
 }
