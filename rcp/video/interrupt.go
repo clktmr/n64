@@ -8,8 +8,8 @@ var VBlankCnt uint
 //go:nosplit
 //go:nowritebarrierrec
 func Handler() {
-	line := regs.currentLine.Load()
-	regs.currentLine.Store(line) // clears interrupt
+	line := regs.vCurrent.Load()
+	regs.vCurrent.Store(line) // clears interrupt
 
 	VBlankCnt += 1
 	VBlank.Wakeup()
