@@ -74,7 +74,7 @@ func (dl *DisplayList) push(cmd Command) {
 // Sets the framebuffer to render the final image into.
 func (dl *DisplayList) SetColorImage(img texture.Texture) {
 	debug.Assert(img.Addr()%64 == 0, "rdp framebuffer alignment")
-	debug.Assert(img.Stride() < 1<<9, "rdp framebuffer width too big")
+	debug.Assert(img.Stride() < 1<<10, "rdp framebuffer width too big")
 	debug.Assert(img.Format() == texture.RGBA && img.BPP() == texture.BBP16 ||
 		img.Format() == texture.RGBA && img.BPP() == texture.BBP32 ||
 		img.Format() == texture.I && img.BPP() == texture.BBP8, "rdp unsupported format")
