@@ -30,7 +30,7 @@ type state struct {
 	primitiveColor   color.RGBA
 	environmentColor color.RGBA
 
-	format texture.ImageFormat
+	bounds image.Rectangle
 	bbp    texture.BitDepth
 }
 
@@ -84,7 +84,7 @@ func (dl *DisplayList) SetColorImage(img texture.Texture) {
 	dl.push(((0xff << 56) | Command(img.Format()) | Command(img.BPP()) | Command(img.Stride()-1)<<32) |
 		Command(cpu.PhysicalAddress(img.Addr())))
 
-	dl.format = img.Format()
+	dl.bounds = img.Bounds()
 	dl.bbp = img.BPP()
 }
 
@@ -458,6 +458,10 @@ func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 
 // Draws a textured rectangle.
 func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale image.Point, tileIdx uint8) {
+	full := r
+	r = r.Intersect(dl.bounds)
+	p = p.Add(r.Min.Sub(full.Min))
+
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
 		r.Max = r.Max.Sub(image.Point{1, 1})
 	}
