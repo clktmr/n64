@@ -168,6 +168,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	cmd |= Command(ts.MaskS)<<4 | Command(ts.ShiftS)
 	cmd |= Command(ts.Flags)
 
+	dl.push(Tile)
 	dl.push(cmd)
 }
 
