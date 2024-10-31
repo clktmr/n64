@@ -12,6 +12,11 @@ import (
 type fontData struct {
 	positions []byte
 	fontMap   *texture.I8
+	glyphs    [256]struct {
+		img     texture.I8
+		origin  image.Point
+		advance int
+	}
 }
 
 func (p *fontData) Advance(i int) int {
@@ -19,13 +24,19 @@ func (p *fontData) Advance(i int) int {
 }
 
 func (p *fontData) Glyph(i int) (img image.Image, origin image.Point, advance int) {
+	g := &p.glyphs[i]
+	img, origin, advance = &g.img, g.origin, g.advance
+	return
+}
+
+func (p *fontData) glyph(i int) (img texture.I8, origin image.Point, advance int) {
 	base := 3 * i
 	advance = int(p.positions[base+2])
 	origin = image.Point{
 		int(p.positions[base]), int(p.positions[base+1]),
 	}
 	rect := image.Rect(origin.X, origin.Y-Ascent, origin.X+advance, origin.Y+Height-Ascent)
-	img = p.fontMap.SubImage(rect)
+	img = *p.fontMap.SubImage(rect)
 	return
 }
 
@@ -47,6 +58,11 @@ func load() *fontData {
 		Stride: imgGray.Stride,
 		Rect:   imgGray.Rect,
 	})
+
+	for i := range f.glyphs {
+		g := &f.glyphs[i]
+		g.img, g.origin, g.advance = f.glyph(i)
+	}
 
 	return f
 }
