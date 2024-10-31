@@ -31,8 +31,11 @@ type state struct {
 	primitiveColor   color.RGBA
 	environmentColor color.RGBA
 
-	bounds image.Rectangle
-	bbp    texture.BitDepth
+	scissorSet, scissorReal image.Rectangle
+	interlace               InterlaceFrame
+
+	size image.Point
+	bbp  texture.BitDepth
 }
 
 var RDP DisplayList
@@ -87,7 +90,7 @@ func (dl *DisplayList) SetColorImage(img texture.Texture) {
 	dl.push(((0xff << 56) | Command(img.Format()) | Command(img.BPP()) | Command(img.Stride()-1)<<32) |
 		Command(cpu.PhysicalAddress(img.Addr())))
 
-	dl.bounds = img.Bounds()
+	dl.size = img.Bounds().Size()
 	dl.bbp = img.BPP()
 }
 
@@ -335,6 +338,8 @@ func (dl *DisplayList) SetOtherModes(
 
 	dl.push(Pipe)
 
+	dl.SetScissor(dl.scissorSet, dl.interlace)
+
 	// TODO merge with previous command if also SetOtherModes
 
 	cmd := 0xef00_000f_0000_0000 | m
@@ -353,9 +358,17 @@ const (
 // Everything outside `r` is skipped when rendering.  Additionally odd or even
 // lines can be skipped to render interlaced frames.
 func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
+	dl.scissorSet = r
+
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
-		r.Max = r.Max.Sub(image.Point{1, 1})
+		r.Max = r.Max.Sub(image.Point{1, 0})
 	}
+
+	if r == dl.scissorReal && il == dl.interlace {
+		return
+	}
+	dl.scissorReal = r
+	dl.interlace = il
 
 	cmd := 0xed<<56 | Command(il)
 	cmd |= Command(r.Min.X<<46) | Command(r.Min.Y<<34) | Command(r.Max.X<<14) | Command(r.Max.Y<<2)
@@ -451,6 +464,8 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 
 // Draws a rectangle filled with the color set by SetFillColor().
 func (dl *DisplayList) FillRectangle(r image.Rectangle) {
+	r = r.Intersect(image.Rectangle{Max: dl.size})
+
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
 		r.Max = r.Max.Sub(image.Point{1, 1})
 	}
@@ -463,7 +478,7 @@ func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 // Draws a textured rectangle.
 func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale image.Point, tileIdx uint8) {
 	full := r
-	r = r.Intersect(dl.bounds)
+	r = r.Intersect(image.Rectangle{Max: dl.size})
 	p = p.Add(r.Min.Sub(full.Min))
 
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {

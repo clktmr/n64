@@ -29,7 +29,7 @@ func checkerboard(img *texture.RGBA32) {
 		{0x7f, 0x7f, 0x0, 0x0},
 		{0x0, 0x0, 0x7f, 0x7f},
 	}
-	squareStart := image.Rect(0, 0, size, size)
+	squareStart := image.Rect(0, 0, size, size).Add(img.Rect.Min)
 	for x := b.Min.X; x < b.Max.X; x += size {
 		square := squareStart
 		for y := b.Min.Y; y < b.Max.Y; y += size {
@@ -65,13 +65,14 @@ func TestDraw(t *testing.T) {
 
 	// Split the screen into four viewports
 	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
-	bounds := image.Rectangle{Max: fb.Bounds().Max.Div(2)}
+	quarter := image.Rectangle{Max: fb.Bounds().Max.Div(2)}
+	bounds := quarter.Inset(16)
 	expected := fb.SubImage(bounds)
-	result := fb.SubImage(bounds.Add(image.Pt(bounds.Max.X, 0)))
+	result := fb.SubImage(bounds.Add(image.Pt(quarter.Max.X, 0)))
 	result.Rect = bounds
-	diff := fb.SubImage(bounds.Add(image.Pt(0, bounds.Max.Y)))
+	diff := fb.SubImage(bounds.Add(image.Pt(0, quarter.Max.Y)))
 	diff.Rect = bounds
-	err := fb.SubImage(bounds.Add(bounds.Max))
+	err := fb.SubImage(bounds.Add(quarter.Max))
 	err.Rect = bounds
 
 	video.SetupPAL(fb)
@@ -117,6 +118,7 @@ func TestDraw(t *testing.T) {
 		"fillMaskOver":         {bounds.Inset(24), imgTransparentGreen, image.Point{}, imgTransparentGray, image.Point{}, draw.Over, 0},
 		"fillAlphaMaskSrc":     {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Src, 0},
 		"fillAlphaMaskOver":    {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Over, 1800},
+		"fillOutOfBounds":      {bounds.Inset(-4), imgGreen, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
 		"drawSrc":              {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src, 0},
 		"drawOver":             {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Over, 2600},
 		"drawSrcPremult":       {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Src, 0},
@@ -126,6 +128,8 @@ func TestDraw(t *testing.T) {
 		"drawScissored":        {imgNRGBA.Rect.Add(image.Pt(24, 24)).Inset(2), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src, 0},
 		"drawLarge":            {bounds.Inset(24), imgLarge, image.Point{}, nil, image.Point{}, draw.Src, 100},
 		"drawShift":            {bounds.Inset(24), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
+		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
+		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
 		// TODO "drawSrcI8":            {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Over, 0},
 	}
 
