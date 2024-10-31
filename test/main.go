@@ -11,6 +11,7 @@ import (
 
 	"github.com/clktmr/n64/drivers"
 	"github.com/clktmr/n64/drivers/carts"
+	"github.com/clktmr/n64/drivers/carts/isviewer"
 	_ "github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp/cpu"
 
@@ -36,7 +37,16 @@ func init() {
 	if cart = carts.ProbeAll(); cart == nil {
 		panic("no logging peripheral found")
 	}
-	rtos.SetSystemWriter(drivers.NewSystemWriter(cart))
+
+	// The default writer is a failsafe ISViewer implementation, which will
+	// print panics.  Only change the SystemWriter if we have no ISViewer.
+	// TODO why do the other SystemWriters not print during panic?
+	if _, ok := cart.(*isviewer.ISViewer); !ok {
+		rtos.SetSystemWriter(drivers.NewSystemWriter(cart))
+		println()
+		println("WARN: no isviewer found, panics might not be printed")
+		println()
+	}
 
 	console := termfs.NewLight("termfs", nil, cart)
 	rtos.Mount(console, "/dev/console")
