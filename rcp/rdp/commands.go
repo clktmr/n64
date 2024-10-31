@@ -340,8 +340,6 @@ func (dl *DisplayList) SetOtherModes(
 
 	dl.SetScissor(dl.scissorSet, dl.interlace)
 
-	// TODO merge with previous command if also SetOtherModes
-
 	cmd := 0xef00_000f_0000_0000 | m
 	dl.push(Command(cmd))
 }
