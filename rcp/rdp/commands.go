@@ -6,6 +6,7 @@ package rdp
 import (
 	"image"
 	"image/color"
+	"time"
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
@@ -46,8 +47,10 @@ func init() {
 }
 
 func (dl *DisplayList) Flush() {
-	for regs.current.Load() != regs.end.Load() {
-		// wait
+	FullSync.Clear()
+	dl.push(Full)
+	if !FullSync.Sleep(1 * time.Second) {
+		panic("rdp timeout")
 	}
 }
 
