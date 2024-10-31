@@ -4,6 +4,7 @@ import (
 	"embedded/rtos"
 	"io"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -66,7 +67,9 @@ func Run(block *CommandBlock) {
 	regs.pifWriteAddr.Store(pifRamAddr)
 
 	// Wait until message was received
-	cmdFinished.Sleep(-1) // TODO sleep with timeout
+	if !cmdFinished.Sleep(1 * time.Second) {
+		panic("pif timeout")
+	}
 
 	buf = nil
 }
