@@ -23,6 +23,10 @@ type Controller struct {
 	err error
 }
 
+func (c *Controller) Down() joybus.ButtonMask {
+	return c.current.down
+}
+
 func (c *Controller) Changed() joybus.ButtonMask {
 	return c.current.down ^ c.last.down
 }
