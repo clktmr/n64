@@ -58,8 +58,11 @@ func (dl *DisplayList) Flush() {
 }
 
 func (dl *DisplayList) push(cmd Command) {
+	retries := 0
 	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= uint32(dl.end) {
-		// wait
+		if retries += 1; retries > 1024*1024 { // wait max ~1 sec
+			panic("rdp stall")
+		}
 	}
 
 	idx := int(dl.end-dl.start) >> 3
