@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/clktmr/n64/rcp"
-	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/texture"
 )
@@ -35,10 +34,10 @@ func TestFillRect(t *testing.T) {
 		rdp.ForceBlend|rdp.AtomicPrimitive,
 		rdp.CycleTypeFill, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, rdp.BlendMode{},
 	)
+
+	img.Invalidate()
+
 	dl.FillRectangle(bounds)
-
-	cpu.InvalidateSlice(img.Pix)
-
 	dl.Flush()
 
 	for x := range bounds.Max.X {
