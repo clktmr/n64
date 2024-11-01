@@ -379,7 +379,10 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
 
 // Sets the color for subsequent FillRectangle() calls.
 func (dl *DisplayList) SetFillColor(c color.Color) {
-	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
+	cRGBA, ok := c.(color.RGBA)
+	if !ok {
+		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
+	}
 	if cRGBA == dl.fillColor {
 		return
 	}
@@ -387,15 +390,15 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 
 	dl.push(Pipe)
 
-	r, g, b, a := dl.fillColor.RGBA()
+	r, g, b, a := uint32(dl.fillColor.R), uint32(dl.fillColor.G), uint32(dl.fillColor.B), uint32(dl.fillColor.A)
 	var ci uint32
 	if dl.bbp == texture.BBP32 {
-		ci = ((r >> 8) << 24) | ((g >> 8) << 16) | ((b >> 8) << 8) | (a >> 8)
+		ci = (r << 24) | (g << 16) | (b << 8) | a
 	} else if dl.bbp == texture.BBP16 {
-		ci = ((r >> 11) << 11) | ((g >> 11) << 6) | ((b >> 11) << 1) | (a >> 15)
+		ci = ((r >> 3) << 11) | ((g >> 3) << 6) | ((b >> 3) << 1) | (a >> 15)
 		ci |= ci << 16
 	} else if dl.bbp == texture.BBP8 {
-		ci = ((a >> 8) << 24) | ((a >> 8) << 16) | ((a >> 8) << 8) | (a >> 8)
+		ci = (a << 24) | (a << 16) | (a << 8) | a
 	} else {
 		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")
 	}
@@ -403,7 +406,10 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetBlendColor(c color.Color) {
-	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
+	cRGBA, ok := c.(color.RGBA)
+	if !ok {
+		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
+	}
 	if cRGBA == dl.blendColor {
 		return
 	}
@@ -417,7 +423,10 @@ func (dl *DisplayList) SetBlendColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
-	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
+	cRGBA, ok := c.(color.RGBA)
+	if !ok {
+		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
+	}
 	if cRGBA == dl.primitiveColor {
 		return
 	}
@@ -429,7 +438,10 @@ func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
-	cRGBA := color.RGBAModel.Convert(c).(color.RGBA)
+	cRGBA, ok := c.(color.RGBA)
+	if !ok {
+		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
+	}
 	if cRGBA == dl.environmentColor {
 		return
 	}
