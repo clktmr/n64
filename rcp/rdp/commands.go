@@ -57,7 +57,9 @@ func (dl *DisplayList) Flush() {
 	}
 }
 
+//go:nosplit
 func (dl *DisplayList) push(cmd Command) {
+	regs := regs // avoid multiple nilcheck() on regs
 	retries := 0
 	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= uint32(dl.end) {
 		if retries += 1; retries > 1024*1024 { // wait max ~1 sec
