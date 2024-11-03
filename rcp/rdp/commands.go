@@ -184,7 +184,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 // Copies a tile into TMEM.  The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
-	dl.push(Load)
+	dl.push(Tile)
 
 	cmd := 0xf4<<56 | Command(r.Min.X)<<46 | Command(r.Min.Y)<<34
 	cmd |= Command(idx)<<24 | Command(r.Max.X-1)<<14 | Command(r.Max.Y-1)<<2
