@@ -35,7 +35,7 @@ var (
 )
 
 const (
-	dim = 128
+	dim = 256
 )
 
 var positions []byte
@@ -91,13 +91,11 @@ func main() {
 			log.Fatalln(err)
 		}
 
-		positions = append(positions, byte(pt.X.Floor()))
-		positions = append(positions, byte(pt.Y.Floor()))
-		positions = append(positions, byte(nextPt.X.Floor()-pt.X.Floor()))
-
 		if f.Index(s) == 0 && missing == nil {
 			missing = positions[len(positions)-3:]
 		}
+
+		adv := byte(nextPt.X.Floor() - pt.X.Floor())
 
 		if nextPt.X.Ceil() >= dim {
 			pt.Y += c.PointToFixed(float64(lineHeight))
@@ -106,6 +104,10 @@ func main() {
 		if nextPt.Y.Ceil() >= dim {
 			log.Fatalln("Too many glyphs to fit into font image map")
 		}
+
+		positions = append(positions, byte(pt.X.Floor()))
+		positions = append(positions, byte(pt.Y.Floor()))
+		positions = append(positions, adv)
 
 		// Actual drawing
 		c.SetSrc(fg)
