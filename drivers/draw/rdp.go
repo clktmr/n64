@@ -6,6 +6,7 @@ import (
 	"image/draw"
 
 	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/fonts"
 	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/texture"
 
@@ -228,6 +229,80 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 	}
 
 	// TODO runtime.KeepAlive(src.addr) until FullSync?
+}
+
+func (fb *Rdp) DrawText(r image.Rectangle, c color.Color, font *fonts.Face, str string) {
+	fb.dlist.SetEnvironmentColor(c)
+	colorSource := rdp.CombineEnvironment
+
+	// cc = src_alpha*src
+	cp := rdp.CombineParams{
+		colorSource, rdp.CombineBColorZero,
+		rdp.CombineCColorTex0Alpha, rdp.CombineDColorZero,
+	}
+	// cc_alpha = 1-tex0_alpha
+	cpA := rdp.CombineParams{
+		rdp.CombineAAlphaZero, rdp.CombineBAlphaOne,
+		rdp.CombineTex0, rdp.CombineDAlphaOne,
+	}
+
+	fb.dlist.SetOtherModes(
+		rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
+		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
+		rdp.BlendMode{ // dst = cc_alpha*dst + cc
+			P1: rdp.BlenderPMFramebuffer,
+			A1: rdp.BlenderAColorCombinerAlpha,
+			M1: rdp.BlenderPMColorCombiner,
+			B1: rdp.BlenderBOne,
+		},
+	)
+
+	fb.dlist.SetCombineMode(rdp.CombineMode{
+		Two: rdp.CombinePass{RGB: cp, Alpha: cpA},
+	})
+
+	const idx = 1
+	img, _, _, _ := font.GlyphMap(0)
+	tex, _ := img.(texture.Texture)
+	ts := rdp.TileDescriptor{
+		Format: tex.Format(),
+		Size:   tex.BPP(),
+		Addr:   0x0,
+		Line:   uint16(texture.PixelsToBytes(tex.Bounds().Dx()+1, tex.BPP()) >> 3),
+		Idx:    idx,
+
+		MaskS: 5, MaskT: 5, // ignore fractional part
+	}
+	fb.dlist.SetTile(ts)
+
+	pos := r.Min
+	clip := r.Intersect(fb.target.Bounds())
+
+	var oldtex texture.Texture
+	for _, rune := range str {
+		img, glyphRect, _, adv := font.GlyphMap(rune)
+		glyphRectSS := image.Rectangle{Max: glyphRect.Size()}.Add(pos)
+
+		if glyphRectSS.Overlaps(clip) {
+			tex, _ := img.(texture.Texture)
+			if tex != oldtex {
+				fb.dlist.SetTextureImage(tex)
+				oldtex = tex
+			}
+
+			fb.dlist.LoadTile(idx, glyphRect)
+			fb.dlist.TextureRectangle(glyphRectSS, glyphRect.Min, image.Point{1, 1}, idx)
+		}
+
+		pos.X += adv
+		if pos.X > r.Max.X {
+			pos.X = r.Min.X
+			pos.Y += int(font.Height)
+			if pos.Y > clip.Max.Y {
+				break
+			}
+		}
+	}
 }
 
 func (fb *Rdp) Flush() {

@@ -29,6 +29,12 @@ func (p *fontData) Glyph(i int) (img image.Image, origin image.Point, advance in
 	return
 }
 
+func (p *fontData) GlyphMap(i int) (img image.Image, r image.Rectangle, origin image.Point, advance int) {
+	g := &p.glyphs[i]
+	img, r, origin, advance = p.fontMap, g.img.Rect, g.origin, g.advance
+	return
+}
+
 func (p *fontData) glyph(i int) (img texture.I8, origin image.Point, advance int) {
 	base := 3 * i
 	advance = int(p.positions[base+2])

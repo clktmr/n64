@@ -1,14 +1,19 @@
 package gomono12
 
-import "github.com/embeddedgo/display/font/subfont"
+import (
+	"github.com/clktmr/n64/fonts"
+	"github.com/embeddedgo/display/font/subfont"
+)
 
 const (
 	Height = 15
 	Ascent = 12
 )
 
-func NewFace(subfonts ...*subfont.Subfont) *subfont.Face {
-	return &subfont.Face{Height: Height, Ascent: Ascent, Subfonts: subfonts}
+func NewFace(subfonts ...*subfont.Subfont) *fonts.Face {
+	return &fonts.Face{
+		subfont.Face{Height: Height, Ascent: Ascent, Subfonts: subfonts},
+	}
 }
 
 func X0000_00ff() *subfont.Subfont {
