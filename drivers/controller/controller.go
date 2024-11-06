@@ -4,21 +4,33 @@ import (
 	"github.com/clktmr/n64/rcp/serial/joybus"
 )
 
-type state struct {
-	down  joybus.ButtonMask
-	xAxis int8
-	yAxis int8
+type Port struct {
+	current, last struct {
+		device joybus.Device
+		flags  byte
+	}
+
+	number uint8
+	err    error
 }
 
-type info struct {
-	plugged bool
-	pak     bool
+func (p *Port) Nr() uint8 {
+	return p.number
 }
 
-// TODO move this to something like n64/engine/input
+const (
+	pakInserted    = 0x01
+	pakNotInserted = 0x02
+)
+
 type Controller struct {
-	currentInfo, lastInfo info
-	current, last         state
+	Port
+
+	current, last struct {
+		down  joybus.ButtonMask
+		xAxis int8
+		yAxis int8
+	}
 
 	err error
 }
@@ -56,17 +68,21 @@ func (c *Controller) DY() int8 {
 }
 
 func (c *Controller) Plugged() bool {
-	return c.currentInfo.plugged && !c.lastInfo.plugged
+	return c.Port.current.device == joybus.Controller &&
+		c.Port.last.device != joybus.Controller
 }
 
 func (c *Controller) Unplugged() bool {
-	return !c.currentInfo.plugged && c.lastInfo.plugged
+	return c.Port.current.device != joybus.Controller &&
+		c.Port.last.device == joybus.Controller
 }
 
 func (c *Controller) PakInserted() bool {
-	return c.currentInfo.pak && !c.lastInfo.pak
+	return c.Port.current.flags&pakInserted != 0 &&
+		c.Port.last.flags&pakInserted == 0
 }
 
 func (c *Controller) PakRemoved() bool {
-	return !c.currentInfo.pak && c.lastInfo.pak
+	return c.Port.current.flags&pakNotInserted != 0 &&
+		c.Port.last.flags&pakInserted != 0
 }

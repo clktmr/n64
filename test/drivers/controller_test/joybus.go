@@ -24,8 +24,8 @@ func TestControllerState(t *testing.T) {
 	t.Log("Press L+R+Start to end the test.")
 
 	for {
-		controllers := controller.Poll()
-		controller.PollInfo()
+		controller.States.Poll()
+		controllers := controller.States
 		for i, gamepad := range controllers {
 			if gamepad.Plugged() {
 				t.Log(i, "plugged")
@@ -35,7 +35,6 @@ func TestControllerState(t *testing.T) {
 			}
 			if gamepad.PakInserted() {
 				go func() {
-					t.Log(i, gamepad)
 					t.Log(i, "pak inserted")
 					pak, err := controller.ProbePak(byte(i))
 					if err != nil {

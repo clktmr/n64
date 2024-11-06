@@ -132,7 +132,7 @@ func NewInfoCommand(alloc Allocator) (InfoCommand, error) {
 	return InfoCommand{cmd}, err
 }
 
-func (c InfoCommand) Info() (dev Device, extra byte, err error) {
+func (c InfoCommand) Info() (dev Device, flags byte, err error) {
 	if err = validate(c.Command, cmdInfo); err != nil {
 		return
 	}

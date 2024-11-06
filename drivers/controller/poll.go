@@ -39,38 +39,41 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	for i := range States {
+		States[i].Port.number = uint8(i + 1)
+	}
 }
 
-var states [4]Controller
+type allControllers [4]Controller
 
-func Poll() [4]Controller {
-	for _, v := range cmdAllStatesPorts {
-		v.Command.Reset()
+var States allControllers
+
+func (p *allControllers) Poll() {
+	// poll info
+	for _, cmd := range cmdAllInfoPorts {
+		cmd.Reset()
+	}
+	serial.Run(cmdAllInfo)
+
+	// poll states
+	for _, cmd := range cmdAllStatesPorts {
+		cmd.Reset()
 	}
 
 	serial.Run(cmdAllStates)
 
-	for i := range states {
-		states[i].last = states[i].current
-		cur := &states[i].current
-		cur.down, cur.xAxis, cur.yAxis, states[i].err = cmdAllStatesPorts[i].State()
-	}
-
-	return states
-}
-
-func PollInfo() {
-	for _, v := range cmdAllInfoPorts {
-		v.Command.Reset()
-	}
-	serial.Run(cmdAllInfo)
-
-	for i := range states {
+	for i := range p {
 		var err error
-		states[i].lastInfo = states[i].currentInfo
-		info, pak, err := cmdAllInfoPorts[i].Info()
-		states[i].err = err
-		states[i].currentInfo.plugged = (info == joybus.Controller)
-		states[i].currentInfo.pak = pak&0x01 != 0
+
+		p[i].Port.last = p[i].Port.current
+		dev, flags, err := cmdAllInfoPorts[i].Info()
+		p[i].Port.current.device = dev
+		p[i].Port.current.flags = flags
+		p[i].Port.err = err
+
+		p[i].last = p[i].current
+		cur := &p[i].current
+		cur.down, cur.xAxis, cur.yAxis, p[i].err = cmdAllStatesPorts[i].State()
 	}
 }
