@@ -83,7 +83,7 @@ func Handler() {
 		return
 	}
 
-	if buf[0x3f] == 0x00 {
+	if buf[pifRamSize-1] == 0x00 {
 		// DMA read finished
 		cmdFinished.Wakeup()
 	} else {
