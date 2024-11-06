@@ -280,6 +280,12 @@ func (fb *Rdp) DrawText(r image.Rectangle, c color.Color, font *fonts.Face, str 
 
 	var oldtex texture.Texture
 	for _, rune := range str {
+		if rune == '\n' {
+			pos.X = r.Min.X
+			pos.Y += int(font.Height)
+			continue
+		}
+
 		img, glyphRect, _, adv := font.GlyphMap(rune)
 		glyphRectSS := image.Rectangle{Max: glyphRect.Size()}.Add(pos)
 
