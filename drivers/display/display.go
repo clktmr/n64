@@ -5,6 +5,8 @@ import (
 	"image"
 	"time"
 
+	"github.com/clktmr/n64/rcp"
+	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 )
@@ -15,7 +17,8 @@ type Display struct {
 	start       time.Time
 	vsync       *rtos.Note
 
-	rendertime time.Duration
+	rendertime      time.Duration
+	cmd, pipe, tmem uint32
 }
 
 func NewDisplay(resolution image.Point, bpp video.ColorDepth, vsync *rtos.Note) *Display {
@@ -41,6 +44,7 @@ func NewDisplay(resolution image.Point, bpp video.ColorDepth, vsync *rtos.Note) 
 // last call becomes invalid.  Blocks until vblank if vsync is enabled.
 func (p *Display) Swap() texture.Texture {
 	p.rendertime = time.Since(p.start)
+	p.cmd, p.pipe, p.tmem = rdp.Busy()
 
 	if p.vsync != nil {
 		video.VBlank.Clear()
@@ -58,4 +62,11 @@ func (p *Display) Swap() texture.Texture {
 
 func (p *Display) Duration() time.Duration {
 	return p.rendertime
+}
+
+func (p *Display) Utilization() (cmd, pipe, tmem time.Duration) {
+	cmd = time.Duration(float32(p.cmd) * (1e9 / rcp.ClockSpeed))
+	pipe = time.Duration(float32(p.pipe) * (1e9 / rcp.ClockSpeed))
+	tmem = time.Duration(float32(p.tmem) * (1e9 / rcp.ClockSpeed))
+	return
 }

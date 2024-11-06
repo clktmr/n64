@@ -53,6 +53,10 @@ type registers struct {
 	status  mmio.R32[statusFlags]
 	clock   mmio.U32 // 24-bit counter running at RCP frequency
 
+	cmdBusy  mmio.U32
+	pipeBusy mmio.U32
+	tmemBusy mmio.U32
+
 	// TODO there are more undocumented registers (DPC_* and DPS_*)
 }
 
@@ -64,4 +68,12 @@ var IrqCnt uint
 func Handler() {
 	IrqCnt += 1
 	FullSync.Wakeup()
+}
+
+func Busy() (cmd, pipe, tmem uint32) {
+	cmd = regs.cmdBusy.Load()
+	pipe = regs.pipeBusy.Load()
+	tmem = regs.tmemBusy.Load()
+	regs.status.Store(clrBufferBusy | clrPipeBusy | clrTMEMBusy)
+	return
 }

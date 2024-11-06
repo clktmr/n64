@@ -7,6 +7,8 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
+const ClockSpeed = 62.5e6
+
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
 const baseAddr uintptr = cpu.KSEG1 | 0x0430_0000
