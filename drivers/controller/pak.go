@@ -2,7 +2,6 @@ package controller
 
 import (
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/clktmr/n64/debug"
@@ -101,12 +100,6 @@ func (pak *Pak) ReadAt(p []byte, off int64) (n int, err error) {
 	return
 }
 
-func (pak *Pak) Read(p []byte) (n int, err error) {
-	n, err = pak.ReadAt(p, int64(pak.offset))
-	pak.offset += uint16(n)
-	return
-}
-
 func (pak *Pak) WriteAt(p []byte, off int64) (n int, err error) {
 	var tmp [blockSize]byte
 
@@ -150,32 +143,7 @@ func (pak *Pak) WriteAt(p []byte, off int64) (n int, err error) {
 	return
 }
 
-func (pak *Pak) Write(p []byte) (n int, err error) {
-	n, err = pak.WriteAt(p, int64(pak.offset))
-	pak.offset += uint16(n)
-	return
-}
-
-func (pak *Pak) Seek(offset int64, whence int) (newoffset int64, err error) {
-	switch whence {
-	case io.SeekStart:
-		// newoffset = 0
-	case io.SeekCurrent:
-		newoffset = int64(pak.offset)
-	case io.SeekEnd:
-		newoffset = pakSize
-	}
-	newoffset += offset
-	if newoffset < 0 || newoffset > pakSize {
-		return int64(pak.offset), fmt.Errorf("%w: %d", ErrSeekOutOfRange, newoffset)
-	}
-
-	pak.offset = uint16(newoffset)
-
-	return
-}
-
-func ProbePak(port uint8) (io.ReadWriteSeeker, error) {
+func ProbePak(port uint8) (io.ReaderAt, error) {
 	var err error
 	pak := NewPak(port)
 
@@ -189,7 +157,7 @@ func ProbePak(port uint8) (io.ReadWriteSeeker, error) {
 	data := [1]byte{}
 	types := [...]struct {
 		probeVal byte
-		ctor     func(*Pak) (io.ReadWriteSeeker, error)
+		ctor     func(*Pak) (io.ReaderAt, error)
 	}{
 		{probeMem, nil}, // controller pak with damaged filesystem
 		{probeRumble, newRumblePak},
@@ -197,15 +165,13 @@ func ProbePak(port uint8) (io.ReadWriteSeeker, error) {
 	}
 
 	for _, t := range types {
-		pak.Seek(pakProbe, io.SeekStart)
 		data[0] = t.probeVal
-		_, _ = pak.Write(data[:])
+		_, err = pak.WriteAt(data[:], pakProbe)
 		if err != nil {
 			return nil, err
 		}
 
-		pak.Seek(pakProbe, io.SeekStart)
-		_, err = pak.Read(data[:])
+		_, err = pak.ReadAt(data[:], pakProbe)
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +192,7 @@ type MemPak struct {
 	Pak
 }
 
-func newMemPak(pak *Pak) (io.ReadWriteSeeker, error) {
+func newMemPak(pak *Pak) (io.ReaderAt, error) {
 	return &MemPak{*pak}, nil
 }
 
@@ -235,7 +201,7 @@ type RumblePak struct {
 	on bool
 }
 
-func newRumblePak(pak *Pak) (io.ReadWriteSeeker, error) {
+func newRumblePak(pak *Pak) (io.ReaderAt, error) {
 	return &RumblePak{*pak, false}, nil
 }
 
@@ -245,8 +211,7 @@ func (pak *RumblePak) Set(on bool) error {
 		data = 1
 	}
 
-	pak.Seek(pakRumble, io.SeekStart)
-	_, err := pak.Write([]byte{data})
+	_, err := pak.WriteAt([]byte{data}, pakRumble)
 	if err != nil {
 		return err
 	}
@@ -263,6 +228,6 @@ type TransferPak struct {
 	Pak
 }
 
-func newTransferPak(pak *Pak) (io.ReadWriteSeeker, error) {
+func newTransferPak(pak *Pak) (io.ReaderAt, error) {
 	return &TransferPak{*pak}, nil
 }
