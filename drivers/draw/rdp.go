@@ -36,6 +36,10 @@ func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask ima
 	// Readjust r if we draw to a viewport/subimage of the framebuffer
 	r = r.Bounds().Sub(fb.target.Bounds().Min)
 
+	if !r.Overlaps(fb.target.Bounds()) {
+		return
+	}
+
 	switch srcImg := src.(type) {
 	case texture.Texture:
 		switch mask.(type) {
