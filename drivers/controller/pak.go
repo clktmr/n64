@@ -56,7 +56,7 @@ func NewPak(port uint8) (pak *Pak) {
 
 	var err error
 	for range pak.port {
-		err = joybus.ControlByte(&pak.readCmdBlock, joybus.CtrlReset)
+		err = joybus.ControlByte(&pak.readCmdBlock, joybus.CtrlSkip)
 		debug.AssertErrNil(err)
 	}
 	pak.readCmd, err = joybus.NewReadPakCommand(&pak.readCmdBlock)
@@ -64,7 +64,7 @@ func NewPak(port uint8) (pak *Pak) {
 	debug.AssertErrNil(err)
 
 	for range pak.port {
-		err = joybus.ControlByte(&pak.writeCmdBlock, joybus.CtrlReset)
+		err = joybus.ControlByte(&pak.writeCmdBlock, joybus.CtrlSkip)
 		debug.AssertErrNil(err)
 	}
 	pak.writeCmd, err = joybus.NewWritePakCommand(&pak.writeCmdBlock)

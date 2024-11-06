@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/serial"
 	"github.com/clktmr/n64/rcp/serial/joybus"
 )
@@ -19,26 +20,18 @@ func init() {
 	cmdAllStates = serial.NewCommandBlock(serial.CmdConfigureJoybus)
 	for i := range cmdAllStatesPorts {
 		cmdAllStatesPorts[i], err = joybus.NewControllerStateCommand(cmdAllStates)
-		if err != nil {
-			panic(err)
-		}
+		debug.AssertErrNil(err)
 	}
 	err = joybus.ControlByte(cmdAllStates, joybus.CtrlAbort)
-	if err != nil {
-		panic(err)
-	}
+	debug.AssertErrNil(err)
 
 	cmdAllInfo = serial.NewCommandBlock(serial.CmdConfigureJoybus)
 	for i := range cmdAllInfoPorts {
 		cmdAllInfoPorts[i], err = joybus.NewInfoCommand(cmdAllInfo)
-		if err != nil {
-			panic(err)
-		}
+		debug.AssertErrNil(err)
 	}
 	err = joybus.ControlByte(cmdAllInfo, joybus.CtrlAbort)
-	if err != nil {
-		panic(err)
-	}
+	debug.AssertErrNil(err)
 
 	for i := range States {
 		States[i].Port.number = uint8(i + 1)
