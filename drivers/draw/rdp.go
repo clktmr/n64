@@ -267,7 +267,8 @@ func (fb *Rdp) DrawText(r image.Rectangle, c color.Color, font *fonts.Face, str 
 
 	const idx = 1
 	img, _, _, _ := font.GlyphMap(0)
-	tex, _ := img.(texture.Texture)
+	tex, ok := img.(texture.Texture)
+	debug.Assert(ok, "fontmap format")
 	ts := rdp.TileDescriptor{
 		Format: tex.Format(),
 		Size:   tex.BPP(),
@@ -294,7 +295,8 @@ func (fb *Rdp) DrawText(r image.Rectangle, c color.Color, font *fonts.Face, str 
 		glyphRectSS := image.Rectangle{Max: glyphRect.Size()}.Add(pos)
 
 		if glyphRectSS.Overlaps(clip) {
-			tex, _ := img.(texture.Texture)
+			tex, ok := img.(texture.Texture)
+			debug.Assert(ok, "fontmap format")
 			if tex != oldtex {
 				fb.dlist.SetTextureImage(tex)
 				oldtex = tex
