@@ -107,26 +107,16 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 	//
 	//     a = 1.0 - (fill_alpha * mask_alpha)
 	//     dst = (dst*a + fill*mask_alpha)
-	//
-	// We will calculate `a` with the ColorCombiner alpha pass, which
-	// calculates (A-B)*C+D.  The following code sets A=0.0, B=mask_alpha,
-	// C=fill_alpha and D=1.0.
-	//
-	// We can also calculate fill*mask_alpha with the ColorCombiner rgb
-	// pass by setting A=fill, B=0.0, C=mask_alpha, D=0.0.
-	//
-	// The remaining `dst` operation can be easily configured to be
-	// calculated by the Blender.
 
 	fb.dlist.SetPrimitiveColor(fill)
 	fb.dlist.SetEnvironmentColor(mask)
 
-	// cc = env_alpha*primitive_color
+	// cc = fill*mask_alpha
 	cp := rdp.CombineParams{
 		rdp.CombinePrimitive, rdp.CombineBColorZero,
 		rdp.CombineCColorEnvironmentAlpha, rdp.CombineDColorZero,
 	}
-	// cc_alpha = 1-env_alpha*primitive_alpha
+	// cc_alpha = 1-fill_alpha*mask_alpha
 	cpA := rdp.CombineParams{
 		rdp.CombineAAlphaZero, rdp.CombineEnvironment,
 		rdp.CombinePrimitive, rdp.CombineDAlphaOne,
@@ -137,17 +127,29 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 
 	fb.dlist.SetOtherModes(
 		rdp.ForceBlend|rdp.ImageRead,
-		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
-		rdp.BlendMode{ // dst = cc_alpha*dst + cc
-			P1: rdp.BlenderPMFramebuffer,
-			A1: rdp.BlenderAColorCombinerAlpha,
-			M1: rdp.BlenderPMColorCombiner,
-			B1: rdp.BlenderBOne,
-		},
+		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOver,
 	)
 
 	fb.dlist.FillRectangle(r)
 }
+
+// These modes expect the color combiner to pass to the blender:
+//
+//	RGB: src image as premultiplied alpha
+//	Alpha: 1-src_alpha
+var (
+	blendOver = rdp.BlendMode{ // dst = cc_alpha*dst + cc
+		P1: rdp.BlenderPMFramebuffer,
+		A1: rdp.BlenderAColorCombinerAlpha,
+		M1: rdp.BlenderPMColorCombiner,
+		B1: rdp.BlenderBOne,
+	}
+	blendSrc = rdp.BlendMode{ // dst = cc
+		A1: rdp.BlenderAZero,
+		M1: rdp.BlenderPMColorCombiner,
+		B1: rdp.BlenderBOne,
+	}
+)
 
 func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
 	colorSource := rdp.CombineTex0
@@ -157,48 +159,30 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 		colorSource = rdp.CombineEnvironment
 	}
 
-	var cp, cpA rdp.CombineParams
+	var cp rdp.CombineParams
 	if src.Premult() {
 		cp = rdp.CombineParams{0, 0, 0, colorSource} // cc = src
 	} else {
-		// cc = src_alpha*src
-		cp = rdp.CombineParams{
-			colorSource, rdp.CombineBColorZero,
-			rdp.CombineCColorTex0Alpha, rdp.CombineDColorZero,
-		}
+		cp = rdp.CombineParams{colorSource, rdp.CombineBColorZero, rdp.CombineCColorTex0Alpha, rdp.CombineDColorZero} // cc = src_alpha*src
 	}
 
 	if op == draw.Over {
 		fb.dlist.SetOtherModes(
 			rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
-			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
-			rdp.BlendMode{ // dst = cc_alpha*dst + cc
-				P1: rdp.BlenderPMFramebuffer,
-				A1: rdp.BlenderAColorCombinerAlpha,
-				M1: rdp.BlenderPMColorCombiner,
-				B1: rdp.BlenderBOne,
-			},
+			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOver,
 		)
-		// cc_alpha = 1-tex0_alpha
-		cpA = rdp.CombineParams{
-			rdp.CombineAAlphaZero, rdp.CombineBAlphaOne,
-			rdp.CombineTex0, rdp.CombineDAlphaOne,
-		}
 	} else {
 		fb.dlist.SetOtherModes(
 			rdp.ForceBlend|rdp.BiLerp0,
-			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
-			rdp.BlendMode{ // dst = cc
-				A1: rdp.BlenderAZero,
-				M1: rdp.BlenderPMColorCombiner,
-				B1: rdp.BlenderBOne,
-			},
+			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendSrc,
 		)
-		cpA = rdp.CombineParams{0, 0, 0, colorSource} // cc_alpha = src_alpha
 	}
 
 	fb.dlist.SetCombineMode(rdp.CombineMode{
-		Two: rdp.CombinePass{RGB: cp, Alpha: cpA},
+		Two: rdp.CombinePass{RGB: cp, Alpha: rdp.CombineParams{ // cc_alpha = 1-tex0_alpha
+			rdp.CombineAAlphaZero, rdp.CombineBAlphaOne,
+			rdp.CombineTex0, rdp.CombineDAlphaOne,
+		}},
 	})
 	fb.dlist.SetTextureImage(src)
 
@@ -252,13 +236,7 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c co
 
 	fb.dlist.SetOtherModes(
 		rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
-		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp,
-		rdp.BlendMode{ // dst = cc_alpha*dst + cc
-			P1: rdp.BlenderPMFramebuffer,
-			A1: rdp.BlenderAColorCombinerAlpha,
-			M1: rdp.BlenderPMColorCombiner,
-			B1: rdp.BlenderBOne,
-		},
+		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOver,
 	)
 
 	fb.dlist.SetCombineMode(rdp.CombineMode{
