@@ -235,7 +235,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 	// TODO runtime.KeepAlive(src.addr) until FullSync?
 }
 
-func (fb *Rdp) DrawText(r image.Rectangle, c color.Color, font *fonts.Face, str string) {
+func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c color.Color, str string) image.Point {
 	fb.dlist.SetEnvironmentColor(c)
 	colorSource := rdp.CombineEnvironment
 
@@ -280,7 +280,7 @@ func (fb *Rdp) DrawText(r image.Rectangle, c color.Color, font *fonts.Face, str 
 	}
 	fb.dlist.SetTile(ts)
 
-	pos := r.Min
+	pos := p
 	clip := r.Intersect(fb.target.Bounds())
 
 	var oldtex texture.Texture
@@ -315,6 +315,8 @@ func (fb *Rdp) DrawText(r image.Rectangle, c color.Color, font *fonts.Face, str 
 			}
 		}
 	}
+
+	return pos
 }
 
 func (fb *Rdp) Flush() {
