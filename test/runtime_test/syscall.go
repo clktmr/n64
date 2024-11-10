@@ -74,11 +74,13 @@ func TestInterruptPrio(t *testing.T) {
 			// generate single 5 second blocking low prio interrupt
 			start := time.Now()
 			video.SetupPAL(texture.NewNRGBA32(image.Rect(0, 0, 320, 240)))
+			rcp.DisableInterrupts(rcp.VideoInterface)
 			rcp.SetHandler(rcp.VideoInterface, blockingHandler)
 			rcp.EnableInterrupts(rcp.VideoInterface)
 			t.Cleanup(func() {
 				rcp.DisableInterrupts(rcp.VideoInterface)
 				rcp.SetHandler(rcp.VideoInterface, video.Handler)
+				rcp.EnableInterrupts(rcp.VideoInterface)
 			})
 
 			if blocker.Load() == true {

@@ -6,17 +6,11 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/texture"
 )
 
 func TestFillRect(t *testing.T) {
-	rcp.EnableInterrupts(rcp.DisplayProcessor)
-	t.Cleanup(func() {
-		rcp.DisableInterrupts(rcp.DisplayProcessor)
-	})
-
 	testcolor := color.RGBA{R: 0, G: 0x37, B: 0x77, A: 0xff}
 	img := texture.NewRGBA32(image.Rect(0, 0, 32, 32))
 

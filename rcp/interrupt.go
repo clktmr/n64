@@ -20,13 +20,21 @@ const (
 	RDBWRITE rtos.IRQ = 7 // Devboard has written a value in the RDB port
 )
 
-var handlers = [...]func(){
-	rsp.Handler,
-	serial.Handler,
-	func() { panic("unhandled AI interrupt") },
-	video.Handler,
-	periph.Handler,
-	func() { regs.mode.Store(ClearDP); rdp.Handler() },
+var handlers = [6]func(){}
+
+func init() {
+	DisableInterrupts(^InterruptFlag(0))
+
+	handlers = [6]func(){
+		rsp.Handler,
+		serial.Handler,
+		nil,
+		video.Handler,
+		periph.Handler,
+		func() { regs.mode.Store(ClearDP); rdp.Handler() },
+	}
+
+	EnableInterrupts(SignalProcessor | DisplayProcessor | VideoInterface | SerialInterface)
 }
 
 //go:linkname rcpHandler IRQ3_Handler
@@ -37,7 +45,11 @@ func rcpHandler() {
 	irq := 0
 	for flag := InterruptFlag(1); flag != InterruptFlagLast; flag = flag << 1 {
 		if flag&pending != 0 && flag&mask != 0 {
-			handlers[irq]()
+			handler := handlers[irq]
+			if handler == nil {
+				panic("unhandled interrupt")
+			}
+			handler()
 		}
 		irq += 1
 	}

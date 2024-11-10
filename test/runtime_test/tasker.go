@@ -18,11 +18,13 @@ func fpuClobber() {
 }
 
 func TestFPUPreemption(t *testing.T) {
+	rcp.DisableInterrupts(rcp.VideoInterface)
 	rcp.SetHandler(rcp.VideoInterface, fpuClobber)
 	rcp.EnableInterrupts(rcp.VideoInterface)
 	t.Cleanup(func() {
 		rcp.DisableInterrupts(rcp.VideoInterface)
 		rcp.SetHandler(rcp.VideoInterface, video.Handler)
+		rcp.EnableInterrupts(rcp.VideoInterface)
 	})
 
 	// generate some fpu using hardware interrupts

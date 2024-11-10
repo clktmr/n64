@@ -7,7 +7,6 @@ import (
 
 	"github.com/clktmr/n64/drivers/controller"
 	"github.com/clktmr/n64/drivers/controller/pakfs"
-	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/serial/joybus"
 )
 
@@ -15,11 +14,6 @@ func TestControllerState(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping in short mode")
 	}
-
-	rcp.EnableInterrupts(rcp.SerialInterface)
-	t.Cleanup(func() {
-		rcp.DisableInterrupts(rcp.SerialInterface)
-	})
 
 	t.Log("Press L+R+Start to end the test.")
 

@@ -6,7 +6,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
 )
@@ -67,11 +66,9 @@ func TestRun(t *testing.T) {
 
 func TestInterrupt(t *testing.T) {
 	t.Cleanup(func() {
-		rcp.DisableInterrupts(rcp.SignalProcessor)
 		rsp.InterruptOnBreak(false)
 	})
 
-	rcp.EnableInterrupts(rcp.SignalProcessor)
 	rsp.InterruptOnBreak(true)
 
 	code := []byte{

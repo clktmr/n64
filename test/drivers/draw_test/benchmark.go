@@ -8,17 +8,11 @@ import (
 	"testing"
 
 	n64draw "github.com/clktmr/n64/drivers/draw"
-	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
 )
 
 func BenchmarkFillScreen(b *testing.B) {
-	rcp.EnableInterrupts(rcp.DisplayProcessor)
-	b.Cleanup(func() {
-		rcp.DisableInterrupts(rcp.DisplayProcessor)
-	})
-
 	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
 	rasterizer := n64draw.NewRdp()
 	rasterizer.SetFramebuffer(fb)
@@ -30,11 +24,6 @@ func BenchmarkFillScreen(b *testing.B) {
 }
 
 func BenchmarkTextureRectangle(b *testing.B) {
-	rcp.EnableInterrupts(rcp.DisplayProcessor)
-	b.Cleanup(func() {
-		rcp.DisableInterrupts(rcp.DisplayProcessor)
-	})
-
 	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
 	rasterizer := n64draw.NewRdp()
 	rasterizer.SetFramebuffer(fb)

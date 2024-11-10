@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	n64draw "github.com/clktmr/n64/drivers/draw"
-	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 )
@@ -58,11 +57,6 @@ func absDiffColor(a color.Color, b color.Color) int {
 }
 
 func TestDraw(t *testing.T) {
-	rcp.EnableInterrupts(rcp.DisplayProcessor)
-	t.Cleanup(func() {
-		rcp.DisableInterrupts(rcp.DisplayProcessor)
-	})
-
 	// Split the screen into four viewports
 	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
 	quarter := image.Rectangle{Max: fb.Bounds().Max.Div(2)}
