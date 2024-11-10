@@ -56,7 +56,7 @@ func absDiffColor(a color.Color, b color.Color) int {
 		absDiffInt(int(ac.B), int(bc.B))
 }
 
-func TestDraw(t *testing.T) {
+func TestDrawMask(t *testing.T) {
 	// Split the screen into four viewports
 	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
 	quarter := image.Rectangle{Max: fb.Bounds().Max.Div(2)}
@@ -142,9 +142,9 @@ func TestDraw(t *testing.T) {
 			result.Invalidate()
 
 			// draw
-			drawerSW.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
+			drawerSW.DrawMask(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
 			drawerSW.Flush()
-			drawerHW.Draw(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
+			drawerHW.DrawMask(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
 			drawerHW.Flush()
 
 			// compare

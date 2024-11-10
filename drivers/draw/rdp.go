@@ -32,7 +32,11 @@ func (fb *Rdp) SetFramebuffer(tex texture.Texture) {
 	fb.dlist.SetScissor(image.Rectangle{Max: fb.target.Bounds().Size()}, rdp.InterlaceNone)
 }
 
-func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
+func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, op draw.Op) {
+	fb.DrawMask(r, src, sp, nil, image.Point{}, op)
+}
+
+func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
 	// Readjust r if we draw to a viewport/subimage of the framebuffer
 	r = r.Bounds().Sub(fb.target.Bounds().Min)
 

@@ -23,7 +23,11 @@ func (p *Cpu) SetFramebuffer(fb texture.ImageTexture) {
 	p.target = fb
 }
 
-func (p *Cpu) Draw(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
+func (fb *Cpu) Draw(r image.Rectangle, src image.Image, sp image.Point, op draw.Op) {
+	fb.DrawMask(r, src, sp, nil, image.Point{}, op)
+}
+
+func (p *Cpu) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
 	if tex, ok := src.(texture.ImageTexture); ok {
 		src = tex.Image()
 	}

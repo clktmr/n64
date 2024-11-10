@@ -73,7 +73,7 @@ func main() {
 			newInternalTest(rsp_test.TestRun),
 			newInternalTest(rsp_test.TestInterrupt),
 			newInternalTest(rdp_test.TestFillRect),
-			newInternalTest(draw_test.TestDraw),
+			newInternalTest(draw_test.TestDrawMask),
 			newInternalTest(periph_test.TestReadWriteSeeker),
 			newInternalTest(summercart64_test.TestUSBRead),
 			newInternalTest(summercart64_test.TestSaveStorage),

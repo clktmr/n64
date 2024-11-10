@@ -18,7 +18,7 @@ func BenchmarkFillScreen(b *testing.B) {
 	rasterizer.SetFramebuffer(fb)
 
 	for i := 0; i < b.N; i++ {
-		rasterizer.Draw(fb.Rect, image.Black, image.Point{}, nil, image.Point{}, draw.Src)
+		rasterizer.Draw(fb.Rect, image.Black, image.Point{}, draw.Src)
 		rasterizer.Flush()
 	}
 }
@@ -34,7 +34,7 @@ func BenchmarkTextureRectangle(b *testing.B) {
 	cpu.WritebackSlice(imgLarge.Pix)
 
 	for i := 0; i < b.N; i++ {
-		rasterizer.Draw(fb.Rect, imgLarge, image.Point{}, nil, image.Point{}, draw.Over)
+		rasterizer.Draw(fb.Rect, imgLarge, image.Point{}, draw.Over)
 		rasterizer.Flush()
 	}
 }
