@@ -297,6 +297,10 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c co
 	return pos
 }
 
+func (fb *Rdp) Bounds() image.Rectangle {
+	return fb.target.Bounds()
+}
+
 func (fb *Rdp) Flush() {
 	fb.dlist.Flush()
 }
