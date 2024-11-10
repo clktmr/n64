@@ -17,8 +17,8 @@ type Display struct {
 	start       time.Time
 	vsync       *rtos.Note
 
-	rendertime      time.Duration
-	cmd, pipe, tmem uint32
+	rendertime, frametime time.Duration
+	cmd, pipe, tmem       uint32
 }
 
 func NewDisplay(resolution image.Point, bpp video.ColorDepth, vsync *rtos.Note) *Display {
@@ -53,11 +53,16 @@ func (p *Display) Swap() texture.Texture {
 		}
 	}
 
+	p.frametime = time.Since(p.start)
 	p.start = time.Now()
 	p.read, p.write = p.write, p.read
 
 	video.SetFrambuffer(p.read)
 	return p.write
+}
+
+func (p *Display) FPS() float32 {
+	return 1e9 / float32(p.frametime)
 }
 
 func (p *Display) Duration() time.Duration {
