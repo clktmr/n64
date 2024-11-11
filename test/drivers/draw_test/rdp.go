@@ -103,27 +103,25 @@ func TestDrawMask(t *testing.T) {
 		mask image.Image
 		mp   image.Point
 		op   draw.Op
-
-		threshold int // Allow some errors due to precision
 	}{
-		"fillSrc":              {bounds.Inset(24), imgTransparentGreen, image.Point{}, nil, image.Point{}, draw.Src, 0},
-		"fillOver":             {bounds.Inset(24), imgTransparentGreen, image.Point{}, nil, image.Point{}, draw.Over, 0},
-		"fillMaskSrc":          {bounds.Inset(24), imgTransparentGreen, image.Point{}, imgTransparentGray, image.Point{}, draw.Src, 0},
-		"fillMaskOver":         {bounds.Inset(24), imgTransparentGreen, image.Point{}, imgTransparentGray, image.Point{}, draw.Over, 0},
-		"fillAlphaMaskSrc":     {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Src, 0},
-		"fillAlphaMaskOver":    {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Over, 1800},
-		"fillOutOfBounds":      {bounds.Inset(-4), imgGreen, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
-		"drawSrc":              {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src, 0},
-		"drawOver":             {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Over, 2600},
-		"drawSrcPremult":       {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Src, 0},
-		"drawOverPremult":      {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Over, 1800},
-		"drawSrcSubimage":      {bounds.Inset(24), imgNRGBA.SubImage(imgNRGBA.Rect.Inset(4)), image.Point{}, nil, image.Point{}, draw.Src, 0},
-		"drawSrcSubimageShift": {bounds.Inset(24), imgNRGBA.SubImage(imgNRGBA.Rect.Inset(4)), image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
-		"drawScissored":        {imgNRGBA.Rect.Add(image.Pt(24, 24)).Inset(2), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src, 0},
-		"drawLarge":            {bounds.Inset(24), imgLarge, image.Point{}, nil, image.Point{}, draw.Src, 100},
-		"drawShift":            {bounds.Inset(24), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
-		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
-		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src, 0},
+		"fillSrc":              {bounds.Inset(24), imgTransparentGreen, image.Point{}, nil, image.Point{}, draw.Src},
+		"fillOver":             {bounds.Inset(24), imgTransparentGreen, image.Point{}, nil, image.Point{}, draw.Over},
+		"fillMaskSrc":          {bounds.Inset(24), imgTransparentGreen, image.Point{}, imgTransparentGray, image.Point{}, draw.Src},
+		"fillMaskOver":         {bounds.Inset(24), imgTransparentGreen, image.Point{}, imgTransparentGray, image.Point{}, draw.Over},
+		"fillAlphaMaskSrc":     {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Src},
+		"fillAlphaMaskOver":    {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Over},
+		"fillOutOfBounds":      {bounds.Inset(-4), imgGreen, image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawSrc":              {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawOver":             {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Over},
+		"drawSrcPremult":       {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawOverPremult":      {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Over},
+		"drawSrcSubimage":      {bounds.Inset(24), imgNRGBA.SubImage(imgNRGBA.Rect.Inset(4)), image.Point{}, nil, image.Point{}, draw.Src},
+		"drawSrcSubimageShift": {bounds.Inset(24), imgNRGBA.SubImage(imgNRGBA.Rect.Inset(4)), image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawScissored":        {imgNRGBA.Rect.Add(image.Pt(24, 24)).Inset(2), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawLarge":            {bounds.Inset(24), imgLarge, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawShift":            {bounds.Inset(24), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		// TODO "drawSrcI8":            {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Over, 0},
 	}
 
@@ -148,7 +146,7 @@ func TestDrawMask(t *testing.T) {
 			drawerHW.Flush()
 
 			// compare
-			const showThreshold = 3
+			const showThreshold = 16 // allow some errors due to precision
 			cumErr := 0
 			for x := range bounds.Max.X {
 				for y := range bounds.Max.Y {
@@ -162,12 +160,11 @@ func TestDrawMask(t *testing.T) {
 							R: 0x7f + e.R/2 - r.R/2,
 							G: 0x7f + e.G/2 - r.G/2,
 							B: 0x7f + e.B/2 - r.B/2,
-							// A: 0x7f + e.A/2 - r.A/2,
 						})
 					}
 				}
 			}
-			if cumErr > tc.threshold {
+			if cumErr > 0 {
 				t.Errorf("images do not match, see video output for details")
 				t.Fatalf("cumulative error: %v", cumErr)
 			}
