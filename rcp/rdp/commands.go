@@ -109,7 +109,7 @@ func (dl *DisplayList) SetDepthImage(addr uintptr) {
 // Sets the image where LoadTile and LoadBlock will copy their data from.
 func (dl *DisplayList) SetTextureImage(img texture.Texture) {
 	debug.Assert(img.Addr()%8 == 0, "rdp texture must be 8 byte aligned")
-	debug.Assert(img.Stride() < 1<<9, "rdp texture width too big")
+	debug.Assert(img.Stride() <= 1<<9, "rdp texture width too big")
 
 	// according to wiki, format[23:21] has no effect
 	dl.push((0xfd << 56) | Command(img.BPP()) | Command(img.Stride()-1)<<32 |
