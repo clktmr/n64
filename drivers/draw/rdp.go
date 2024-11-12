@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"unicode/utf8"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/fonts"
@@ -242,7 +243,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 	// TODO runtime.KeepAlive(src.addr) until FullSync?
 }
 
-func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c color.Color, str string) image.Point {
+func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c color.Color, str []byte) image.Point {
 	fb.dlist.SetEnvironmentColor(c)
 
 	fb.dlist.SetOtherModes(
@@ -278,10 +279,15 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c co
 	clip := r.Intersect(fb.target.Bounds())
 
 	var oldtex texture.Texture
-	for _, rune := range str {
+	for len(str) > 0 {
+		rune, size := utf8.DecodeRune(str)
+		str = str[size:]
 		if rune == '\n' {
 			pos.X = r.Min.X
 			pos.Y += int(font.Height)
+			// if pos.Y > clip.Max.Y {
+			// 	break
+			// }
 			continue
 		}
 
@@ -301,13 +307,6 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c co
 		}
 
 		pos.X += adv
-		if pos.X > r.Max.X {
-			pos.X = r.Min.X
-			pos.Y += int(font.Height)
-			if pos.Y > clip.Max.Y {
-				break
-			}
-		}
 	}
 
 	return pos
