@@ -381,10 +381,7 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
 
 // Sets the color for subsequent FillRectangle() calls.
 func (dl *DisplayList) SetFillColor(c color.Color) {
-	cRGBA, ok := c.(color.RGBA)
-	if !ok {
-		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
-	}
+	cRGBA := asRGBA(c)
 	if cRGBA == dl.fillColor {
 		return
 	}
@@ -408,10 +405,7 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetBlendColor(c color.Color) {
-	cRGBA, ok := c.(color.RGBA)
-	if !ok {
-		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
-	}
+	cRGBA := asRGBA(c)
 	if cRGBA == dl.blendColor {
 		return
 	}
@@ -425,10 +419,7 @@ func (dl *DisplayList) SetBlendColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
-	cRGBA, ok := c.(color.RGBA)
-	if !ok {
-		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
-	}
+	cRGBA := asRGBA(c)
 	if cRGBA == dl.primitiveColor {
 		return
 	}
@@ -440,10 +431,7 @@ func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
-	cRGBA, ok := c.(color.RGBA)
-	if !ok {
-		cRGBA = color.RGBAModel.Convert(c).(color.RGBA)
-	}
+	cRGBA := asRGBA(c)
 	if cRGBA == dl.environmentColor {
 		return
 	}
@@ -532,4 +520,21 @@ const (
 func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
 	size := 256 >> uint(bpp>>51)
 	return image.Rect(0, 0, size, size)
+}
+
+// Little unsafe helper to avoid heap allocation from calls to RGBA().
+//
+//go:noescape
+//go:linkname asRGBA github.com/clktmr/n64/rcp/rdp._asRGBA
+func asRGBA(c color.Color) (ret color.RGBA)
+func _asRGBA(c color.Color) (ret color.RGBA) {
+	if c, ok := c.(color.RGBA); ok {
+		return c
+	}
+	r, g, b, a := c.RGBA()
+	ret.R = uint8(r >> 8)
+	ret.G = uint8(g >> 8)
+	ret.B = uint8(b >> 8)
+	ret.A = uint8(a >> 8)
+	return
 }
