@@ -25,7 +25,8 @@ const (
 )
 
 type Texture interface {
-	Bounds() image.Rectangle
+	image.Image
+
 	Addr() uintptr
 	Stride() int
 	Format() ImageFormat
