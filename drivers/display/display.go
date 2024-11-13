@@ -33,7 +33,7 @@ func NewDisplay(resolution image.Point, bpp video.ColorDepth, vsync *rtos.Note) 
 		fb.write = texture.NewRGBA32(bounds)
 	}
 
-	video.SetupPAL(fb.read) // TODO
+	video.SetFramebuffer(fb.read)
 
 	fb.start = time.Now()
 
@@ -57,7 +57,7 @@ func (p *Display) Swap() texture.Texture {
 	p.start = time.Now()
 	p.read, p.write = p.write, p.read
 
-	video.SetFrambuffer(p.read)
+	video.SetFramebuffer(p.read)
 	return p.write
 }
 

@@ -21,14 +21,16 @@ func TestFPUPreemption(t *testing.T) {
 	rcp.DisableInterrupts(rcp.VideoInterface)
 	rcp.SetHandler(rcp.VideoInterface, fpuClobber)
 	rcp.EnableInterrupts(rcp.VideoInterface)
+
+	// generate some fpu using hardware interrupts
+	video.SetupPAL(false, false)
+	video.SetFramebuffer(texture.NewNRGBA32(image.Rect(0, 0, 320, 240)))
 	t.Cleanup(func() {
+		video.SetFramebuffer(nil)
 		rcp.DisableInterrupts(rcp.VideoInterface)
 		rcp.SetHandler(rcp.VideoInterface, video.Handler)
 		rcp.EnableInterrupts(rcp.VideoInterface)
 	})
-
-	// generate some fpu using hardware interrupts
-	video.SetupPAL(texture.NewNRGBA32(image.Rect(0, 0, 320, 240)))
 
 	const numGoroutines = 10
 	results := [numGoroutines]float64{}

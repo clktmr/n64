@@ -69,8 +69,9 @@ func TestDrawMask(t *testing.T) {
 	err := fb.SubImage(bounds.Add(quarter.Max))
 	err.Rect = bounds
 
-	video.SetupPAL(fb)
-	video.SetFrambuffer(fb)
+	video.SetupPAL(false, false)
+	video.SetFramebuffer(fb)
+	t.Cleanup(func() { video.SetFramebuffer(nil) })
 
 	// Load some test images
 	imgN64LogoSmall, _ := png.Decode(bytes.NewReader(pngN64LogoSmall))
