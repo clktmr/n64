@@ -67,6 +67,10 @@ func (c *Controller) DY() int8 {
 	return c.current.yAxis - c.last.yAxis
 }
 
+func (c *Controller) Present() bool {
+	return c.Port.current.device == joybus.Controller
+}
+
 func (c *Controller) Plugged() bool {
 	return c.Port.current.device == joybus.Controller &&
 		c.Port.last.device != joybus.Controller
