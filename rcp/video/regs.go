@@ -60,6 +60,21 @@ const (
 )
 
 var (
+	// True if current configuration is interlaced.
+	// There are three parts involved in generating interlaced video output:
+	// (1) Framebuffer sampling:  This must be done manually by shifting the
+	// framebuffer by one line.  If the framebuffer has the same vertical
+	// resolution as video lines, it must be shifted by one pixel.  This can
+	// be done by offsetting the origin register by one stride.  At lower
+	// resolutions the yScale's subpixel offset must be used.
+	// (2) Interrupt handling:  Setting vSync register's bit 0 causes
+	// vCurrent to report alternating fields.  This information can be used
+	// to select the correct field when shifting in (1).
+	// (3) Video signal generation:  Interlaced video output is enabled by
+	// ControlSerrate, which "serrates" the vertical sync pulse, shifting
+	// even and odd fields by one halfline to another, effectively doubling
+	// vertical resolution at the cost of flickering.  It also reduces the
+	// scanlines.
 	Interlaced bool
 
 	framebuffer texture.Texture
@@ -136,11 +151,8 @@ func SetScale(r image.Rectangle) image.Rectangle {
 	regs.hVideo.Store(uint32(r.Min.X<<16 | r.Max.X))
 	regs.vVideo.Store(uint32(r.Min.Y<<16 | r.Max.Y))
 
-	rect = r
 	return r
 }
-
-var rect image.Rectangle
 
 // Sets the framebuffer to the specified texture and enables video output.  If a
 // framebuffer was already set, does a fast switch without reconfigure.  Setting
@@ -153,30 +165,23 @@ func SetFramebuffer(fb texture.Texture) {
 		framebuffer.BPP() != fb.BPP() ||
 		framebuffer.Bounds().Size() != fb.Bounds().Size() {
 
-		width, height := uint32(fb.Bounds().Dx()), uint32(fb.Bounds().Dy())
-		control := uint32(bpp(fb.BPP())) | uint32(AANone)
-		r := NativeResolution()
-		stride := uint32(fb.Stride())
-
+		control := uint32(bpp(fb.BPP())) | uint32(AAResampling)
 		if Interlaced {
 			control |= uint32(ControlSerrate)
-			r.Y = r.Y << 1
-			stride = stride << 1
 		}
 
-		regs.xScale.Store((width<<10 + uint32(r.X>>1)) / uint32(r.X))
-		regs.yScale.Store((height<<10 + uint32(r.Y>>2)) / uint32(r.Y>>1))
-		regs.width.Store(stride)
-		regs.origin.Store(cpu.PhysicalAddress(fb.Addr()))
+		fbSize := fb.Bounds().Size()
+		videoSize := NativeResolution()
+		regs.xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
+		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
+		regs.width.Store(uint32(fb.Stride()))
 
 		framebuffer = fb
+		updateFramebuffer()
 		regs.control.Store(control)
 	} else {
-		addr := cpu.PhysicalAddress(fb.Addr())
-		if Interlaced && Odd.Load() {
-			addr += uint32(texture.PixelsToBytes(fb.Stride(), fb.BPP()))
-		}
-		regs.origin.Store(addr)
+		framebuffer = fb
+		updateFramebuffer()
 	}
 }
 
