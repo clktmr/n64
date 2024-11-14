@@ -69,28 +69,34 @@ var (
 	limitsPAL  = image.Rect(0, 0, 640, 576).Add(image.Point{128, 45})
 )
 
-func SetupNTSC() {
+func SetupNTSC(interlace bool) {
 	fb := Framebuffer()
 	SetFramebuffer(nil)
 
-	regs.vIntr.Store(2)
-	regs.burst.Store(62<<20 | 5<<16 | 34<<8 | 57)
-	regs.vSync.Store(525)
+	Interlaced = interlace
+	lines := uint32(525)
+	if Interlaced {
+		lines -= 1
+	}
+
+	regs.vSync.Store(lines)
 	regs.hSync.Store(0b00000<<16 | 3093)
 	regs.hSyncLeap.Store(3093<<16 | 3093)
 	regs.vBurst.Store(14<<16 | 516)
+	regs.burst.Store(62<<20 | 5<<16 | 34<<8 | 57)
 
 	limits = limitsNTSC
 	SetScale(limits)
 
+	regs.vIntr.Store(2)
 	SetFramebuffer(fb)
 }
 
 func SetupPAL(interlace, pal60 bool) {
-	Interlaced = interlace
 	fb := Framebuffer()
 	SetFramebuffer(nil)
 
+	Interlaced = interlace
 	lines := uint32(625)
 	limits = limitsPAL
 	if pal60 {
@@ -103,14 +109,14 @@ func SetupPAL(interlace, pal60 bool) {
 	}
 
 	regs.vSync.Store(lines)
-	regs.vIntr.Store(2)
-	regs.burst.Store(64<<20 | 4<<16 | 35<<8 | 58)
 	regs.hSync.Store(0b10101<<16 | 3177)
 	regs.hSyncLeap.Store(3183<<16 | 3182)
 	regs.vBurst.Store(9<<16 | 619)
+	regs.burst.Store(64<<20 | 4<<16 | 35<<8 | 58)
 
 	SetScale(limits)
 
+	regs.vIntr.Store(2)
 	SetFramebuffer(fb)
 }
 
