@@ -243,12 +243,21 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 	// TODO runtime.KeepAlive(src.addr) until FullSync?
 }
 
-func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c color.Color, str []byte) image.Point {
-	fb.dlist.SetEnvironmentColor(c)
+// Draws text str inside r, beginning at p.  Returns the next p.
+// Fore- and background colors fg and bg don't support alpha.  If a nil
+// background color is passed, it will be transparent.
+func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.Color, str []byte) image.Point {
+	fb.dlist.SetEnvironmentColor(fg)
+
+	blendmode := &blendOver
+	if bg != nil {
+		fb.dlist.SetBlendColor(bg)
+		blendmode = &blendSrc
+	}
 
 	fb.dlist.SetOtherModes(
 		rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
-		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOver,
+		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
 	)
 
 	fb.dlist.SetCombineMode(rdp.CombineMode{
@@ -285,9 +294,6 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, c co
 		if rune == '\n' {
 			pos.X = r.Min.X
 			pos.Y += int(font.Height)
-			// if pos.Y > clip.Max.Y {
-			// 	break
-			// }
 			continue
 		}
 
