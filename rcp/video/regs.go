@@ -1,10 +1,12 @@
 // Video DAC which reads an image from RDRAM and outputs it to screen as either
-// NTSC, PAL or M-PAL.
+// NTSC, PAL or M-PAL.  This package ensures register writes are done only
+// during vblank.
 package video
 
 import (
 	"embedded/mmio"
 	"image"
+	"sync/atomic"
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
@@ -82,6 +84,8 @@ var (
 	limits     image.Rectangle
 	limitsNTSC = image.Rect(0, 0, 640, 480).Add(image.Point{108, 35})
 	limitsPAL  = image.Rect(0, 0, 640, 576).Add(image.Point{128, 45})
+
+	scale atomic.Pointer[image.Rectangle]
 )
 
 func SetupNTSC(interlace bool) {
@@ -135,6 +139,16 @@ func SetupPAL(interlace, pal60 bool) {
 	SetFramebuffer(fb)
 }
 
+// Scale returns the rectangle inside the current video standards boundaries
+// which contains the video output.
+func Scale() image.Rectangle {
+	return *scale.Load()
+}
+
+// SetScale sets and returns the rectangle which contains the video output.  If
+// r's dimensions exceed the limits of the screen it will be shrunk, possibly
+// changing aspect ratio.  If r's offset exceeds the screen's limits, it will be
+// shifted accordingly.  The new scale will be applied during the next vblank.
 func SetScale(r image.Rectangle) image.Rectangle {
 	if r.Dx() > limits.Dx() {
 		r.Max.X -= r.Dx() - limits.Dx()
@@ -148,9 +162,7 @@ func SetScale(r image.Rectangle) image.Rectangle {
 	shift.Y = max(limits.Min.Y-r.Min.Y, 0) + min(limits.Max.Y-r.Max.Y, 0)
 	r = r.Add(shift)
 
-	regs.hVideo.Store(uint32(r.Min.X<<16 | r.Max.X))
-	regs.vVideo.Store(uint32(r.Min.Y<<16 | r.Max.Y))
-
+	scale.Store(&r)
 	return r
 }
 
@@ -171,7 +183,7 @@ func SetFramebuffer(fb texture.Texture) {
 		}
 
 		fbSize := fb.Bounds().Size()
-		videoSize := NativeResolution()
+		videoSize := Scale().Size()
 		regs.xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
 		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
 		regs.width.Store(uint32(fb.Stride()))
@@ -190,15 +202,15 @@ func Framebuffer() texture.Texture {
 	return framebuffer
 }
 
-// Returns the currently configured native resolution.  Use this resolution for
-// the framebuffer to avoid scaling, i.e. get pixel perfect output.
+// Returns the currently configured native resolution.  Use this resolution or a
+// divisible of it for the framebuffer to avoid scaling artifacts, i.e. get
+// pixel perfect output.  Note that the resolution might have non-square pixels.
 func NativeResolution() image.Point {
-	h := regs.hVideo.Load()
-	v := regs.vVideo.Load()
-	return image.Point{
-		int(h&0xffff - h>>16),
-		int(v&0xffff - v>>16),
+	resolution := Scale().Size()
+	if !Interlaced {
+		resolution.Y = resolution.Y >> 1
 	}
+	return resolution
 }
 
 func bpp(bpp texture.BitDepth) ColorDepth {

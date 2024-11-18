@@ -13,6 +13,8 @@ var VBlankCnt uint
 
 var Odd atomic.Bool
 
+// The handler is guaranteed to never be called with a nil framebuffer.
+//
 //go:nosplit
 //go:nowritebarrierrec
 func Handler() {
@@ -22,6 +24,11 @@ func Handler() {
 	Odd.Store(line&1 == 0)
 
 	updateFramebuffer()
+
+	if r := scale.Load(); r != nil {
+		regs.hVideo.Store(uint32(r.Min.X<<16 | r.Max.X))
+		regs.vVideo.Store(uint32(r.Min.Y<<16 | r.Max.Y))
+	}
 
 	VBlankCnt += 1
 	VBlank.Wakeup()
