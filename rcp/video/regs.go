@@ -171,6 +171,7 @@ func SetFramebuffer(fb texture.Texture) {
 	if fb == nil {
 		regs.control.Store(0)
 		framebuffer.Store(nil)
+		framebuffer.Store(nil) // make sure no reference is hold
 	} else if currentFb == nil ||
 		currentFb.BPP() != fb.BPP() ||
 		currentFb.Bounds().Size() != fb.Bounds().Size() {
