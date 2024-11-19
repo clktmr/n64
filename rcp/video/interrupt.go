@@ -42,7 +42,9 @@ func updateFramebuffer() {
 	addr := cpu.PhysicalAddress(fb.Addr())
 	if interlaced {
 		if Odd.Load() {
-			offset := 1024 * fb.Bounds().Dy() / NativeResolution().Y
+			vVideo := regs.vVideo.Load()
+			screenLines := int(vVideo&0xffff - vVideo>>16)
+			offset := 1024 * fb.Bounds().Dy() / screenLines
 			if offset < 1024 {
 				setVerticalOffset(offset)
 			} else { // corner case @ native vertical resolution
