@@ -6,7 +6,6 @@ package video
 import (
 	"embedded/mmio"
 	"image"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
@@ -81,13 +80,9 @@ var (
 
 	VSync bool = true
 
-	framebuffer texture.Texture // TODO atomic
-
 	limits     image.Rectangle
 	limitsNTSC = image.Rect(0, 0, 640, 480).Add(image.Point{108, 35})
 	limitsPAL  = image.Rect(0, 0, 640, 576).Add(image.Point{128, 45})
-
-	scale atomic.Pointer[image.Rectangle]
 )
 
 func SetupNTSC(interlace bool) {
@@ -144,7 +139,7 @@ func SetupPAL(interlace, pal60 bool) {
 // Scale returns the rectangle inside the current video standards boundaries
 // which contains the video output.
 func Scale() image.Rectangle {
-	return *scale.Load()
+	return scale.Get()
 }
 
 // SetScale sets and returns the rectangle which contains the video output.  If
@@ -164,7 +159,7 @@ func SetScale(r image.Rectangle) image.Rectangle {
 	shift.Y = max(limits.Min.Y-r.Min.Y, 0) + min(limits.Max.Y-r.Max.Y, 0)
 	r = r.Add(shift)
 
-	scale.Store(&r)
+	scale.Store(r)
 	return r
 }
 
@@ -172,12 +167,13 @@ func SetScale(r image.Rectangle) image.Rectangle {
 // framebuffer was already set, does a fast switch without reconfigure.  Setting
 // a nil framebuffer will disable video output.
 func SetFramebuffer(fb texture.Texture) {
+	currentFb := framebuffer.Get()
 	if fb == nil {
 		regs.control.Store(0)
-		framebuffer = fb
-	} else if framebuffer == nil ||
-		framebuffer.BPP() != fb.BPP() ||
-		framebuffer.Bounds().Size() != fb.Bounds().Size() {
+		framebuffer.Store(nil)
+	} else if currentFb == nil ||
+		currentFb.BPP() != fb.BPP() ||
+		currentFb.Bounds().Size() != fb.Bounds().Size() {
 
 		control := uint32(bpp(fb.BPP())) | uint32(AAResampling)
 		if interlaced {
@@ -190,20 +186,20 @@ func SetFramebuffer(fb texture.Texture) {
 		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
 		regs.width.Store(uint32(fb.Stride()))
 
-		framebuffer = fb
-		updateFramebuffer()
+		framebuffer.Store(fb)
+		updateFramebuffer(fb)
 		regs.control.Store(control)
 	} else {
-		framebuffer = fb
+		framebuffer.Store(fb)
 		if !VSync {
-			updateFramebuffer()
+			updateFramebuffer(fb)
 		}
 	}
 }
 
 // Returns the currently displayed framebuffer.
 func Framebuffer() texture.Texture {
-	return framebuffer
+	return framebuffer.Get()
 }
 
 // Returns the currently configured native resolution.  Use this resolution or a

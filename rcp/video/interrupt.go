@@ -3,36 +3,31 @@ package video
 import (
 	"embedded/rtos"
 	"image"
-	"sync/atomic"
 
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
 )
 
 var VBlank rtos.Note
-var VBlankCnt uint
 
-var Odd atomic.Bool
+// Consumed by interrupt handler
+var (
+	framebuffer = newIntrInput[texture.Texture]()
+	scale       = newIntrInput[image.Rectangle]()
+)
 
 // The handler is guaranteed to never be called with a nil framebuffer.
 //
 //go:nosplit
 //go:nowritebarrierrec
 func Handler() {
-	line := regs.vCurrent.Load()
-	regs.vCurrent.Store(line) // clears interrupt
+	regs.vCurrent.Store(0) // clears interrupt
 
-	Odd.Store(line&1 == 0)
+	fb, _ := framebuffer.Load()
 
 	// update scale if it was changed
-	h := regs.hVideo.Load()
-	v := regs.vVideo.Load()
-	currentScale := image.Rectangle{
-		image.Point{int(h >> 16), int(v >> 16)},
-		image.Point{int(h & 0xffff), int(v & 0xffff)},
-	}
-	if r := scale.Load(); *r != currentScale {
-		fbSize := framebuffer.Bounds().Size()
+	if r, updated := scale.Load(); updated {
+		fbSize := fb.Bounds().Size()
 		videoSize := r.Size()
 		regs.hVideo.Store(uint32(r.Min.X<<16 | r.Max.X))
 		regs.vVideo.Store(uint32(r.Min.Y<<16 | r.Max.Y))
@@ -40,22 +35,20 @@ func Handler() {
 		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
 	}
 
-	updateFramebuffer()
+	updateFramebuffer(fb)
 
-	VBlankCnt += 1
 	VBlank.Wakeup()
 }
 
 // Updates the framebuffer based on currently configured framebuffer and field.
 //
 //go:nosplit
-func updateFramebuffer() {
-	fb := framebuffer
+func updateFramebuffer(fb texture.Texture) {
 	addr := cpu.PhysicalAddress(fb.Addr())
-	if interlaced {
+	if regs.control.Load()&uint32(ControlSerrate) != 0 {
 		// Shift the framebuffer vertically based on current field.
 		yScale := regs.yScale.Load()
-		if Odd.Load() {
+		if regs.vCurrent.Load()&1 == 0 { // odd field
 			yOffset := int(0xffff&yScale) >> 1
 			// Move framebuffer address by a whole line if offset is
 			// more than a pixel.
@@ -64,7 +57,7 @@ func updateFramebuffer() {
 				addr += uint32(texture.PixelsToBytes(fb.Stride(), fb.BPP()))
 			}
 			yScale = (uint32(yOffset)<<16 | 0xffff&regs.yScale.Load())
-		} else {
+		} else { // even field
 			yScale = (0xffff & regs.yScale.Load())
 		}
 		regs.yScale.Store(yScale)
