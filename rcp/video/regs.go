@@ -77,7 +77,7 @@ var (
 	// even and odd fields by one halfline to another, effectively doubling
 	// vertical resolution at the cost of flickering.  It also reduces the
 	// scanlines.
-	Interlaced bool
+	interlaced bool
 
 	VSync bool = true
 
@@ -94,9 +94,9 @@ func SetupNTSC(interlace bool) {
 	fb := Framebuffer()
 	SetFramebuffer(nil)
 
-	Interlaced = interlace
+	interlaced = interlace
 	lines := uint32(525)
-	if Interlaced {
+	if interlaced {
 		lines -= 1
 	}
 
@@ -117,7 +117,7 @@ func SetupPAL(interlace, pal60 bool) {
 	fb := Framebuffer()
 	SetFramebuffer(nil)
 
-	Interlaced = interlace
+	interlaced = interlace
 	lines := uint32(625)
 	limits = limitsPAL
 	if pal60 {
@@ -125,7 +125,7 @@ func SetupPAL(interlace, pal60 bool) {
 		limits.Min.Y = limitsNTSC.Min.Y
 		limits.Max.Y = limitsNTSC.Max.Y
 	}
-	if Interlaced {
+	if interlaced {
 		lines -= 1
 	}
 
@@ -180,7 +180,7 @@ func SetFramebuffer(fb texture.Texture) {
 		framebuffer.Bounds().Size() != fb.Bounds().Size() {
 
 		control := uint32(bpp(fb.BPP())) | uint32(AAResampling)
-		if Interlaced {
+		if interlaced {
 			control |= uint32(ControlSerrate)
 		}
 
@@ -211,7 +211,7 @@ func Framebuffer() texture.Texture {
 // pixel perfect output.  Note that the resolution might have non-square pixels.
 func NativeResolution() image.Point {
 	resolution := Scale().Size()
-	if !Interlaced {
+	if !interlaced {
 		resolution.Y = resolution.Y >> 1
 	}
 	return resolution

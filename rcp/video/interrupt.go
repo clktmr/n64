@@ -40,7 +40,7 @@ func Handler() {
 func updateFramebuffer() {
 	fb := framebuffer
 	addr := cpu.PhysicalAddress(fb.Addr())
-	if Interlaced {
+	if interlaced {
 		if Odd.Load() {
 			offset := 1024 * fb.Bounds().Dy() / NativeResolution().Y
 			if offset < 1024 {
