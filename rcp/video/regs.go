@@ -183,6 +183,7 @@ func SetFramebuffer(fb texture.Texture) {
 
 		fbSize := fb.Bounds().Size()
 		videoSize := Scale().Size()
+		regs.control.Store(0)
 		regs.xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
 		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
 		regs.width.Store(uint32(fb.Stride()))
