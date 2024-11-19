@@ -1,7 +1,6 @@
 package display
 
 import (
-	"embedded/rtos"
 	"image"
 	"time"
 
@@ -15,14 +14,13 @@ import (
 type Display struct {
 	read, write texture.Texture
 	start       time.Time
-	vsync       *rtos.Note
 
 	rendertime, frametime time.Duration
 	cmd, pipe, tmem       uint32
 }
 
-func NewDisplay(resolution image.Point, bpp video.ColorDepth, vsync *rtos.Note) *Display {
-	fb := &Display{vsync: vsync}
+func NewDisplay(resolution image.Point, bpp video.ColorDepth) *Display {
+	fb := &Display{}
 
 	bounds := image.Rectangle{Max: resolution}
 	if bpp == video.BPP16 {
@@ -41,12 +39,16 @@ func NewDisplay(resolution image.Point, bpp video.ColorDepth, vsync *rtos.Note) 
 }
 
 // Returns the next framebuffer for rendering.  The framebuffer returned by the
-// last call becomes invalid.  Blocks until vblank if vsync is enabled.
+// last call becomes invalid.  Blocks until a framebuffer is available for
+// rendering.
 func (p *Display) Swap() texture.Texture {
 	p.rendertime = time.Since(p.start)
 	p.cmd, p.pipe, p.tmem = rdp.Busy()
 
-	if p.vsync != nil {
+	p.read, p.write = p.write, p.read
+	video.SetFramebuffer(p.read)
+
+	if video.VSync {
 		video.VBlank.Clear()
 		if !video.VBlank.Sleep(1 * time.Second) {
 			panic("vblank timeout")
@@ -55,9 +57,7 @@ func (p *Display) Swap() texture.Texture {
 
 	p.frametime = time.Since(p.start)
 	p.start = time.Now()
-	p.read, p.write = p.write, p.read
 
-	video.SetFramebuffer(p.read)
 	return p.write
 }
 

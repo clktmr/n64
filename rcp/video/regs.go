@@ -79,7 +79,9 @@ var (
 	// scanlines.
 	Interlaced bool
 
-	framebuffer texture.Texture
+	VSync bool = true
+
+	framebuffer texture.Texture // TODO atomic
 
 	limits     image.Rectangle
 	limitsNTSC = image.Rect(0, 0, 640, 480).Add(image.Point{108, 35})
@@ -193,7 +195,9 @@ func SetFramebuffer(fb texture.Texture) {
 		regs.control.Store(control)
 	} else {
 		framebuffer = fb
-		updateFramebuffer()
+		if !VSync {
+			updateFramebuffer()
+		}
 	}
 }
 
