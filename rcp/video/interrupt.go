@@ -13,8 +13,8 @@ var VBlank rtos.Note
 
 // Consumed by interrupt handler
 var (
-	framebuffer = newIntrInput[texture.Texture]()
-	scale       = newIntrInput[image.Rectangle]()
+	framebuffer rcp.IntrInput[texture.Texture]
+	scale       rcp.IntrInput[image.Rectangle]
 )
 
 func init() {
