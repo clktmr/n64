@@ -55,3 +55,14 @@ func SetHandler(int InterruptFlag, handler func()) {
 		RCP.Enable(prio, 0)
 	}
 }
+
+func Handler(int InterruptFlag) func() {
+	irq := 0
+	for flag := InterruptFlag(1); flag != IntrLast; flag = flag << 1 {
+		if flag&int != 0 {
+			return handlers[irq]
+		}
+		irq += 1
+	}
+	return nil
+}

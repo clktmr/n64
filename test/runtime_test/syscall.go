@@ -2,7 +2,6 @@ package runtime_test
 
 import (
 	"embedded/rtos"
-	"image"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -11,12 +10,12 @@ import (
 
 	"github.com/clktmr/n64/drivers/carts/summercart64"
 	"github.com/clktmr/n64/rcp"
-	"github.com/clktmr/n64/rcp/texture"
-	"github.com/clktmr/n64/rcp/video"
+	"github.com/clktmr/n64/rcp/rdp"
 )
 
 var blocker atomic.Bool
 var sc64 *summercart64.SummerCart64
+var note rtos.Note
 
 //go:linkname cartHandler IRQ4_Handler
 //go:interrupthandler
@@ -25,13 +24,15 @@ func cartHandler() {
 	sc64.ClearInterrupt()
 }
 
+//go:nosplit
+//go:nowritebarrierrec
 func blockingHandler() {
-	video.Handler()
-	rcp.DisableInterrupts(rcp.IntrVideo)
+	rcp.ClearDPIntr()
 	start := time.Now()
 	for time.Since(start) < 5*time.Second && blocker.Load() == true {
 		// block
 	}
+	note.Wakeup()
 }
 
 func TestInterruptPrio(t *testing.T) {
@@ -69,21 +70,18 @@ func TestInterruptPrio(t *testing.T) {
 			}
 			blocker.Store(true)
 
-			t.Log("Press SummerCart64 button in the next 5 seconds")
+			rdpHandler := rcp.Handler(rcp.IntrRDP)
+			rcp.SetHandler(rcp.IntrRDP, blockingHandler)
+			t.Cleanup(func() {
+				rcp.SetHandler(rcp.IntrRDP, rdpHandler)
+			})
 
 			// generate single 5 second blocking low prio interrupt
+			t.Log("Press SummerCart64 button in the next 5 seconds")
 			start := time.Now()
-			video.SetupPAL(false, false)
-			video.SetFramebuffer(texture.NewNRGBA32(image.Rect(0, 0, 320, 240)))
-			rcp.DisableInterrupts(rcp.IntrVideo)
-			rcp.SetHandler(rcp.IntrVideo, blockingHandler)
-			rcp.EnableInterrupts(rcp.IntrVideo)
-			t.Cleanup(func() {
-				video.SetFramebuffer(nil)
-				rcp.DisableInterrupts(rcp.IntrVideo)
-				rcp.SetHandler(rcp.IntrVideo, video.Handler)
-				rcp.EnableInterrupts(rcp.IntrVideo)
-			})
+			note.Clear()
+			rdp.RDP.Push(rdp.Full)
+			note.Sleep(5 * time.Second)
 
 			if blocker.Load() == true {
 				t.Fatal("no button press detected")

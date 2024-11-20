@@ -32,13 +32,13 @@ var (
 )
 
 func init() {
-	rcp.SetHandler(rcp.IntrSerial, Handler)
+	rcp.SetHandler(rcp.IntrSerial, handler)
 	rcp.EnableInterrupts(rcp.IntrSerial)
 }
 
 //go:nosplit
 //go:nowritebarrierrec
-func Handler() {
+func handler() {
 	regs.status.Store(0) // clears interrupt
 
 	buf, _ := cmdBuffer.Load()

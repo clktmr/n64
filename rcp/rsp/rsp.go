@@ -22,13 +22,13 @@ func InterruptOnBreak(enable bool) {
 var IntBreak rtos.Note
 
 func init() {
-	rcp.SetHandler(rcp.IntrRSP, Handler)
+	rcp.SetHandler(rcp.IntrRSP, handler)
 	rcp.EnableInterrupts(rcp.IntrRSP)
 }
 
 //go:nosplit
 //go:nowritebarrierrec
-func Handler() {
+func handler() {
 	regs.status.Store(clrIntr)
 	IntBreak.Wakeup()
 }

@@ -57,6 +57,10 @@ func (dl *DisplayList) Flush() {
 	}
 }
 
+func (dl *DisplayList) Push(cmd Command) {
+	dl.push(cmd)
+}
+
 //go:nosplit
 func (dl *DisplayList) push(cmd Command) {
 	regs := regs // avoid multiple nilcheck() on regs

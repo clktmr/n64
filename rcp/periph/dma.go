@@ -274,12 +274,12 @@ func waitDMA() {
 }
 
 func init() {
-	rcp.SetHandler(rcp.IntrPeriph, Handler)
+	rcp.SetHandler(rcp.IntrPeriph, handler)
 	rcp.EnableInterrupts(rcp.IntrPeriph)
 }
 
 //go:nosplit
 //go:nowritebarrierrec
-func Handler() {
+func handler() {
 	regs.status.Store(clearInterrupt)
 }

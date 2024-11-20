@@ -18,7 +18,7 @@ var (
 )
 
 func init() {
-	rcp.SetHandler(rcp.IntrVideo, Handler)
+	rcp.SetHandler(rcp.IntrVideo, handler)
 	rcp.EnableInterrupts(rcp.IntrVideo)
 }
 
@@ -26,7 +26,7 @@ func init() {
 //
 //go:nosplit
 //go:nowritebarrierrec
-func Handler() {
+func handler() {
 	regs.vCurrent.Store(0) // clears interrupt
 
 	fb, _ := framebuffer.Load()

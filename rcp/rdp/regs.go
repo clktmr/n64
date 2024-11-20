@@ -65,13 +65,13 @@ type registers struct {
 var FullSync rtos.Note
 
 func init() {
-	rcp.SetHandler(rcp.IntrRDP, Handler)
+	rcp.SetHandler(rcp.IntrRDP, handler)
 	rcp.EnableInterrupts(rcp.IntrRDP)
 }
 
 //go:nosplit
 //go:nowritebarrierrec
-func Handler() {
+func handler() {
 	rcp.ClearDPIntr()
 	FullSync.Wakeup()
 }

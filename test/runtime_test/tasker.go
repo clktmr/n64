@@ -1,35 +1,26 @@
 package runtime_test
 
 import (
-	"image"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/clktmr/n64/rcp"
-	"github.com/clktmr/n64/rcp/texture"
-	"github.com/clktmr/n64/rcp/video"
+	"github.com/clktmr/n64/rcp/rdp"
 )
 
 var f float32
 
 func fpuClobber() {
-	video.Handler()
+	rcp.ClearDPIntr()
 	f += 0.33
 }
 
 func TestFPUPreemption(t *testing.T) {
-	rcp.DisableInterrupts(rcp.IntrVideo)
-	rcp.SetHandler(rcp.IntrVideo, fpuClobber)
-	rcp.EnableInterrupts(rcp.IntrVideo)
-
-	// generate some fpu using hardware interrupts
-	video.SetupPAL(false, false)
-	video.SetFramebuffer(texture.NewNRGBA32(image.Rect(0, 0, 320, 240)))
+	rdpHandler := rcp.Handler(rcp.IntrRDP)
+	rcp.SetHandler(rcp.IntrRDP, fpuClobber)
 	t.Cleanup(func() {
-		video.SetFramebuffer(nil)
-		rcp.DisableInterrupts(rcp.IntrVideo)
-		rcp.SetHandler(rcp.IntrVideo, video.Handler)
-		rcp.EnableInterrupts(rcp.IntrVideo)
+		rcp.SetHandler(rcp.IntrRDP, rdpHandler)
 	})
 
 	const numGoroutines = 10
@@ -48,7 +39,22 @@ func TestFPUPreemption(t *testing.T) {
 		}(float64(i))
 	}
 
+	// generate some fpu preemptions using hardware interrupts
+	done := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				rdp.RDP.Push(rdp.Full)
+				time.Sleep(time.Millisecond)
+			}
+		}
+	}()
+
 	wg.Wait()
+	done <- struct{}{}
 
 	for i, v := range results {
 		expected := float64(i) + 125000.0
