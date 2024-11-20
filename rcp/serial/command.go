@@ -23,11 +23,12 @@ const (
 	CmdRunChecksum
 )
 
+var mtx sync.Mutex
+
 // state shared with interrupt handler
 var (
 	cmdFinished rtos.Note
-	buf         []byte // FIXME atomic
-	mtx         sync.Mutex
+	cmdBuffer   rcp.IntrInput[[]byte]
 )
 
 func init() {
@@ -40,6 +41,7 @@ func init() {
 func Handler() {
 	regs.status.Store(0) // clears interrupt
 
+	buf, _ := cmdBuffer.Load()
 	if buf == nil {
 		return
 	}
@@ -84,12 +86,13 @@ func Run(block *CommandBlock) {
 	mtx.Lock()
 	defer func() { mtx.Unlock() }()
 
-	buf = block.buf[:pifRamSize]
+	buf := block.buf[:pifRamSize]
 	buf[len(buf)-1] = byte(block.cmd)
 
 	sendAddr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 
 	cmdFinished.Clear()
+	cmdBuffer.Store(buf)
 	cpu.WritebackSlice(buf)
 	regs.dramAddr.Store(uint32(sendAddr))
 	regs.pifWriteAddr.Store(pifRamAddr)
@@ -99,5 +102,5 @@ func Run(block *CommandBlock) {
 		panic("pif timeout")
 	}
 
-	buf = nil
+	cmdBuffer.Store(nil)
 }
