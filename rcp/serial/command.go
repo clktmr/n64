@@ -7,6 +7,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
@@ -28,6 +29,33 @@ var (
 	buf         []byte // FIXME atomic
 	mtx         sync.Mutex
 )
+
+func init() {
+	rcp.SetHandler(rcp.SerialInterface, Handler)
+	rcp.EnableInterrupts(rcp.SerialInterface)
+}
+
+//go:nosplit
+//go:nowritebarrierrec
+func Handler() {
+	regs.status.Store(0) // clears interrupt
+
+	if buf == nil {
+		return
+	}
+
+	if buf[pifRamSize-1] == 0x00 {
+		// DMA read finished
+		cmdFinished.Wakeup()
+	} else {
+		// DMA write finished, trigger read back
+		recvAddr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+
+		cpu.InvalidateSlice(buf)
+		regs.dramAddr.Store(uint32(recvAddr))
+		regs.pifReadAddr.Store(pifRamAddr)
+	}
+}
 
 type CommandBlock struct {
 	cmd pifCommand
@@ -72,26 +100,4 @@ func Run(block *CommandBlock) {
 	}
 
 	buf = nil
-}
-
-//go:nosplit
-//go:nowritebarrierrec
-func Handler() {
-	regs.status.Store(0) // clears interrupt
-
-	if buf == nil {
-		return
-	}
-
-	if buf[pifRamSize-1] == 0x00 {
-		// DMA read finished
-		cmdFinished.Wakeup()
-	} else {
-		// DMA write finished, trigger read back
-		recvAddr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-
-		cpu.InvalidateSlice(buf)
-		regs.dramAddr.Store(uint32(recvAddr))
-		regs.pifReadAddr.Store(pifRamAddr)
-	}
 }

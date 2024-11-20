@@ -1,12 +1,6 @@
 package rcp
 
 import (
-	"github.com/clktmr/n64/rcp/periph"
-	"github.com/clktmr/n64/rcp/rdp"
-	"github.com/clktmr/n64/rcp/rsp"
-	"github.com/clktmr/n64/rcp/serial"
-	"github.com/clktmr/n64/rcp/video"
-
 	"embedded/rtos"
 
 	_ "unsafe" // for linkname
@@ -24,17 +18,6 @@ var handlers = [6]func(){}
 
 func init() {
 	DisableInterrupts(^InterruptFlag(0))
-
-	handlers = [6]func(){
-		rsp.Handler,
-		serial.Handler,
-		nil,
-		video.Handler,
-		periph.Handler,
-		func() { regs.mode.Store(ClearDP); rdp.Handler() },
-	}
-
-	EnableInterrupts(SignalProcessor | DisplayProcessor | VideoInterface | SerialInterface)
 }
 
 //go:linkname rcpHandler IRQ3_Handler

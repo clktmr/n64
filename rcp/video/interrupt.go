@@ -4,6 +4,7 @@ import (
 	"embedded/rtos"
 	"image"
 
+	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
 )
@@ -15,6 +16,11 @@ var (
 	framebuffer = newIntrInput[texture.Texture]()
 	scale       = newIntrInput[image.Rectangle]()
 )
+
+func init() {
+	rcp.SetHandler(rcp.VideoInterface, Handler)
+	rcp.EnableInterrupts(rcp.VideoInterface)
+}
 
 // The handler is guaranteed to never be called with a nil framebuffer.
 //

@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
@@ -271,6 +272,11 @@ func waitDMA() {
 		}
 	}
 
+}
+
+func init() {
+	rcp.SetHandler(rcp.PeripheralInterface, Handler)
+	rcp.EnableInterrupts(rcp.PeripheralInterface)
 }
 
 //go:nosplit

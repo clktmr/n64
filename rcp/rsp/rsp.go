@@ -1,6 +1,10 @@
 package rsp
 
-import "embedded/rtos"
+import (
+	"embedded/rtos"
+
+	"github.com/clktmr/n64/rcp"
+)
 
 func Init() {
 	regs.status.Store(setHalt | clrSingleStep)
@@ -16,6 +20,11 @@ func InterruptOnBreak(enable bool) {
 }
 
 var IntBreak rtos.Note
+
+func init() {
+	rcp.SetHandler(rcp.SignalProcessor, Handler)
+	rcp.EnableInterrupts(rcp.SignalProcessor)
+}
 
 //go:nosplit
 //go:nowritebarrierrec

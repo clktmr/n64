@@ -87,6 +87,8 @@ func Interrupts() {
 	regs.mask.Load()
 }
 
+func ClearDPIntr() { regs.mode.Store(ClearDP) }
+
 func convertMask(mask InterruptFlag) InterruptFlag {
 	var wmask InterruptFlag
 	for i := SignalProcessor; i < InterruptFlagLast; i = i << 1 {

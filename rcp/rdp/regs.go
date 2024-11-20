@@ -8,6 +8,7 @@ import (
 	"embedded/rtos"
 	"unsafe"
 
+	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
@@ -61,12 +62,16 @@ type registers struct {
 }
 
 var FullSync rtos.Note
-var IrqCnt uint
+
+func init() {
+	rcp.SetHandler(rcp.DisplayProcessor, Handler)
+	rcp.EnableInterrupts(rcp.DisplayProcessor)
+}
 
 //go:nosplit
 //go:nowritebarrierrec
 func Handler() {
-	IrqCnt += 1
+	rcp.ClearDPIntr()
 	FullSync.Wakeup()
 }
 
