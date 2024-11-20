@@ -47,7 +47,7 @@ func TestFPUPreemption(t *testing.T) {
 			case <-done:
 				return
 			default:
-				rdp.RDP.Push(rdp.Full)
+				rdp.RDP.Push(rdp.SyncFull)
 				time.Sleep(time.Millisecond)
 			}
 		}

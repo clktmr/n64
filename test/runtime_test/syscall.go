@@ -80,7 +80,7 @@ func TestInterruptPrio(t *testing.T) {
 			t.Log("Press SummerCart64 button in the next 5 seconds")
 			start := time.Now()
 			note.Clear()
-			rdp.RDP.Push(rdp.Full)
+			rdp.RDP.Push(rdp.SyncFull)
 			note.Sleep(5 * time.Second)
 
 			if blocker.Load() == true {

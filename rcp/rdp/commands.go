@@ -14,12 +14,34 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
-type Command uint64
+type command uint64
+
+const (
+	// Waits until all previous commands have finished reading and writing
+	// to RDRAM.  Additionally raises the RDP interrupt.  Use to sync memory
+	// access between RDP and other components (e.g. switching framebuffers)
+	// or when changing RDPs RDRAM buffers (e.g. Render to texture).
+	SyncFull command = 0xe9 << 56
+
+	// Stalls pipeline for exactly 25 GCLK cycles.  Guarantees loading
+	// pipeline is safe for use.
+	SyncLoad command = 0xf1 << 56
+
+	// Stalls pipeline for exactly 50 GCLK cycles.  Guarantees any
+	// preceeding primitives have finished rendering and it's safe to change
+	// rendering modes.
+	SyncPipe command = 0xe7 << 56
+
+	// Stalls pipeline for exactly 33 GCLK cycles.  Guarantees that any
+	// preceding primitives have finished using tile information and
+	// it's safe to modify tile descriptors.
+	SyncTile command = 0xe8 << 56
+)
 
 type DisplayList struct {
 	state
 
-	commands   [64]Command
+	commands   [64]command
 	start, end uintptr
 }
 
@@ -51,18 +73,14 @@ func init() {
 
 func (dl *DisplayList) Flush() {
 	FullSync.Clear()
-	dl.push(Full)
+	dl.Push(SyncFull)
 	if !FullSync.Sleep(1 * time.Second) {
 		panic("rdp timeout")
 	}
 }
 
-func (dl *DisplayList) Push(cmd Command) {
-	dl.push(cmd)
-}
-
 //go:nosplit
-func (dl *DisplayList) push(cmd Command) {
+func (dl *DisplayList) Push(cmd command) {
 	regs := regs // avoid multiple nilcheck() on regs
 	retries := 0
 	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= uint32(dl.end) {
@@ -96,8 +114,8 @@ func (dl *DisplayList) SetColorImage(img texture.Texture) {
 
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
-	dl.push(((0xff << 56) | Command(img.Format()) | Command(img.BPP()) | Command(img.Stride()-1)<<32) |
-		Command(img.Addr()))
+	dl.Push(((0xff << 56) | command(img.Format()) | command(img.BPP()) | command(img.Stride()-1)<<32) |
+		command(img.Addr()))
 
 	dl.size = img.Bounds().Size()
 	dl.bbp = img.BPP()
@@ -107,7 +125,7 @@ func (dl *DisplayList) SetColorImage(img texture.Texture) {
 func (dl *DisplayList) SetDepthImage(addr uintptr) {
 	debug.Assert(addr%64 == 0, "rdp zbuffer must be 64 byte aligned")
 
-	dl.push(Command((0xfe << 56) | Command(cpu.PhysicalAddress(addr))))
+	dl.Push(command((0xfe << 56) | command(cpu.PhysicalAddress(addr))))
 }
 
 // Sets the image where LoadTile and LoadBlock will copy their data from.
@@ -116,8 +134,8 @@ func (dl *DisplayList) SetTextureImage(img texture.Texture) {
 	debug.Assert(img.Stride() <= 1<<9, "rdp texture width too big")
 
 	// according to wiki, format[23:21] has no effect
-	dl.push((0xfd << 56) | Command(img.BPP()) | Command(img.Stride()-1)<<32 |
-		Command(img.Addr()))
+	dl.Push((0xfd << 56) | command(img.BPP()) | command(img.Stride()-1)<<32 |
+		command(img.Addr()))
 }
 
 type TileDescFlags uint64
@@ -176,35 +194,35 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 		ts.Line = ts.Line >> 1
 	}
 
-	cmd := Command(0xf5<<56) | Command(ts.Format) | Command(ts.Size)
-	cmd |= Command(ts.Line)<<41 | Command(ts.Addr)<<32
-	cmd |= Command(ts.Idx)<<24 | Command(ts.Palette)<<20
-	cmd |= Command(ts.MaskT)<<14 | Command(ts.ShiftT)<<10
-	cmd |= Command(ts.MaskS)<<4 | Command(ts.ShiftS)
-	cmd |= Command(ts.Flags)
+	cmd := command(0xf5<<56) | command(ts.Format) | command(ts.Size)
+	cmd |= command(ts.Line)<<41 | command(ts.Addr)<<32
+	cmd |= command(ts.Idx)<<24 | command(ts.Palette)<<20
+	cmd |= command(ts.MaskT)<<14 | command(ts.ShiftT)<<10
+	cmd |= command(ts.MaskS)<<4 | command(ts.ShiftS)
+	cmd |= command(ts.Flags)
 
-	dl.push(Tile)
-	dl.push(cmd)
+	dl.Push(SyncTile)
+	dl.Push(cmd)
 }
 
 // Copies a tile into TMEM.  The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
-	dl.push(Tile)
+	dl.Push(SyncTile)
 
-	cmd := 0xf4<<56 | Command(r.Min.X)<<46 | Command(r.Min.Y)<<34
-	cmd |= Command(idx)<<24 | Command(r.Max.X-1)<<14 | Command(r.Max.Y-1)<<2
+	cmd := 0xf4<<56 | command(r.Min.X)<<46 | command(r.Min.Y)<<34
+	cmd |= command(idx)<<24 | command(r.Max.X-1)<<14 | command(r.Max.Y-1)<<2
 
-	dl.push(cmd)
+	dl.Push(cmd)
 }
 
 // Tile size is automatically set on LoadTile(), but can be overidden with
 // SetTileSize().
 func (dl *DisplayList) SetTileSize(idx uint8, r image.Rectangle) {
-	cmd := 0xf2<<56 | Command(r.Min.X)<<46 | Command(r.Min.Y)<<34
-	cmd |= Command(idx)<<24 | Command(r.Max.X-1)<<14 | Command(r.Max.Y-1)<<2
+	cmd := 0xf2<<56 | command(r.Min.X)<<46 | command(r.Min.Y)<<34
+	cmd |= command(idx)<<24 | command(r.Max.X-1)<<14 | command(r.Max.Y-1)<<2
 
-	dl.push(cmd)
+	dl.Push(cmd)
 }
 
 // Mode flags for the SetOtherModes() command.
@@ -345,12 +363,12 @@ func (dl *DisplayList) SetOtherModes(
 	}
 	dl.otherModes = m
 
-	dl.push(Pipe)
+	dl.Push(SyncPipe)
 
 	dl.SetScissor(dl.scissorSet, dl.interlace)
 
 	cmd := 0xef00_000f_0000_0000 | m
-	dl.push(Command(cmd))
+	dl.Push(command(cmd))
 }
 
 type InterlaceFrame uint64
@@ -377,10 +395,10 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
 	dl.scissorReal = r
 	dl.interlace = il
 
-	cmd := 0xed<<56 | Command(il)
-	cmd |= Command(r.Min.X<<46) | Command(r.Min.Y<<34) | Command(r.Max.X<<14) | Command(r.Max.Y<<2)
+	cmd := 0xed<<56 | command(il)
+	cmd |= command(r.Min.X<<46) | command(r.Min.Y<<34) | command(r.Max.X<<14) | command(r.Max.Y<<2)
 
-	dl.push(Command(cmd))
+	dl.Push(command(cmd))
 }
 
 // Sets the color for subsequent FillRectangle() calls.
@@ -391,7 +409,7 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	}
 	dl.fillColor = cRGBA
 
-	dl.push(Pipe)
+	dl.Push(SyncPipe)
 
 	r, g, b, a := uint32(dl.fillColor.R), uint32(dl.fillColor.G), uint32(dl.fillColor.B), uint32(dl.fillColor.A)
 	var ci uint32
@@ -405,7 +423,7 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	} else {
 		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")
 	}
-	dl.push(Command(0xf7<<56) | Command(ci))
+	dl.Push(command(0xf7<<56) | command(ci))
 }
 
 func (dl *DisplayList) SetBlendColor(c color.Color) {
@@ -415,11 +433,11 @@ func (dl *DisplayList) SetBlendColor(c color.Color) {
 	}
 	dl.blendColor = cRGBA
 
-	dl.push(Pipe)
+	dl.Push(SyncPipe)
 
-	dl.push(0xf9<<56 |
-		Command(dl.blendColor.R)<<24 | Command(dl.blendColor.G)<<16 |
-		Command(dl.blendColor.B)<<8 | Command(dl.blendColor.A))
+	dl.Push(0xf9<<56 |
+		command(dl.blendColor.R)<<24 | command(dl.blendColor.G)<<16 |
+		command(dl.blendColor.B)<<8 | command(dl.blendColor.A))
 }
 
 func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
@@ -429,9 +447,9 @@ func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
 	}
 	dl.primitiveColor = cRGBA
 
-	dl.push(0xfa<<56 |
-		Command(dl.primitiveColor.R)<<24 | Command(dl.primitiveColor.G)<<16 |
-		Command(dl.primitiveColor.B)<<8 | Command(dl.primitiveColor.A))
+	dl.Push(0xfa<<56 |
+		command(dl.primitiveColor.R)<<24 | command(dl.primitiveColor.G)<<16 |
+		command(dl.primitiveColor.B)<<8 | command(dl.primitiveColor.A))
 }
 
 func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
@@ -441,11 +459,11 @@ func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
 	}
 	dl.environmentColor = cRGBA
 
-	dl.push(Pipe)
+	dl.Push(SyncPipe)
 
-	dl.push(0xfb<<56 |
-		Command(dl.environmentColor.R)<<24 | Command(dl.environmentColor.G)<<16 |
-		Command(dl.environmentColor.B)<<8 | Command(dl.environmentColor.A))
+	dl.Push(0xfb<<56 |
+		command(dl.environmentColor.R)<<24 | command(dl.environmentColor.G)<<16 |
+		command(dl.environmentColor.B)<<8 | command(dl.environmentColor.A))
 }
 
 func (dl *DisplayList) SetCombineMode(m CombineMode) {
@@ -454,19 +472,19 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 	}
 	dl.combineMode = m
 
-	dl.push(Pipe)
+	dl.Push(SyncPipe)
 
-	cmd := Command(0xfc<<56 |
+	cmd := command(0xfc<<56 |
 		m.One.RGB.A<<52 | m.One.RGB.C<<47 |
 		m.One.Alpha.A<<44 | m.One.Alpha.C<<41 |
 		m.Two.RGB.A<<37 | m.Two.RGB.C<<32)
-	cmd |= Command(0x0 |
+	cmd |= command(0x0 |
 		m.One.RGB.B<<28 | m.Two.RGB.B<<24 |
 		m.Two.Alpha.A<<21 | m.Two.Alpha.C<<18 |
 		m.One.RGB.D<<15 | m.One.Alpha.B<<12 | m.One.Alpha.D<<9 |
 		m.Two.RGB.D<<6 | m.Two.Alpha.B<<3 | m.Two.Alpha.D)
 
-	dl.push(cmd)
+	dl.Push(cmd)
 }
 
 // Draws a rectangle filled with the color set by SetFillColor().
@@ -477,9 +495,9 @@ func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 		r.Max = r.Max.Sub(image.Point{1, 1})
 	}
 
-	cmd := 0xf6<<56 | Command(r.Max.X<<46) | Command(r.Max.Y<<34)
-	cmd |= Command(r.Min.X<<14) | Command(r.Min.Y<<2)
-	dl.push(cmd)
+	cmd := 0xf6<<56 | command(r.Max.X<<46) | command(r.Max.Y<<34)
+	cmd |= command(r.Min.X<<14) | command(r.Min.Y<<2)
+	dl.Push(cmd)
 }
 
 // Draws a textured rectangle.
@@ -492,34 +510,12 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 		r.Max = r.Max.Sub(image.Point{1, 1})
 	}
 
-	cmd := 0xe4<<56 | Command(r.Max.X)<<46 | Command(r.Max.Y)<<34
-	cmd |= Command(tileIdx)<<24 | Command(r.Min.X)<<14 | Command(r.Min.Y)<<2
-	dl.push(cmd)
-	dl.push(Command(p.X<<53) | Command(p.Y<<37) |
-		Command(((0x8000/scale.X)>>5)<<16|(0x8000/scale.Y)>>5))
+	cmd := 0xe4<<56 | command(r.Max.X)<<46 | command(r.Max.Y)<<34
+	cmd |= command(tileIdx)<<24 | command(r.Min.X)<<14 | command(r.Min.Y)<<2
+	dl.Push(cmd)
+	dl.Push(command(p.X<<53) | command(p.Y<<37) |
+		command(((0x8000/scale.X)>>5)<<16|(0x8000/scale.Y)>>5))
 }
-
-const (
-	// Waits until all previous commands have finished reading and writing
-	// to RDRAM.  Additionally raises the RDP interrupt.  Use to sync memory
-	// access between RDP and other components (e.g. switching framebuffers)
-	// or when changing RDPs RDRAM buffers (e.g. Render to texture).
-	Full Command = 0xe9 << 56
-
-	// Stalls pipeline for exactly 25 GCLK cycles.  Guarantees loading
-	// pipeline is safe for use.
-	Load Command = 0xf1 << 56
-
-	// Stalls pipeline for exactly 50 GCLK cycles.  Guarantees any
-	// preceeding primitives have finished rendering and it's safe to change
-	// rendering modes.
-	Pipe Command = 0xe7 << 56
-
-	// Stalls pipeline for exactly 33 GCLK cycles.  Guarantees that any
-	// preceding primitives have finished using tile information and
-	// it's safe to modify tile descriptors.
-	Tile Command = 0xe8 << 56
-)
 
 func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
 	size := 256 >> uint(bpp>>51)
