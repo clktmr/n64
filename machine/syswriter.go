@@ -1,5 +1,3 @@
-// Package machine is imported by the runtime and allows the target to implement
-// some hooks, most importantly rt0.
 package machine
 
 import (
