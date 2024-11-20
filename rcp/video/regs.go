@@ -9,6 +9,7 @@ import (
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
 )
@@ -84,6 +85,17 @@ var (
 	limitsNTSC = image.Rect(0, 0, 640, 480).Add(image.Point{108, 35})
 	limitsPAL  = image.Rect(0, 0, 640, 576).Add(image.Point{128, 45})
 )
+
+// Automatically configure video output based on detected console type.
+func Setup(interlace bool) {
+	switch machine.Video {
+	case machine.VideoPAL:
+		SetupPAL(interlace, false)
+	case machine.VideoNTSC:
+		SetupNTSC(interlace)
+
+	}
+}
 
 func SetupNTSC(interlace bool) {
 	fb := Framebuffer()
