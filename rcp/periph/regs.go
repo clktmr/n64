@@ -28,8 +28,8 @@ const (
 )
 
 type registers struct {
-	dramAddr mmio.U32
-	cartAddr mmio.U32
+	dramAddr mmio.R32[cpu.Addr]
+	cartAddr mmio.R32[cpu.Addr]
 	readLen  mmio.U32
 	writeLen mmio.U32
 	status   mmio.R32[statusFlags]

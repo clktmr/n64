@@ -25,7 +25,7 @@ const (
 // Devices must not have overlapping addresses, as they might cache bus
 // accessses.
 type Device struct {
-	addr uint32
+	addr cpu.Addr
 	size uint32
 	seek int32 // TODO rename offset, make uint32
 
@@ -37,18 +37,18 @@ type Device struct {
 	valid bool
 }
 
-func NewDevice(piAddr uintptr, size uint32) *Device {
-	addr := cpu.PhysicalAddress(piAddr)
+func NewDevice(piAddr cpu.Addr, size uint32) *Device {
+	addr := uint32(piAddr)
 	debug.Assert((addr >= piBus0Start && addr+size <= piBus0End) ||
 		(addr >= piBus1Start && addr+size <= piBus1End),
 		fmt.Sprintf("invalid PI bus address 0x%x", piAddr))
-	return &Device{addr, size, 0x0, 0, false}
+	return &Device{piAddr, size, 0x0, 0, false}
 }
 
 var ErrSeekOutOfRange = errors.New("seek out of range")
 
-func (v *Device) Addr() uintptr {
-	return uintptr(v.addr)
+func (v *Device) Addr() cpu.Addr {
+	return v.addr
 }
 
 func (v *Device) Size() int {
@@ -78,7 +78,7 @@ func (v *Device) Write(p []byte) (n int, err error) {
 	}
 
 	v.cacheWriteback()
-	dmaStore(uintptr(dmaAddr), pdma)
+	dmaStore(dmaAddr, pdma)
 	v.cacheInvalidate()
 
 	return
@@ -166,7 +166,7 @@ func (v *Device) Flush() {
 	waitDMA()
 }
 
-func (v *Device) assessTransfer(p []byte) (addr uintptr, dma []byte, head int, tail int) {
+func (v *Device) assessTransfer(p []byte) (addr cpu.Addr, dma []byte, head int, tail int) {
 	dma, head, tail = cpu.PaddedSlice(p)
 	if len(dma)&0x1 != 0 {
 		// If DMA end address isn't 2 byte aligned, fallback to mmio for
@@ -174,7 +174,7 @@ func (v *Device) assessTransfer(p []byte) (addr uintptr, dma []byte, head int, t
 		dma = dma[:len(dma)-1]
 		tail += 1
 	}
-	addr = uintptr(int32(v.addr) + v.seek + int32(head))
+	addr = v.addr + cpu.Addr(v.seek) + cpu.Addr(head)
 
 	if addr&0x1 != 0 {
 		// If DMA start address isn't 2 byte aligned there is no way to
@@ -187,7 +187,7 @@ func (v *Device) assessTransfer(p []byte) (addr uintptr, dma []byte, head int, t
 }
 
 func (v *Device) cacheTarget() *U32 {
-	return (*U32)(unsafe.Pointer(cpu.KSEG1 | uintptr(v.addr+uint32(v.seek&^0x3))))
+	return (*U32)(unsafe.Pointer(cpu.KSEG1 | uintptr(int32(v.addr)+(v.seek&^0x3))))
 }
 
 func (v *Device) cacheWriteback() {
@@ -216,7 +216,7 @@ func (v *Device) cacheRead() uint32 {
 }
 
 // Loads bytes from PI bus into RDRAM via DMA
-func dmaLoad(piAddr uintptr, p []byte) {
+func dmaLoad(piAddr cpu.Addr, p []byte) {
 	if len(p) == 0 {
 		return
 	}
@@ -230,7 +230,7 @@ func dmaLoad(piAddr uintptr, p []byte) {
 	waitDMA()
 
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
-	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
+	regs.cartAddr.Store(piAddr)
 
 	cpu.InvalidateSlice(p)
 
@@ -241,7 +241,7 @@ func dmaLoad(piAddr uintptr, p []byte) {
 }
 
 // Stores bytes from RDRAM to PI bus via DMA
-func dmaStore(piAddr uintptr, p []byte) {
+func dmaStore(piAddr cpu.Addr, p []byte) {
 	if len(p) == 0 {
 		return
 	}
@@ -255,7 +255,7 @@ func dmaStore(piAddr uintptr, p []byte) {
 	waitDMA()
 
 	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
-	regs.cartAddr.Store(cpu.PhysicalAddress(piAddr))
+	regs.cartAddr.Store(piAddr)
 
 	cpu.WritebackSlice(p)
 

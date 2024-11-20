@@ -93,7 +93,7 @@ func (dl *DisplayList) SetColorImage(img texture.Texture) {
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
 	dl.push(((0xff << 56) | Command(img.Format()) | Command(img.BPP()) | Command(img.Stride()-1)<<32) |
-		Command(cpu.PhysicalAddress(img.Addr())))
+		Command(img.Addr()))
 
 	dl.size = img.Bounds().Size()
 	dl.bbp = img.BPP()
@@ -113,7 +113,7 @@ func (dl *DisplayList) SetTextureImage(img texture.Texture) {
 
 	// according to wiki, format[23:21] has no effect
 	dl.push((0xfd << 56) | Command(img.BPP()) | Command(img.Stride()-1)<<32 |
-		Command(cpu.PhysicalAddress(img.Addr())))
+		Command(img.Addr()))
 }
 
 type TileDescFlags uint64

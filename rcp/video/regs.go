@@ -20,7 +20,7 @@ const baseAddr uintptr = cpu.KSEG1 | 0x0440_0000
 
 type registers struct {
 	control   mmio.U32
-	origin    mmio.U32
+	origin    mmio.R32[cpu.Addr]
 	width     mmio.U32
 	vIntr     mmio.U32
 	vCurrent  mmio.U32

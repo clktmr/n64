@@ -3,6 +3,8 @@ package texture
 import (
 	"image"
 	"image/draw"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 type ImageFormat uint64
@@ -27,7 +29,7 @@ const (
 type Texture interface {
 	image.Image
 
-	Addr() uintptr
+	Addr() cpu.Addr
 	Stride() int
 	Format() ImageFormat
 	BPP() BitDepth

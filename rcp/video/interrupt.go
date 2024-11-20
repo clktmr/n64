@@ -53,7 +53,7 @@ func Handler() {
 //
 //go:nosplit
 func updateFramebuffer(fb texture.Texture) {
-	addr := cpu.PhysicalAddress(fb.Addr())
+	addr := fb.Addr()
 	if regs.control.Load()&uint32(ControlSerrate) != 0 {
 		// Shift the framebuffer vertically based on current field.
 		yScale := regs.yScale.Load()
@@ -63,7 +63,7 @@ func updateFramebuffer(fb texture.Texture) {
 			// more than a pixel.
 			for yOffset >= 1024 {
 				yOffset -= 1024
-				addr += uint32(texture.PixelsToBytes(fb.Stride(), fb.BPP()))
+				addr += cpu.Addr(texture.PixelsToBytes(fb.Stride(), fb.BPP()))
 			}
 			yScale = (uint32(yOffset)<<16 | 0xffff&regs.yScale.Load())
 		} else { // even field

@@ -48,8 +48,9 @@ const (
 )
 
 type registers struct {
-	start   mmio.U32 // Physical start address of DMA transfer
-	end     mmio.U32 // Physical end address of DMA transfer
+	start mmio.R32[cpu.Addr] // Physical start address of DMA transfer
+	end   mmio.R32[cpu.Addr] // Physical end address of DMA transfer
+
 	current mmio.U32 // DMA transfer progress.  Address between start and end.  Read-only.
 	status  mmio.R32[statusFlags]
 	clock   mmio.U32 // 24-bit counter running at RCP frequency

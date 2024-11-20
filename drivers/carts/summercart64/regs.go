@@ -72,7 +72,7 @@ const (
 )
 
 var saveStorageParams = [...]struct {
-	addr uint32
+	addr cpu.Addr
 	size uint32
 }{
 	{0x0800_0000, 0},
@@ -98,7 +98,7 @@ func Probe() *SummerCart64 {
 		s := &SummerCart64{}
 		if st, err := s.Config(CfgSaveType); err == nil {
 			params := saveStorageParams[st]
-			s.saveStorage = *periph.NewDevice(uintptr(params.addr), params.size)
+			s.saveStorage = *periph.NewDevice(params.addr, params.size)
 		}
 		return s
 	}
