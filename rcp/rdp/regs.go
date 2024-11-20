@@ -64,8 +64,8 @@ type registers struct {
 var FullSync rtos.Note
 
 func init() {
-	rcp.SetHandler(rcp.DisplayProcessor, Handler)
-	rcp.EnableInterrupts(rcp.DisplayProcessor)
+	rcp.SetHandler(rcp.IntrRDP, Handler)
+	rcp.EnableInterrupts(rcp.IntrRDP)
 }
 
 //go:nosplit

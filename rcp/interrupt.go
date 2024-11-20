@@ -26,7 +26,7 @@ func rcpHandler() {
 	pending := regs.interrupt.Load()
 	mask := regs.mask.Load()
 	irq := 0
-	for flag := InterruptFlag(1); flag != InterruptFlagLast; flag = flag << 1 {
+	for flag := InterruptFlag(1); flag != IntrLast; flag = flag << 1 {
 		if flag&pending != 0 && flag&mask != 0 {
 			handler := handlers[irq]
 			if handler == nil {
@@ -43,7 +43,7 @@ func SetHandler(int InterruptFlag, handler func()) {
 	RCP.Disable(0)
 
 	irq := 0
-	for flag := InterruptFlag(1); flag != InterruptFlagLast; flag = flag << 1 {
+	for flag := InterruptFlag(1); flag != IntrLast; flag = flag << 1 {
 		if flag&int != 0 {
 			handlers[irq] = handler
 			break

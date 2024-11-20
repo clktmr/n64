@@ -275,8 +275,8 @@ func waitDMA() {
 }
 
 func init() {
-	rcp.SetHandler(rcp.PeripheralInterface, Handler)
-	rcp.EnableInterrupts(rcp.PeripheralInterface)
+	rcp.SetHandler(rcp.IntrPeriph, Handler)
+	rcp.EnableInterrupts(rcp.IntrPeriph)
 }
 
 //go:nosplit

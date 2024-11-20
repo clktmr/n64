@@ -31,8 +31,8 @@ var (
 )
 
 func init() {
-	rcp.SetHandler(rcp.SerialInterface, Handler)
-	rcp.EnableInterrupts(rcp.SerialInterface)
+	rcp.SetHandler(rcp.IntrSerial, Handler)
+	rcp.EnableInterrupts(rcp.IntrSerial)
 }
 
 //go:nosplit

@@ -22,8 +22,8 @@ func InterruptOnBreak(enable bool) {
 var IntBreak rtos.Note
 
 func init() {
-	rcp.SetHandler(rcp.SignalProcessor, Handler)
-	rcp.EnableInterrupts(rcp.SignalProcessor)
+	rcp.SetHandler(rcp.IntrRSP, Handler)
+	rcp.EnableInterrupts(rcp.IntrRSP)
 }
 
 //go:nosplit

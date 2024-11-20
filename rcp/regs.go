@@ -19,14 +19,14 @@ const baseAddr uintptr = cpu.KSEG1 | 0x0430_0000
 type InterruptFlag uint32
 
 const (
-	SignalProcessor     InterruptFlag = 1 << iota // RSP breakpoint or software interrupt
-	SerialInterface                               // SI DMA to/from PIF RAM finished
-	AudioInterface                                // playback of audio buffer started
-	VideoInterface                                // VBlank, line configurable with video.regs.vInt
-	PeripheralInterface                           // PI bus DMA tranfer finished
-	DisplayProcessor                              // RDP full sync (see FULL_SYNC command)
+	IntrRSP    InterruptFlag = 1 << iota // RSP breakpoint or software interrupt
+	IntrSerial                           // SI DMA to/from PIF RAM finished
+	IntrAudio                            // playback of audio buffer started
+	IntrVideo                            // VBlank, line configurable with video.regs.vInt
+	IntrPeriph                           // PI bus DMA tranfer finished
+	IntrRDP                              // RDP full sync (see FULL_SYNC command)
 
-	InterruptFlagLast
+	IntrLast
 )
 
 type ModeFlag uint32
@@ -91,7 +91,7 @@ func ClearDPIntr() { regs.mode.Store(ClearDP) }
 
 func convertMask(mask InterruptFlag) InterruptFlag {
 	var wmask InterruptFlag
-	for i := SignalProcessor; i < InterruptFlagLast; i = i << 1 {
+	for i := IntrRSP; i < IntrLast; i = i << 1 {
 		if mask&i != 0 {
 			wmask |= i * i
 		}

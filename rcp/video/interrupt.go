@@ -18,8 +18,8 @@ var (
 )
 
 func init() {
-	rcp.SetHandler(rcp.VideoInterface, Handler)
-	rcp.EnableInterrupts(rcp.VideoInterface)
+	rcp.SetHandler(rcp.IntrVideo, Handler)
+	rcp.EnableInterrupts(rcp.IntrVideo)
 }
 
 // The handler is guaranteed to never be called with a nil framebuffer.

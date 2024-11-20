@@ -27,7 +27,7 @@ func cartHandler() {
 
 func blockingHandler() {
 	video.Handler()
-	rcp.DisableInterrupts(rcp.VideoInterface)
+	rcp.DisableInterrupts(rcp.IntrVideo)
 	start := time.Now()
 	for time.Since(start) < 5*time.Second && blocker.Load() == true {
 		// block
@@ -75,14 +75,14 @@ func TestInterruptPrio(t *testing.T) {
 			start := time.Now()
 			video.SetupPAL(false, false)
 			video.SetFramebuffer(texture.NewNRGBA32(image.Rect(0, 0, 320, 240)))
-			rcp.DisableInterrupts(rcp.VideoInterface)
-			rcp.SetHandler(rcp.VideoInterface, blockingHandler)
-			rcp.EnableInterrupts(rcp.VideoInterface)
+			rcp.DisableInterrupts(rcp.IntrVideo)
+			rcp.SetHandler(rcp.IntrVideo, blockingHandler)
+			rcp.EnableInterrupts(rcp.IntrVideo)
 			t.Cleanup(func() {
 				video.SetFramebuffer(nil)
-				rcp.DisableInterrupts(rcp.VideoInterface)
-				rcp.SetHandler(rcp.VideoInterface, video.Handler)
-				rcp.EnableInterrupts(rcp.VideoInterface)
+				rcp.DisableInterrupts(rcp.IntrVideo)
+				rcp.SetHandler(rcp.IntrVideo, video.Handler)
+				rcp.EnableInterrupts(rcp.IntrVideo)
 			})
 
 			if blocker.Load() == true {
