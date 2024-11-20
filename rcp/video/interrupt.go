@@ -30,6 +30,9 @@ func Handler() {
 	regs.vCurrent.Store(0) // clears interrupt
 
 	fb, _ := framebuffer.Load()
+	if fb == nil { // only needed for Ares
+		return
+	}
 
 	// update scale if it was changed
 	if r, updated := scale.Load(); updated {
