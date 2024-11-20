@@ -144,14 +144,29 @@ func Scale() image.Rectangle {
 
 // SetScale sets and returns the rectangle which contains the video output.  If
 // r's dimensions exceed the limits of the screen it will be shrunk, possibly
-// changing aspect ratio.  If r's offset exceeds the screen's limits, it will be
-// shifted accordingly.  The new scale will be applied during the next vblank.
+// changing aspect ratio.  If r's dimensions result in exceeding scaling limits
+// it will be enlarged, possibly changing aspect ratio.  If r's offset exceeds
+// the screen's limits, it will be shifted accordingly.  The new scale will be
+// applied during the next vblank.
 func SetScale(r image.Rectangle) image.Rectangle {
+	r = r.Canon()
 	if r.Dx() > limits.Dx() {
 		r.Max.X -= r.Dx() - limits.Dx()
 	}
 	if r.Dy() > limits.Dy() {
 		r.Max.Y -= r.Dy() - limits.Dy()
+	}
+
+	minSize := limits.Size()
+	if fb := Framebuffer(); fb != nil {
+		minSize = fb.Bounds().Size()
+	}
+	minSize = minSize.Div(4).Mul(3) // best guess
+	if r.Dx() < minSize.X {
+		r.Max.X += minSize.X - r.Dx()
+	}
+	if r.Dy() < minSize.Y {
+		r.Max.Y += minSize.Y - r.Dy()
 	}
 
 	var shift image.Point
@@ -181,14 +196,15 @@ func SetFramebuffer(fb texture.Texture) {
 			control |= uint32(ControlSerrate)
 		}
 
-		fbSize := fb.Bounds().Size()
-		videoSize := Scale().Size()
 		regs.control.Store(0)
+
+		framebuffer.Store(fb)
+		fbSize := fb.Bounds().Size()
+		videoSize := SetScale(Scale()).Size()
 		regs.xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
 		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
 		regs.width.Store(uint32(fb.Stride()))
 
-		framebuffer.Store(fb)
 		updateFramebuffer(fb)
 		regs.control.Store(control)
 	} else {
