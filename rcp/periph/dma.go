@@ -2,7 +2,6 @@ package periph
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"unsafe"
 
@@ -41,7 +40,7 @@ func NewDevice(piAddr cpu.Addr, size uint32) *Device {
 	addr := uint32(piAddr)
 	debug.Assert((addr >= piBus0Start && addr+size <= piBus0End) ||
 		(addr >= piBus1Start && addr+size <= piBus1End),
-		fmt.Sprintf("invalid PI bus address 0x%x", piAddr))
+		"invalid pi bus address")
 	return &Device{piAddr, size, 0x0, 0, false}
 }
 
