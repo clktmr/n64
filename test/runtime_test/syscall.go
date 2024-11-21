@@ -20,6 +20,9 @@ var note rtos.Note
 //go:linkname cartHandler IRQ4_Handler
 //go:interrupthandler
 func cartHandler() {
+	if sc64 == nil {
+		panic("sc64 not initialized")
+	}
 	blocker.Store(false)
 	sc64.ClearInterrupt()
 }
@@ -73,6 +76,10 @@ func TestInterruptPrio(t *testing.T) {
 			rdpHandler := rcp.Handler(rcp.IntrRDP)
 			rcp.SetHandler(rcp.IntrRDP, blockingHandler)
 			t.Cleanup(func() {
+				_, err = sc64.SetConfig(summercart64.CfgButtonMode, summercart64.ButtonModeDisabled)
+				if err != nil {
+					t.Fatal(err)
+				}
 				rcp.SetHandler(rcp.IntrRDP, rdpHandler)
 			})
 
