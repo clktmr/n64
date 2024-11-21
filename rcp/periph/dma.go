@@ -1,8 +1,6 @@
 package periph
 
 import (
-	"unsafe"
-
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -25,7 +23,7 @@ func dmaLoad(piAddr cpu.Addr, p []byte) {
 		return
 	}
 
-	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	addr := cpu.PhysicalAddressSlice(p)
 	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
 	debug.Assert(len(p)%2 == 0, "PI end address unaligned")
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
@@ -33,7 +31,7 @@ func dmaLoad(piAddr cpu.Addr, p []byte) {
 
 	waitDMA()
 
-	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
+	regs.dramAddr.Store(addr)
 	regs.cartAddr.Store(piAddr)
 
 	cpu.InvalidateSlice(p)
@@ -50,7 +48,7 @@ func dmaStore(piAddr cpu.Addr, p []byte) {
 		return
 	}
 
-	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	addr := cpu.PhysicalAddressSlice(p)
 	debug.Assert(piAddr%2 == 0, "PI start address unaligned")
 	debug.Assert(len(p)%2 == 0, "PI end address unaligned")
 	debug.Assert(cpu.IsPadded(p), "Unpadded destination slice")
@@ -58,7 +56,7 @@ func dmaStore(piAddr cpu.Addr, p []byte) {
 
 	waitDMA()
 
-	regs.dramAddr.Store(cpu.PhysicalAddress(addr))
+	regs.dramAddr.Store(addr)
 	regs.cartAddr.Store(piAddr)
 
 	cpu.WritebackSlice(p)

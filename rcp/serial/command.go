@@ -5,7 +5,6 @@ import (
 	"io"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -51,10 +50,8 @@ func handler() {
 		cmdFinished.Wakeup()
 	} else {
 		// DMA write finished, trigger read back
-		recvAddr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-
 		cpu.InvalidateSlice(buf)
-		regs.dramAddr.Store(uint32(recvAddr))
+		regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
 		regs.pifReadAddr.Store(pifRamAddr)
 	}
 }
@@ -89,12 +86,10 @@ func Run(block *CommandBlock) {
 	buf := block.buf[:pifRamSize]
 	buf[len(buf)-1] = byte(block.cmd)
 
-	sendAddr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-
 	cmdFinished.Clear()
 	cmdBuffer.Store(buf)
 	cpu.WritebackSlice(buf)
-	regs.dramAddr.Store(uint32(sendAddr))
+	regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
 	regs.pifWriteAddr.Store(pifRamAddr)
 
 	// Wait until message was received

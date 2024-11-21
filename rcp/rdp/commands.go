@@ -83,7 +83,7 @@ func (dl *DisplayList) Flush() {
 func (dl *DisplayList) Push(cmd command) {
 	regs := regs // avoid multiple nilcheck() on regs
 	retries := 0
-	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= uint32(dl.end) {
+	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= cpu.PhysicalAddress(dl.end) {
 		if retries += 1; retries > 1024*1024 { // wait max ~1 sec
 			panic("rdp stall")
 		}

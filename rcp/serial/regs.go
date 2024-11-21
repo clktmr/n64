@@ -18,8 +18,8 @@ var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 const baseAddr uintptr = cpu.KSEG1 | 0x0480_0000
 
 const (
-	pifRamAddr uint32 = 0x1fc0_07c0
-	pifRamSize        = 64
+	pifRamAddr cpu.Addr = 0x1fc0_07c0
+	pifRamSize          = 64
 )
 
 type statusFlags uint32
@@ -30,11 +30,11 @@ const (
 )
 
 type registers struct {
-	dramAddr       mmio.U32
-	pifReadAddr    mmio.U32 // Writing triggers the actual joybus exchange
-	pifWriteAddr4B mmio.U32
+	dramAddr       mmio.R32[cpu.Addr]
+	pifReadAddr    mmio.R32[cpu.Addr] // Writing triggers the actual joybus exchange
+	pifWriteAddr4B mmio.R32[cpu.Addr]
 	_              mmio.U32
-	pifWriteAddr   mmio.U32
-	pifReadAddr4B  mmio.U32
+	pifWriteAddr   mmio.R32[cpu.Addr]
+	pifReadAddr4B  mmio.R32[cpu.Addr]
 	status         mmio.R32[statusFlags]
 }

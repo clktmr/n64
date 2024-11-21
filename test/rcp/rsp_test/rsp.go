@@ -24,8 +24,8 @@ func TestDMA(t *testing.T) {
 	}
 
 	shift := 0x20
-	result = rsp.DMALoad(0x100+uintptr(shift), len(testdata)-shift, rsp.DMEM)
-	if !bytes.Equal(testdata[shift:len(testdata)], result) {
+	result = rsp.DMALoad(0x100+cpu.Addr(shift), len(testdata)-shift, rsp.DMEM)
+	if !bytes.Equal(testdata[shift:], result) {
 		t.Error("exptected to read part of same data back that was written")
 	}
 }

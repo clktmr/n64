@@ -2,7 +2,6 @@ package rsp
 
 import (
 	"runtime"
-	"unsafe"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -11,13 +10,12 @@ import (
 // TODO protect access to DMA with mutex
 
 // Loads bytes from RSP IMEM/DMEM into RDRAM via DMA
-func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
+func DMALoad(rspAddr cpu.Addr, size int, bank memoryBank) []byte {
 	debug.Assert(rspAddr%8 == 0, "rsp: unaligned dma load")
 
 	buf := cpu.MakePaddedSlice[byte](size)
-	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-	regs.rdramAddr.Store(uint32(addr))
-	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr))
+	regs.rdramAddr.Store(cpu.PhysicalAddressSlice(buf))
+	regs.rspAddr.Store((cpu.PhysicalAddress(uintptr(bank)) + rspAddr))
 
 	cpu.InvalidateSlice(buf)
 
@@ -29,14 +27,13 @@ func DMALoad(rspAddr uintptr, size int, bank memoryBank) []byte {
 }
 
 // Stores bytes from RDRAM to RSP IMEM/DMEM via DMA
-func DMAStore(rspAddr uintptr, p []byte, bank memoryBank) {
+func DMAStore(rspAddr cpu.Addr, p []byte, bank memoryBank) {
 	debug.Assert(rspAddr%8 == 0, "rsp: unaligned dma store")
 
 	p = cpu.CopyPaddedSlice(p)
 
-	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
-	regs.rdramAddr.Store(uint32(addr))
-	regs.rspAddr.Store(uint32(uintptr(bank) + rspAddr))
+	regs.rdramAddr.Store(cpu.PhysicalAddressSlice(p))
+	regs.rspAddr.Store((cpu.PhysicalAddress(uintptr(bank)) + rspAddr))
 
 	cpu.WritebackSlice(p)
 

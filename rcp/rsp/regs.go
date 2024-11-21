@@ -69,8 +69,8 @@ const (
 )
 
 type registers struct {
-	rspAddr   mmio.U32
-	rdramAddr mmio.U32
+	rspAddr   mmio.R32[cpu.Addr]
+	rdramAddr mmio.R32[cpu.Addr]
 	readLen   mmio.U32
 	writeLen  mmio.U32
 	status    mmio.R32[statusFlags]
