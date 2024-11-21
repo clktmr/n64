@@ -66,6 +66,8 @@ func dmaStore(piAddr cpu.Addr, p []byte) {
 }
 
 // Blocks until DMA has finished.
+//
+//go:nosplit
 func waitDMA() {
 	for {
 		// TODO runtime.Gosched() ?

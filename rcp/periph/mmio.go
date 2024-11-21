@@ -16,26 +16,31 @@ type R32[T mmio.T32] struct {
 	r mmio.R32[T]
 }
 
+//go:nosplit
 func (r *R32[T]) Store(v T) {
 	waitDMA()
 	r.r.Store(v)
 }
 
+//go:nosplit
 func (r *R32[T]) Load() T {
 	waitDMA()
 	return r.r.Load()
 }
 
+//go:nosplit
 func (r *R32[T]) StoreBits(mask T, bits T) {
 	waitDMA()
 	r.r.StoreBits(mask, bits)
 }
 
+//go:nosplit
 func (r *R32[T]) LoadBits(mask T) T {
 	waitDMA()
 	return r.r.LoadBits(mask)
 }
 
+//go:nosplit
 func (r *R32[T]) Addr() uintptr {
 	return r.r.Addr()
 }
