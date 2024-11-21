@@ -44,3 +44,55 @@ func (p *IntrInput[T]) Load() (v T, updated bool) {
 	p.current = ptr
 	return p.bufs[p.current], true
 }
+
+// IntrQueue queues any value safely into an interrupt context.  Multiple writer
+// goroutines and a single reader are allowed.  The reader must not be
+// preemptible by the writers, i.e. an interrupt.
+type IntrQueue[T any] struct {
+	ring              [32]T
+	start, end, write atomic.Int32
+}
+
+func (p *IntrQueue[T]) Push(v T) (ok bool) {
+retry:
+	start := p.start.Load()
+	end := p.end.Load()
+	next := (end + 1) % int32(len(p.ring))
+	if next == start {
+		return false
+	}
+
+	if !p.write.CompareAndSwap(end, next) {
+		goto retry
+	}
+
+	p.ring[next] = v
+
+	if !p.end.CompareAndSwap(end, next) {
+		panic("queue corrupted")
+	}
+	return true
+}
+
+//go:nosplit
+func (p *IntrQueue[T]) Pop() (v T, ok bool) {
+	start := p.start.Load()
+	end := p.end.Load()
+	if end == start {
+		return v, false
+	}
+
+	v = p.ring[start]
+	ok = true
+
+	// Write zero value in the unused buffer to avoid holding hidden
+	// references that might prevent freeing memory.
+	var zero T
+	p.ring[start] = zero
+
+	if !p.start.CompareAndSwap(start, (start+1)%int32(len(p.ring))) {
+		panic("multiple readers")
+	}
+
+	return
+}
