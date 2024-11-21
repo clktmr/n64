@@ -1,7 +1,7 @@
 package machine
 
 //go:nosplit
-func Exception(cause, epc, status, badvaddr, sp uint64) {
+func Exception(cause, epc, status, badvaddr, ra uint64) {
 	var buf [16]byte
 	DefaultWrite(0, []byte("UNHANDLED EXCEPTION"))
 	DefaultWrite(0, []byte("\ncause    0x"))
@@ -12,8 +12,8 @@ func Exception(cause, epc, status, badvaddr, sp uint64) {
 	DefaultWrite(0, itoa(buf[:], status))
 	DefaultWrite(0, []byte("\nbadvaddr 0x"))
 	DefaultWrite(0, itoa(buf[:], badvaddr))
-	DefaultWrite(0, []byte("\nsp       0x"))
-	DefaultWrite(0, itoa(buf[:], sp))
+	DefaultWrite(0, []byte("\nra       0x"))
+	DefaultWrite(0, itoa(buf[:], ra))
 	DefaultWrite(0, []byte("\n"))
 }
 

@@ -5,6 +5,7 @@
 #include "asm_mips64.h"
 
 TEXT runtime·unhandledException(SB),NOSPLIT|NOFRAME,$0
+	SUB   $48, R29
 	MOVV  M(C0_CAUSE), R26
 	MOVV  R26, 8(R29)
 	MOVV  M(C0_EPC), R26
