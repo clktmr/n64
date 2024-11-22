@@ -62,6 +62,7 @@ func CopyPaddedSlice[T Paddable](slice []T) []T {
 
 // Add padding to a given slice by shrinking it.  Returns the number of
 // discarded elements at the beginnning of the slice as second return value.
+// TODO Review
 func PaddedSlice[T Paddable](buf []T) ([]T, int, int) {
 	var t T
 	start := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
@@ -72,6 +73,7 @@ func PaddedSlice[T Paddable](buf []T) ([]T, int, int) {
 		return buf[:0], 0, len(buf)
 	}
 	tail = max(0, tail-(cap(buf)-len(buf)))
+	head = min(head, len(buf)-tail)
 	return buf[head : len(buf)-tail], head, tail
 }
 

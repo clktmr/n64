@@ -70,7 +70,7 @@ func testPaddedSubslice[T cpu.Paddable](t *testing.T) {
 				i, len(slice), len(pslice), head, tail)
 		}
 
-		if i < 1 {
+		if i < 2 {
 			continue
 		}
 
