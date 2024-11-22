@@ -75,6 +75,17 @@ retry:
 }
 
 //go:nosplit
+func (p *IntrQueue[T]) Peek() (v T, ok bool) {
+	start := p.start.Load()
+	end := p.end.Load()
+	if end == start {
+		return v, false
+	}
+
+	return p.ring[start], true
+}
+
+//go:nosplit
 func (p *IntrQueue[T]) Pop() (v T, ok bool) {
 	start := p.start.Load()
 	end := p.end.Load()
