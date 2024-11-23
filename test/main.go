@@ -3,13 +3,13 @@ package main
 import (
 	"embedded/arch/r4000/systim"
 	"embedded/rtos"
+	"fmt"
 	"os"
 	"reflect"
 	"runtime"
 	"syscall"
 	"testing"
 
-	"github.com/clktmr/n64/drivers"
 	"github.com/clktmr/n64/drivers/carts"
 	"github.com/clktmr/n64/drivers/carts/isviewer"
 	_ "github.com/clktmr/n64/machine"
@@ -38,16 +38,6 @@ func init() {
 		panic("no logging peripheral found")
 	}
 
-	// The default writer is a failsafe ISViewer implementation, which will
-	// print panics.  Only change the SystemWriter if we have no ISViewer.
-	// TODO why do the other SystemWriters not print during panic?
-	if _, ok := cart.(*isviewer.ISViewer); !ok {
-		rtos.SetSystemWriter(drivers.NewSystemWriter(cart))
-		println()
-		println("WARN: no isviewer found, panics might not be printed")
-		println()
-	}
-
 	console := termfs.NewLight("termfs", nil, cart)
 	rtos.Mount(console, "/dev/console")
 	os.Stdout, err = os.OpenFile("/dev/console", syscall.O_WRONLY, 0)
@@ -55,6 +45,12 @@ func init() {
 		panic(err)
 	}
 	os.Stderr = os.Stdout
+
+	// The default syswriter is a failsafe ISViewer implementation, which
+	// will print panics.
+	if isviewer.Probe() == nil {
+		fmt.Print("\nWARN: no isviewer found, print() and panic() won't printed\n\n")
+	}
 }
 
 func main() {
