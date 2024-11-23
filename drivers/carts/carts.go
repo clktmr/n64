@@ -13,13 +13,13 @@ type Cart interface {
 }
 
 func ProbeAll() (c Cart) {
-	if isv := isviewer.Probe(); isv != nil {
-		c = isv
+	if sc64 := summercart64.Probe(); sc64 != nil {
+		c = sc64
 	} else if ed64 := everdrive64.Probe(); ed64 != nil {
 		// TODO should return the cart
 		c = everdrive64.NewUNFLoader(ed64)
-	} else if sc64 := summercart64.Probe(); sc64 != nil {
-		c = sc64
+	} else if isv := isviewer.Probe(); isv != nil {
+		c = isv
 	}
 	return
 }
