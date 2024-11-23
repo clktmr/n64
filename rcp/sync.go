@@ -1,7 +1,9 @@
 package rcp
 
 import (
+	"embedded/rtos"
 	"sync/atomic"
+	"time"
 )
 
 // IntrInput passes any value safely into an interrupt context.  Only a single
@@ -45,65 +47,77 @@ func (p *IntrInput[T]) Load() (v T, updated bool) {
 	return p.bufs[p.current], true
 }
 
+const qsize = 32
+
 // IntrQueue queues any value safely into an interrupt context.  Multiple writer
 // goroutines and a single reader are allowed.  The reader must not be
 // preemptible by the writers, i.e. an interrupt.
 type IntrQueue[T any] struct {
-	ring              [32]T
+	ring              [qsize]T
+	popped            [qsize]rtos.Note
 	start, end, write atomic.Int32
 }
 
-func (p *IntrQueue[T]) Push(v T) (ok bool) {
+// Push returns a cleared note that gets woken up when the item is popped by the
+// interrupt handler.
+func (p *IntrQueue[T]) Push(v T) (popped *rtos.Note) {
 retry:
 	start := p.start.Load()
 	end := p.end.Load()
 	next := (end + 1) % int32(len(p.ring))
 	if next == start {
-		return false
+		if !p.popped[start].Sleep(1 * time.Second) {
+			panic("intr queue timeout")
+		}
 	}
 
 	if !p.write.CompareAndSwap(end, next) {
 		goto retry
 	}
 
-	p.ring[next] = v
+	p.ring[end] = v
+	popped = &p.popped[end]
+	popped.Clear()
 
 	if !p.end.CompareAndSwap(end, next) {
-		panic("queue corrupted")
+		panic("intr queue corrupted")
 	}
-	return true
+	return
 }
 
 //go:nosplit
-func (p *IntrQueue[T]) Peek() (v T, ok bool) {
+func (p *IntrQueue[T]) Peek() (v *T, ok bool) {
 	start := p.start.Load()
 	end := p.end.Load()
 	if end == start {
 		return v, false
 	}
 
-	return p.ring[start], true
+	return &p.ring[start], true
 }
 
 //go:nosplit
-func (p *IntrQueue[T]) Pop() (v T, ok bool) {
+func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 	start := p.start.Load()
 	end := p.end.Load()
 	if end == start {
 		return v, false
 	}
 
-	v = p.ring[start]
+	v = &p.ring[start]
 	ok = true
 
 	// Write zero value in the unused buffer to avoid holding hidden
 	// references that might prevent freeing memory.
-	var zero T
-	p.ring[start] = zero
+	// TODO not possible due to go:nowritebarrierrec
+	// var zero T
+	// p.ring[start] = zero
 
 	if !p.start.CompareAndSwap(start, (start+1)%int32(len(p.ring))) {
 		panic("multiple readers")
 	}
+
+	p.popped[start].Wakeup()
 
 	return
 }
