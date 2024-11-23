@@ -44,3 +44,13 @@ func (r *R32[T]) LoadBits(mask T) T {
 func (r *R32[T]) Addr() uintptr {
 	return r.r.Addr()
 }
+
+// Blocks until DMA and IO is not busy.
+// TODO Looks racy.  Understand this better.  Why is it necessary?
+//
+//go:nosplit
+func waitDMA() {
+	for regs.status.Load()&(dmaBusy|ioBusy) != 0 {
+		// wait
+	}
+}

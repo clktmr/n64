@@ -1,8 +1,10 @@
 package periph
 
 import (
+	"embedded/rtos"
 	"errors"
 	"io"
+	"time"
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
@@ -33,6 +35,8 @@ type Device struct {
 	// each byte write, which breaks if the read op returns garbage.
 	cache uint32
 	valid bool
+
+	flushed *rtos.Note
 }
 
 func NewDevice(piAddr cpu.Addr, size uint32) *Device {
@@ -40,7 +44,7 @@ func NewDevice(piAddr cpu.Addr, size uint32) *Device {
 	debug.Assert((addr >= piBus0Start && addr+size <= piBus0End) ||
 		(addr >= piBus1Start && addr+size <= piBus1End),
 		"invalid pi bus address")
-	return &Device{piAddr, size, 0x0, 0, false}
+	return &Device{piAddr, size, 0x0, 0, false, nil}
 }
 
 var ErrSeekOutOfRange = errors.New("seek out of range")
@@ -75,9 +79,11 @@ func (v *Device) Write(p []byte) (n int, err error) {
 		v.WriteByte(p[tailBase+i])
 	}
 
-	v.cacheWriteback()
-	dmaStore(dmaAddr, pdma)
-	v.cacheInvalidate()
+	if len(pdma) > 0 {
+		v.cacheWriteback()
+		v.flushed = dma(dmaAddr, pdma, dmaStore)
+		v.cacheInvalidate()
+	}
 
 	return
 }
@@ -95,8 +101,13 @@ func (v *Device) Read(p []byte) (n int, err error) {
 
 	// Do the DMA before the mmio because it might invalidate parts of head
 	// and tail
-	v.cacheWriteback()
-	dmaLoad(dmaAddr, pdma)
+	if len(pdma) > 0 {
+		v.cacheWriteback()
+		flushed := dma(dmaAddr, pdma, dmaLoad)
+		if !flushed.Sleep(1 * time.Second) {
+			panic("dma queue timeout")
+		}
+	}
 
 	for i := range head {
 		p[i], _ = v.ReadByte()
@@ -161,7 +172,9 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 
 func (v *Device) Flush() {
 	v.cacheWriteback()
-	waitDMA()
+	if v.flushed != nil && !v.flushed.Sleep(1*time.Second) {
+		panic("dma queue timeout")
+	}
 }
 
 func (v *Device) assessTransfer(p []byte) (addr cpu.Addr, dma []byte, head int, tail int) {
