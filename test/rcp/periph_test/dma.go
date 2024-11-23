@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/clktmr/n64/drivers/carts/isviewer"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/periph"
 )
@@ -39,6 +40,10 @@ var ref = newBytesReadWriter(make([]byte, 64, 64))
 var initReader *bytes.Reader
 
 func TestReadWriteSeeker(t *testing.T) {
+	if isviewer.Probe() == nil {
+		t.Skip("needs ISViewer")
+	}
+
 	var initBytes = make([]byte, 64, 64)
 	for i, _ := range initBytes {
 		initBytes[i] = byte(i + 0x30)
