@@ -178,7 +178,7 @@ func (v *Device) Flush() {
 }
 
 func (v *Device) assessTransfer(p []byte) (addr cpu.Addr, dma []byte, head int, tail int) {
-	dma, head, tail = cpu.PaddedSlice(p)
+	dma, head, tail = cpu.PadSlice(p)
 	if len(dma)&0x1 != 0 {
 		// If DMA end address isn't 2 byte aligned, fallback to mmio for
 		// the last byte.

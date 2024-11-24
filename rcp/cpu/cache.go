@@ -60,21 +60,28 @@ func CopyPaddedSlice[T Paddable](slice []T) []T {
 	return slice
 }
 
-// Add padding to a given slice by shrinking it.  Returns the number of
-// discarded elements at the beginnning of the slice as second return value.
+// Returns the size of necessary cacheline pads to get a padded slice, i.e. the
+// slice buf[head:tail] is the part of buf which is safe for cache ops.
 // TODO Review
-func PaddedSlice[T Paddable](buf []T) ([]T, int, int) {
+func Pads[T Paddable](buf []T) (int, int) {
 	var t T
 	start := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	end := start + uintptr(cap(buf))*unsafe.Sizeof(t)
 	head := ((CacheLineSize - int(start)%CacheLineSize) % CacheLineSize) / int(unsafe.Sizeof(t))
 	tail := int(end) % CacheLineSize / int(unsafe.Sizeof(t))
 	if head+tail >= cap(buf) {
-		return buf[:0], 0, len(buf)
+		return 0, 0
 	}
 	tail = max(0, tail-(cap(buf)-len(buf)))
 	head = min(head, len(buf)-tail)
-	return buf[head : len(buf)-tail], head, tail
+	return head, len(buf) - tail
+}
+
+// Add padding to a given slice by shrinking it.  Returns the number of
+// discarded elements at the beginnning of the slice as second return value.
+func PadSlice[T Paddable](buf []T) ([]T, int, int) {
+	head, tail := Pads(buf)
+	return buf[head:tail], head, len(buf) - tail
 }
 
 // Same as MakePaddedSlice with extra alignment requirements.
