@@ -35,8 +35,9 @@ func (r *R32[T]) Load() T {
 
 //go:nosplit
 func (r *R32[T]) StoreBits(mask T, bits T) {
-	waitDMA()
-	r.r.StoreBits(mask, bits)
+	// Can't just call r.r.StoreBits(), as this needs two bus operations and
+	// need a waitDMA() call inbetween.
+	r.Store(r.Load()&^T(mask) | T(bits&mask))
 }
 
 //go:nosplit
