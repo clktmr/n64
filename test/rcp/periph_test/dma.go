@@ -196,13 +196,13 @@ func TestReadWriteIO(t *testing.T) {
 				}
 
 				periph.ReadIO(0x13ff_fe00, rxbuf)
-				start := busAlign &^ 0x3
+				start := busAlign
 				if !bytes.Equal(rxbuf[:start], initBytes[:start]) {
 					t.Logf("got      %q", string(rxbuf[:start]))
 					t.Logf("expected %q", string(initBytes[:start]))
 					t.Error("modified preceding data", busAlign, sliceAlign, sliceLen)
 				}
-				end := (busAlign + sliceLen + 3) &^ 0x3
+				end := busAlign + sliceLen
 				if !bytes.Equal(rxbuf[end:], initBytes[end:]) {
 					t.Logf("got      %q", string(rxbuf[end:]))
 					t.Logf("expected %q", string(initBytes[end:]))
