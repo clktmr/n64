@@ -65,13 +65,13 @@ func waitDMA() {
 // writes are 4-byte long and unaligned writes will write garbage to the
 // remaining bytes.
 func WriteIO(busAddr cpu.Addr, p []byte) {
-	busPtr := unsafe.Pointer(cpu.KSEG1 | uintptr(busAddr&^0x3))
-	end := uintptr(unsafe.Add(busPtr, (len(p)+3)&^0x3))
+	end := cpu.KSEG1 | uintptr(busAddr+cpu.Addr(len(p)+3))&^0x3
 	shift := -(int(busAddr) & 0x3)
 
+	busPtr := unsafe.Pointer(cpu.KSEG1 | uintptr(busAddr&^0x3))
 	pPtr := unsafe.Pointer(unsafe.SliceData(p))
 	pPtr = unsafe.Add(pPtr, shift)
-	for uintptr(busPtr) <= end {
+	for uintptr(busPtr) < end {
 		var data uint32
 		if uintptr(pPtr)&0x3 == 0 {
 			data = *(*uint32)(pPtr)
@@ -88,13 +88,13 @@ func WriteIO(busAddr cpu.Addr, p []byte) {
 
 // readIO copies from PI bus address addr to slice p using PI bus IO.
 func ReadIO(busAddr cpu.Addr, p []byte) {
-	busPtr := unsafe.Pointer(cpu.KSEG1 | uintptr(busAddr&^0x3))
-	end := uintptr(unsafe.Add(busPtr, (len(p)+3)&^0x3))
+	end := cpu.KSEG1 | uintptr(busAddr+cpu.Addr(len(p)+3))&^0x3
 	shift := -(int(busAddr) & 0x3)
 
+	busPtr := unsafe.Pointer(cpu.KSEG1 | uintptr(busAddr&^0x3))
 	pPtr := unsafe.Pointer(unsafe.SliceData(p))
 	pPtr = unsafe.Add(pPtr, shift)
-	for uintptr(busPtr) <= end {
+	for uintptr(busPtr) < end {
 		data := (*U32)(busPtr).Load()
 		if uintptr(pPtr)&0x3 == 0 {
 			*(*uint32)(pPtr) = data

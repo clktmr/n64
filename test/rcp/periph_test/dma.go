@@ -162,3 +162,56 @@ func testReadSeeker(t *testing.T, tc params, dut io.ReadWriteSeeker) *bytesReadW
 
 	return result
 }
+
+func TestReadWriteIO(t *testing.T) {
+	if isviewer.Probe() == nil {
+		t.Skip("needs ISViewer")
+	}
+
+	testdata := []byte("Hello everybody, I'm Bonzo!")
+	initBytes := cpu.MakePaddedSliceAligned[byte](64, 4)
+	for i := range initBytes {
+		initBytes[i] = byte(i+0x30) % 64
+	}
+
+	for busAlign := 0; busAlign < 7; busAlign += 1 {
+		for sliceAlign := 0; sliceAlign < 3; sliceAlign += 1 {
+			for sliceLen := 0; sliceLen < len(testdata); sliceLen += 1 {
+				txbuf := cpu.MakePaddedSliceAligned[byte](64, 4)
+				rxbuf := cpu.MakePaddedSliceAligned[byte](64, 4)
+
+				periph.WriteIO(0x13ff_fe00, initBytes)
+
+				tx := txbuf[sliceAlign : sliceAlign+sliceLen]
+				copy(tx, testdata)
+				periph.WriteIO(0x13ff_fe00+cpu.Addr(busAlign), tx)
+
+				rx := rxbuf[sliceAlign : sliceAlign+sliceLen]
+				periph.ReadIO(0x13ff_fe00+cpu.Addr(busAlign), rx)
+
+				if !bytes.Equal(tx, rx) {
+					t.Logf("tx %q", string(tx))
+					t.Logf("rx %q", string(rx))
+					t.Error("mismatch at ", busAlign, sliceAlign, sliceLen)
+				}
+
+				periph.ReadIO(0x13ff_fe00, rxbuf)
+				start := busAlign &^ 0x3
+				if !bytes.Equal(rxbuf[:start], initBytes[:start]) {
+					t.Logf("got      %q", string(rxbuf[:start]))
+					t.Logf("expected %q", string(initBytes[:start]))
+					t.Error("modified preceding data", busAlign, sliceAlign, sliceLen)
+				}
+				end := (busAlign + sliceLen + 3) &^ 0x3
+				if !bytes.Equal(rxbuf[end:], initBytes[end:]) {
+					t.Logf("got      %q", string(rxbuf[end:]))
+					t.Logf("expected %q", string(initBytes[end:]))
+					t.Error("modified succeeding data", busAlign, sliceAlign, sliceLen)
+				}
+				if t.Failed() {
+					t.Fatal()
+				}
+			}
+		}
+	}
+}

@@ -71,6 +71,7 @@ func main() {
 			newInternalTest(rdp_test.TestFillRect),
 			newInternalTest(draw_test.TestDrawMask),
 			newInternalTest(periph_test.TestReadWriteSeeker),
+			newInternalTest(periph_test.TestReadWriteIO),
 			newInternalTest(summercart64_test.TestUSBRead),
 			newInternalTest(summercart64_test.TestSaveStorage),
 			newInternalTest(controller_test.TestControllerState),
