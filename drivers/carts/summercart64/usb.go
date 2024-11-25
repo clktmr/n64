@@ -51,8 +51,6 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	usbBuf.WritebackInvalidate()
-
 	pending := min(len(p), int(length), bufferSize)
 	_, _, err = execCommand(cmdUSBRead, uint32(usbBuf.Addr()), uint32(pending))
 	if err != nil {
