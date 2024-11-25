@@ -76,7 +76,7 @@ func (v *Device) Read(p []byte) (n int, err error) {
 	}
 
 	done := dma(v.addr+cpu.Addr(v.seek), p, dmaLoad)
-	if !done.Sleep(1 * time.Second) {
+	if done != nil && !done.Sleep(1*time.Second) {
 		panic("dma queue timeout")
 	}
 

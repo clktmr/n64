@@ -113,9 +113,9 @@ next:
 	}
 }
 
-// enqueueTransfer enqueues a DMA transfer for execution by the hardware.
-// Returns a note that signals the completion of this and all previous
-// transfers.
+// dma enqueues a DMA transfer for async execution by the hardware. Returns a
+// note that signals the completion of this and all previous transfers.  A nil
+// note is returned if the transfer was done synchronously.
 func dma(piAddr cpu.Addr, p []byte, dir dmaDirection) (done *rtos.Note) {
 	job := dmaJob{piAddr, p, dir}
 	done = dmaQueue.Push(job)
@@ -127,6 +127,7 @@ func dma(piAddr cpu.Addr, p []byte, dir dmaDirection) (done *rtos.Note) {
 				panic("dma queue empty")
 			}
 			job.finish()
+			done = nil
 			dmaActive.Store(false)
 		}
 	}

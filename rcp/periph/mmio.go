@@ -21,7 +21,7 @@ func (r *R32[T]) Store(val T) {
 	p := [4]byte{byte(val >> 24), byte(val >> 16), byte(val >> 8), byte(val)}
 	vaddr := uintptr(unsafe.Pointer(r))
 	done := dma(cpu.PhysicalAddress(vaddr), p[:], dmaStore)
-	if !done.Sleep(1 * time.Second) {
+	if done != nil && !done.Sleep(1*time.Second) {
 		panic("pi write timeout")
 	}
 }
@@ -30,7 +30,7 @@ func (r *R32[T]) Load() (v T) {
 	p := [4]byte{}
 	vaddr := uintptr(unsafe.Pointer(r))
 	done := dma(cpu.PhysicalAddress(vaddr), p[:], dmaLoad)
-	if !done.Sleep(1 * time.Second) {
+	if done != nil && !done.Sleep(1*time.Second) {
 		panic("pi read timeout")
 	}
 	return T(p[0])<<24 | T(p[1])<<16 | T(p[2])<<8 | T(p[3])
