@@ -38,8 +38,6 @@ func (job *dmaJob) initiate() bool {
 		regs.readLen.Store(n)
 	} else { // dmaLoad
 		if head == tail {
-			ReadIO(job.cart, headBuf)
-			ReadIO(job.cart+cpu.Addr(tail), tailBuf)
 			return false
 		}
 		regs.dramAddr.Store(cpu.PhysicalAddressSlice(dmaBuf))
@@ -124,7 +122,11 @@ func dma(piAddr cpu.Addr, p []byte, dir dmaDirection) (done *rtos.Note) {
 	if !dmaActive.Swap(true) {
 		// initially trigger dma queue
 		if activated := job.initiate(); !activated {
-			_, _ = dmaQueue.Pop()
+			job, ok := dmaQueue.Pop()
+			if !ok {
+				panic("dma queue empty")
+			}
+			job.finish()
 			dmaActive.Store(false)
 		}
 	}

@@ -15,12 +15,12 @@ const baseAddr uintptr = cpu.KSEG1 | 0x13ff_0000
 const bufferSize = 512 // actually 64*1024 - 0x20, but ISViewer.buf will allocate this
 
 type registers struct {
-	token    periph.U32
-	readPtr  periph.U32
-	_        [3]periph.U32
-	writePtr periph.U32
-	_        [2]periph.U32
-	buf      [bufferSize / 4]periph.U32
+	token    periph.U32Safe
+	readPtr  periph.U32Safe
+	_        [3]periph.U32Safe
+	writePtr periph.U32Safe
+	_        [2]periph.U32Safe
+	buf      [bufferSize / 4]periph.U32Safe
 }
 
 // Writes to ISViewer registers, regardless if a ISViewer is present or not.  Is

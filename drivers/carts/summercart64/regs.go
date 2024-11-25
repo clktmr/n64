@@ -18,7 +18,7 @@ type registers struct {
 	status     periph.R32[status]
 	data0      periph.U32
 	data1      periph.U32
-	identifier periph.U32
+	identifier periph.U32Safe
 	key        periph.U32
 }
 

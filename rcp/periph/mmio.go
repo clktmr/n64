@@ -4,6 +4,7 @@ package periph
 
 import (
 	"embedded/mmio"
+	"time"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -13,46 +14,69 @@ import (
 // - 0x0500_0000 to 0x1fbf_ffff
 // - 0x1fd0_0000 to 0x7fff_ffff
 
-type U32 struct {
-	R32[uint32]
+type U32 struct{ R32[uint32] }
+type R32[T mmio.T32] struct{ r uint32 }
+
+func (r *R32[T]) Store(val T) {
+	p := [4]byte{byte(val >> 24), byte(val >> 16), byte(val >> 8), byte(val)}
+	vaddr := uintptr(unsafe.Pointer(r))
+	done := dma(cpu.PhysicalAddress(vaddr), p[:], dmaStore)
+	if !done.Sleep(1 * time.Second) {
+		panic("pi write timeout")
+	}
 }
 
-type R32[T mmio.T32] struct {
-	r mmio.R32[T]
+func (r *R32[T]) Load() (v T) {
+	p := [4]byte{}
+	vaddr := uintptr(unsafe.Pointer(r))
+	done := dma(cpu.PhysicalAddress(vaddr), p[:], dmaLoad)
+	if !done.Sleep(1 * time.Second) {
+		panic("pi read timeout")
+	}
+	return T(p[0])<<24 | T(p[1])<<16 | T(p[2])<<8 | T(p[3])
 }
+
+func (r *R32[_]) Addr() uintptr {
+	return uintptr(unsafe.Pointer(r))
+}
+
+type U32Safe struct{ R32Safe[uint32] }
+type R32Safe[T mmio.T32] struct{ r uint32 }
+
+func (r *R32Safe[T]) Store(v T) {
+	for !dmaActive.CompareAndSwap(false, true) {
+		// wait
+	}
+	(*r32[T])(unsafe.Pointer(r)).Store(v)
+	dmaActive.Store(false)
+}
+
+func (r *R32Safe[T]) Load() (v T) {
+	for !dmaActive.CompareAndSwap(false, true) {
+		// wait
+	}
+	v = (*r32[T])(unsafe.Pointer(r)).Load()
+	dmaActive.Store(false)
+	return
+}
+
+func (r *R32Safe[_]) Addr() uintptr {
+	return uintptr(unsafe.Pointer(r))
+}
+
+type u32 struct{ r32[uint32] }
+type r32[T mmio.T32] struct{ r mmio.R32[T] }
 
 //go:nosplit
-func (r *R32[T]) Store(v T) {
-	waitDMA()
-	r.r.Store(v)
-}
+func (r *r32[T]) Store(v T) { r.r.Store(v); waitDMA() } // TODO remove second waitDMA
 
 //go:nosplit
-func (r *R32[T]) Load() T {
-	waitDMA()
-	return r.r.Load()
-}
+func (r *r32[T]) Load() T { ret := r.r.Load(); waitDMA(); return ret }
 
 //go:nosplit
-func (r *R32[T]) StoreBits(mask T, bits T) {
-	// Can't just call r.r.StoreBits(), as this needs two bus operations and
-	// need a waitDMA() call inbetween.
-	r.Store(r.Load()&^T(mask) | T(bits&mask))
-}
-
-//go:nosplit
-func (r *R32[T]) LoadBits(mask T) T {
-	waitDMA()
-	return r.r.LoadBits(mask)
-}
-
-//go:nosplit
-func (r *R32[T]) Addr() uintptr {
-	return r.r.Addr()
-}
+func (r *r32[_]) Addr() uintptr { return r.r.Addr() }
 
 // Blocks until DMA and IO is not busy.
-// TODO Looks racy.  Understand this better.  Why is it necessary?
 //
 //go:nosplit
 func waitDMA() {
@@ -64,6 +88,9 @@ func waitDMA() {
 // WriteIO copies slice p to PI bus address addr using PI bus IO.  Note that all
 // writes are 4-byte long and unaligned writes will write garbage to the
 // remaining bytes.
+// TODO unexport, only for intr
+//
+//go:nosplit
 func WriteIO(busAddr cpu.Addr, p []byte) {
 	end := cpu.KSEG1 | uintptr(busAddr+cpu.Addr(len(p)+3))&^0x3
 	shift := -(int(busAddr) & 0x3)
@@ -81,7 +108,7 @@ func WriteIO(busAddr cpu.Addr, p []byte) {
 			mask &= 0xffff_ffff << (endshift << 3)
 		}
 		if mask != 0xffff_ffff { // read data before writing
-			data = (*U32)(busPtr).Load() &^ mask
+			data = (*u32)(busPtr).Load() &^ mask
 		}
 		if uintptr(pPtr)&0x3 == 0 {
 			data |= *(*uint32)(pPtr) & mask
@@ -89,7 +116,7 @@ func WriteIO(busAddr cpu.Addr, p []byte) {
 			p := *(*[4]byte)(pPtr)
 			data |= (uint32(p[0])<<24 | uint32(p[1])<<16 | uint32(p[2])<<8 | uint32(p[3])) & mask
 		}
-		(*U32)(busPtr).Store(data)
+		(*u32)(busPtr).Store(data)
 
 		shift = 0
 		pPtr = unsafe.Add(pPtr, 4)
@@ -98,6 +125,9 @@ func WriteIO(busAddr cpu.Addr, p []byte) {
 }
 
 // ReadIO copies from PI bus address addr to slice p using PI bus IO.
+// TODO unexport, only for intr
+//
+//go:nosplit
 func ReadIO(busAddr cpu.Addr, p []byte) {
 	end := cpu.KSEG1 | uintptr(busAddr+cpu.Addr(len(p)+3))&^0x3
 	shift := -(int(busAddr) & 0x3)
@@ -106,7 +136,7 @@ func ReadIO(busAddr cpu.Addr, p []byte) {
 	pPtr := unsafe.Pointer(unsafe.SliceData(p))
 	pPtr = unsafe.Add(pPtr, shift)
 	for uintptr(busPtr) < end {
-		data := (*U32)(busPtr).Load()
+		data := (*u32)(busPtr).Load()
 		if uintptr(pPtr)&0x3 == 0 {
 			*(*uint32)(pPtr) = data
 		} else { // unaligned access forbidden on mips
