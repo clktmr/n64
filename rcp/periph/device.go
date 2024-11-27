@@ -20,9 +20,6 @@ const (
 // Implememts io.ReadWriteSeeker for accessing devices on the PI bus.  It will
 // automatically choose DMA transfers where alignment and cacheline padding
 // allow it, otherwise fall back to copying via mmio.
-//
-// Devices must not have overlapping addresses, as they might cache bus
-// accessses.
 type Device struct {
 	addr cpu.Addr
 	size uint32
@@ -107,4 +104,5 @@ func (v *Device) Flush() {
 	if v.flushed != nil && !v.flushed.Sleep(1*time.Second) {
 		panic("dma queue timeout")
 	}
+	v.flushed = nil
 }

@@ -54,7 +54,7 @@ const qsize = 32
 // preemptible by the writers, i.e. an interrupt.
 type IntrQueue[T any] struct {
 	ring              [qsize]T
-	popped            [qsize]rtos.Note
+	popped            [qsize]rtos.Note // FIXME use a sync.Pool for notes
 	start, end, write atomic.Int32
 }
 
