@@ -3,7 +3,6 @@ package rcp
 import (
 	"embedded/rtos"
 	"sync/atomic"
-	"time"
 )
 
 // IntrInput passes any value safely into an interrupt context.  Only a single
@@ -66,9 +65,7 @@ retry:
 	end := p.end.Load()
 	next := (end + 1) % int32(len(p.ring))
 	if next == start {
-		if !p.popped[start].Sleep(1 * time.Second) {
-			panic("intr queue timeout")
-		}
+		goto retry
 	}
 
 	if !p.write.CompareAndSwap(end, next) {
