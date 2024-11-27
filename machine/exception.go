@@ -1,9 +1,31 @@
 package machine
 
+var excNames = [32]string{
+	0:  "Interrupt",
+	1:  "TLB Modification",
+	2:  "TLB Miss (load)",
+	3:  "TLB Miss (store)",
+	4:  "Address Error (load)",
+	5:  "Address Error (store)",
+	6:  "Bus Error (instruction)",
+	7:  "Bus Error (data)",
+	8:  "Syscall",
+	9:  "Breakpoint",
+	10: "Reserved Instruction",
+	11: "Coprocessor Unusable",
+	12: "Arithmetic Overflow",
+	13: "Trap",
+	15: "Floating-Point",
+	23: "Watch",
+}
+
 //go:nosplit
 func Exception(cause, epc, status, badvaddr, ra uint64) {
 	var buf [16]byte
-	DefaultWrite(0, []byte("UNHANDLED EXCEPTION"))
+	DefaultWrite(0, []byte("Unhandled "))
+	DefaultWrite(0, []byte(excNames[cause>>2&31]))
+	DefaultWrite(0, []byte(" Exception"))
+
 	DefaultWrite(0, []byte("\ncause    0x"))
 	DefaultWrite(0, itoa(buf[:], cause))
 	DefaultWrite(0, []byte("\nepc      0x"))
