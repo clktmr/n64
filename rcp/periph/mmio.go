@@ -68,22 +68,18 @@ type u32 struct{ r32[uint32] }
 type r32[T mmio.T32] struct{ r mmio.R32[T] }
 
 //go:nosplit
-func (r *r32[T]) Store(v T) { r.r.Store(v); waitDMA() } // TODO remove second waitDMA
-
-//go:nosplit
-func (r *r32[T]) Load() T { ret := r.r.Load(); waitDMA(); return ret }
-
-//go:nosplit
-func (r *r32[_]) Addr() uintptr { return r.r.Addr() }
-
-// Blocks until DMA and IO is not busy.
-//
-//go:nosplit
-func waitDMA() {
-	for regs.status.Load()&(dmaBusy|ioBusy) != 0 {
+func (r *r32[T]) Store(v T) {
+	r.r.Store(v)
+	for regs.status.Load()&(ioBusy) != 0 {
 		// wait
 	}
 }
+
+//go:nosplit
+func (r *r32[T]) Load() T { return r.r.Load() }
+
+//go:nosplit
+func (r *r32[_]) Addr() uintptr { return r.r.Addr() }
 
 // WriteIO copies slice p to PI bus address addr using PI bus IO.  Note that all
 // writes are 4-byte long and unaligned writes will write garbage to the
