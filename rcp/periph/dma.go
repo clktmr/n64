@@ -45,10 +45,13 @@ func (job *dmaJob) initiate() bool {
 		cpu.InvalidateSlice(dmaBuf)
 		regs.writeLen.Store(n)
 	}
+
+	rcp.EnableInterrupts(rcp.IntrPeriph)
 	return true
 }
 
 func (job *dmaJob) finish() {
+	rcp.DisableInterrupts(rcp.IntrPeriph)
 	head, tail := job.split(job.buf, job.cart)
 	if job.dir == dmaLoad {
 		// Do the IO after the DMA because it might invalidate parts of
@@ -83,13 +86,13 @@ var dmaActive atomic.Bool
 func init() {
 	regs.status.Store(clearInterrupt)
 	rcp.SetHandler(rcp.IntrPeriph, handler)
-	rcp.EnableInterrupts(rcp.IntrPeriph)
 }
 
 //go:nosplit
 //go:nowritebarrierrec
 func handler() {
 	regs.status.Store(clearInterrupt)
+	dmaActive.Store(false)
 
 	job, ok := dmaQueue.Pop()
 	if !ok {
@@ -98,19 +101,19 @@ func handler() {
 	job.finish()
 
 next:
-	job, ok = dmaQueue.Peek()
-	if !ok {
-		wasActive := dmaActive.Swap(false)
-		if !wasActive {
-			panic("broken dma sync")
-		}
+	if job, ok = dmaQueue.Peek(); !ok {
 		return
 	}
 
 	if !job.initiate() {
-		_, _ = dmaQueue.Pop()
+		if job, ok = dmaQueue.Pop(); !ok {
+			panic("empty dma queue")
+		}
+		job.finish()
 		goto next
 	}
+
+	dmaActive.Store(true)
 }
 
 // dma enqueues a DMA transfer for async execution by the hardware. Returns a
@@ -124,6 +127,7 @@ func dma(piAddr cpu.Addr, p []byte, dir dmaDirection) (done *rtos.Note) {
 		if activated := job.initiate(); !activated {
 			job, ok := dmaQueue.Pop()
 			if !ok {
+				dmaActive.Store(false)
 				panic("dma queue empty")
 			}
 			job.finish()
