@@ -1,6 +1,7 @@
 package periph
 
 import (
+	"embedded/rtos"
 	"errors"
 	"io"
 
@@ -24,6 +25,7 @@ type Device struct {
 	seek int32 // TODO rename offset, make uint32
 
 	wJodId uint64
+	done   rtos.Note
 }
 
 func NewDevice(piAddr cpu.Addr, size uint32) *Device {
@@ -44,17 +46,21 @@ func (v *Device) Size() int {
 	return int(v.size)
 }
 
-// FIXME must not retain p
 func (v *Device) Write(p []byte) (n int, err error) {
-	n = len(p)
 	left := int(v.size) - int(v.seek)
-	if n > left {
-		n = left
+	if len(p) > left {
 		p = p[:left]
 		err = io.ErrShortWrite
 	}
 
-	v.wJodId = dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaStore, nil})
+	for len(p) > 0 {
+		buf, _ := getBuf()
+		nn := copy(buf, p)
+		p = p[nn:]
+		v.wJodId = dma(dmaJob{v.addr + cpu.Addr(v.seek), buf[:nn], dmaStore, nil})
+
+		n += nn
+	}
 
 	v.Seek(int64(n), io.SeekCurrent)
 
@@ -71,7 +77,7 @@ func (v *Device) Read(p []byte) (n int, err error) {
 	}
 
 	id := dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaLoad, nil})
-	flush(id)
+	flush(id, &v.done)
 
 	v.Seek(int64(n), io.SeekCurrent)
 	return
@@ -97,5 +103,5 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 }
 
 func (v *Device) Flush() {
-	flush(v.wJodId)
+	flush(v.wJodId, &v.done)
 }

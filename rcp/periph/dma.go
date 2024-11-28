@@ -4,10 +4,45 @@ import (
 	"embedded/rtos"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 )
+
+const dmaBufSize = 4096
+
+var dmaBufPool [8]struct {
+	buf  []byte
+	done rtos.Note
+	used atomic.Bool
+}
+
+func init() {
+	for i := range dmaBufPool {
+		dmaBufPool[i].buf = cpu.MakePaddedSlice[byte](dmaBufSize)
+	}
+}
+
+func getBuf() ([]byte, *rtos.Note) {
+	for i := range dmaBufPool {
+		b := &dmaBufPool[i]
+		if b.used.CompareAndSwap(false, true) {
+			return b.buf, &b.done
+		}
+	}
+
+	return cpu.MakePaddedSlice[byte](dmaBufSize), &rtos.Note{}
+}
+
+func putBuf(buf []byte) {
+	for i := range dmaBufPool {
+		b := &dmaBufPool[i]
+		if unsafe.SliceData(buf) == unsafe.SliceData(b.buf) {
+			b.used.Store(false)
+		}
+	}
+}
 
 type dmaDirection bool
 
@@ -65,6 +100,8 @@ func (job *dmaJob) finish() {
 			ReadIO(job.cart, job.buf[:head])
 			ReadIO(job.cart+cpu.Addr(tail), job.buf[tail:])
 		}
+
+		putBuf(job.buf)
 	}
 
 	if job.done != nil {
@@ -155,13 +192,13 @@ func dma(v dmaJob) (jobId uint64) {
 	return
 }
 
-func flush(id uint64) {
+func flush(id uint64, done *rtos.Note) {
 	if dmaQueue.Popped(id) {
 		return
 	}
-	var note rtos.Note // TODO escapes
-	dma(dmaJob{done: &note})
-	if !note.Sleep(1 * time.Second) {
+	done.Clear()
+	dma(dmaJob{done: done})
+	if !done.Sleep(1 * time.Second) {
 		panic("dma timeout")
 	}
 }

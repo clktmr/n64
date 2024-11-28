@@ -17,16 +17,21 @@ type U32 struct{ R32[uint32] }
 type R32[T mmio.T32] struct{ r uint32 }
 
 func (r *R32[T]) Store(val T) {
-	p := [4]byte{byte(val >> 24), byte(val >> 16), byte(val >> 8), byte(val)}
+	p, _ := getBuf() // TODO dont waste a whole buffer
+	_ = p[3]
+	p[0] = byte(val >> 24)
+	p[1] = byte(val >> 16)
+	p[2] = byte(val >> 8)
+	p[3] = byte(val)
 	vaddr := uintptr(unsafe.Pointer(r))
-	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaStore, nil})
+	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:4], dmaStore, nil})
 }
 
 func (r *R32[T]) Load() (v T) {
-	p := [4]byte{}
+	p, done := getBuf() // TODO dont waste a whole buffer
 	vaddr := uintptr(unsafe.Pointer(r))
-	jid := dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaLoad, nil})
-	flush(jid)
+	jid := dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:4], dmaLoad, nil})
+	flush(jid, done)
 	return T(p[0])<<24 | T(p[1])<<16 | T(p[2])<<8 | T(p[3])
 }
 
