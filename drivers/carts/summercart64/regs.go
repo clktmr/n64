@@ -100,6 +100,9 @@ func Probe() *SummerCart64 {
 			params := saveStorageParams[st]
 			s.saveStorage = *periph.NewDevice(params.addr, params.size)
 		}
+
+		_, _ = s.SetConfig(CfgROMWriteEnable, 1)
+
 		return s
 	}
 	return nil
