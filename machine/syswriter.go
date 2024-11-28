@@ -7,7 +7,6 @@ import (
 	"github.com/clktmr/n64/rcp/periph"
 )
 
-// TODO use register definitions from isviewer package
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
 
 const token = 0x49533634
