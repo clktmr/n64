@@ -1,8 +1,6 @@
 package rcp
 
 import (
-	"embedded/rtos"
-	"sync"
 	"sync/atomic"
 )
 
@@ -49,20 +47,16 @@ func (p *IntrInput[T]) Load() (v T, updated bool) {
 
 const qsize = 32
 
-var notes = sync.Pool{New: func() any { return &rtos.Note{} }}
-
 // IntrQueue queues any value safely into an interrupt context.  Multiple writer
 // goroutines and a single reader are allowed.  The reader must not be
 // preemptible by the writers, i.e. an interrupt.
 type IntrQueue[T any] struct {
 	ring              [qsize]T
-	popped            [qsize]*rtos.Note
 	start, end, write atomic.Int32
+	pushCnt, popCnt   atomic.Uint64
 }
 
-// Push returns a cleared note that gets woken up when the item is popped by the
-// interrupt handler.  The borrowed note must be returned via IntrQueue.Free().
-func (p *IntrQueue[T]) Push(v T) (vp *T, popped *rtos.Note) {
+func (p *IntrQueue[T]) Push(v T) (id uint64) {
 retry:
 	start := p.start.Load()
 	end := p.end.Load()
@@ -76,23 +70,12 @@ retry:
 	}
 
 	p.ring[end] = v
-	vp = &p.ring[end]
-	p.popped[end] = notes.Get().(*rtos.Note)
-	popped = p.popped[end]
-	popped.Clear()
+	id = p.pushCnt.Add(1)
 
 	if !p.end.CompareAndSwap(end, next) {
 		panic("intr queue corrupted")
 	}
 	return
-}
-
-func (p *IntrQueue[_]) Free(note *rtos.Note) {
-	if note != nil {
-		note.Wakeup()
-		note.Sleep(0) // TODO takes ~800us, find better way
-		notes.Put(note)
-	}
 }
 
 //go:nosplit
@@ -106,6 +89,13 @@ func (p *IntrQueue[T]) Peek() (v *T, ok bool) {
 	return &p.ring[start], true
 }
 
+func (p *IntrQueue[T]) Popped(id uint64) bool {
+	if p.popCnt.Load() >= id {
+		return true
+	}
+	return false
+}
+
 //go:nosplit
 func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 	start := p.start.Load()
@@ -116,6 +106,7 @@ func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 
 	v = &p.ring[start]
 	ok = true
+	p.popCnt.Add(1)
 
 	// Write zero value in the unused buffer to avoid holding hidden
 	// references that might prevent freeing memory.
@@ -126,8 +117,6 @@ func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 	if !p.start.CompareAndSwap(start, (start+1)%int32(len(p.ring))) {
 		panic("multiple readers")
 	}
-
-	p.popped[start].Wakeup()
 
 	return
 }

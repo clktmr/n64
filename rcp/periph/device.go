@@ -1,10 +1,8 @@
 package periph
 
 import (
-	"embedded/rtos"
 	"errors"
 	"io"
-	"time"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -25,7 +23,7 @@ type Device struct {
 	size uint32
 	seek int32 // TODO rename offset, make uint32
 
-	flushed *rtos.Note
+	wJodId uint64
 }
 
 func NewDevice(piAddr cpu.Addr, size uint32) *Device {
@@ -33,7 +31,7 @@ func NewDevice(piAddr cpu.Addr, size uint32) *Device {
 	debug.Assert((addr >= piBus0Start && addr+size <= piBus0End) ||
 		(addr >= piBus1Start && addr+size <= piBus1End),
 		"invalid pi bus address")
-	return &Device{piAddr, size, 0x0, nil}
+	return &Device{addr: piAddr, size: size}
 }
 
 var ErrSeekOutOfRange = errors.New("seek out of range")
@@ -56,7 +54,7 @@ func (v *Device) Write(p []byte) (n int, err error) {
 		err = io.ErrShortWrite
 	}
 
-	v.flushed = dma(v.addr+cpu.Addr(v.seek), p, dmaStore)
+	v.wJodId = dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaStore, nil})
 
 	v.Seek(int64(n), io.SeekCurrent)
 
@@ -72,11 +70,8 @@ func (v *Device) Read(p []byte) (n int, err error) {
 		err = io.EOF
 	}
 
-	done := dma(v.addr+cpu.Addr(v.seek), p, dmaLoad)
-	if done != nil && !done.Sleep(1*time.Second) {
-		panic("dma queue timeout")
-	}
-	dmaQueue.Free(done)
+	id := dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaLoad, nil})
+	flush(id)
 
 	v.Seek(int64(n), io.SeekCurrent)
 	return
@@ -102,13 +97,5 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 }
 
 func (v *Device) Flush() {
-	if v.flushed == nil {
-		return
-	}
-
-	if !v.flushed.Sleep(1 * time.Second) {
-		panic("dma queue timeout")
-	}
-	dmaQueue.Free(v.flushed)
-	v.flushed = nil
+	flush(v.wJodId)
 }

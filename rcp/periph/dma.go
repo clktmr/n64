@@ -3,6 +3,7 @@ package periph
 import (
 	"embedded/rtos"
 	"sync/atomic"
+	"time"
 
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -19,9 +20,13 @@ type dmaJob struct {
 	cart cpu.Addr
 	buf  []byte
 	dir  dmaDirection
+	done *rtos.Note
 }
 
 func (job *dmaJob) initiate() bool {
+	if job.buf == nil {
+		return false
+	}
 	head, tail := job.split(job.buf, job.cart)
 	dmaBuf, headBuf, tailBuf := job.buf[head:tail], job.buf[:head], job.buf[tail:]
 
@@ -52,12 +57,18 @@ func (job *dmaJob) initiate() bool {
 
 func (job *dmaJob) finish() {
 	rcp.DisableInterrupts(rcp.IntrPeriph)
-	head, tail := job.split(job.buf, job.cart)
-	if job.dir == dmaLoad {
-		// Do the IO after the DMA because it might invalidate parts of
-		// head and tail.
-		ReadIO(job.cart, job.buf[:head])
-		ReadIO(job.cart+cpu.Addr(tail), job.buf[tail:])
+	if job.buf != nil {
+		head, tail := job.split(job.buf, job.cart)
+		if job.dir == dmaLoad {
+			// Do the IO after the DMA because it might invalidate parts of
+			// head and tail.
+			ReadIO(job.cart, job.buf[:head])
+			ReadIO(job.cart+cpu.Addr(tail), job.buf[tail:])
+		}
+	}
+
+	if job.done != nil {
+		job.done.Wakeup()
 	}
 }
 
@@ -81,7 +92,10 @@ func (job *dmaJob) split(p []byte, addr cpu.Addr) (head, tail int) {
 }
 
 var dmaQueue rcp.IntrQueue[dmaJob]
-var dmaActive atomic.Bool
+
+// If true: No PI interrupts scheduled, dmaQueue can be read.
+// If false: A PI interrupt will trigger and read the dmaQueue.
+var dmaActive atomic.Bool // TODO rename dmaQueueLock, make spinlock
 
 func init() {
 	regs.status.Store(clearInterrupt)
@@ -119,28 +133,35 @@ next:
 // dma enqueues a DMA transfer for async execution by the hardware. Returns a
 // note that signals the completion of this and all previous transfers.  A nil
 // note is returned if the transfer was done synchronously.
-func dma(piAddr cpu.Addr, p []byte, dir dmaDirection) (done *rtos.Note) {
-	job, done := dmaQueue.Push(dmaJob{piAddr, p, dir})
+func dma(v dmaJob) (jobId uint64) {
+	jobId = dmaQueue.Push(v)
+	// might preempt here, but that's ok
 	if !dmaActive.Swap(true) {
 		// initially trigger dma queue
 		for {
-			initjob, ok := dmaQueue.Peek()
+			job, ok := dmaQueue.Peek()
 			if !ok {
 				dmaActive.Store(false)
 				return
 			}
-			activated := initjob.initiate()
-			if activated {
+			if activated := job.initiate(); activated {
 				return
 			}
+			job.finish()
 			dmaQueue.Pop()
-			initjob.finish()
-			if job == initjob {
-				dmaQueue.Free(done)
-				done = nil
-			}
 		}
 	}
 
 	return
+}
+
+func flush(id uint64) {
+	if dmaQueue.Popped(id) {
+		return
+	}
+	var note rtos.Note // TODO escapes
+	dma(dmaJob{done: &note})
+	if !note.Sleep(1 * time.Second) {
+		panic("dma timeout")
+	}
 }
