@@ -2,6 +2,7 @@ package rcp
 
 import (
 	"embedded/rtos"
+	"sync"
 	"sync/atomic"
 )
 
@@ -48,18 +49,20 @@ func (p *IntrInput[T]) Load() (v T, updated bool) {
 
 const qsize = 32
 
+var notes = sync.Pool{New: func() any { return &rtos.Note{} }}
+
 // IntrQueue queues any value safely into an interrupt context.  Multiple writer
 // goroutines and a single reader are allowed.  The reader must not be
 // preemptible by the writers, i.e. an interrupt.
 type IntrQueue[T any] struct {
 	ring              [qsize]T
-	popped            [qsize]rtos.Note // FIXME use a sync.Pool for notes
+	popped            [qsize]*rtos.Note
 	start, end, write atomic.Int32
 }
 
 // Push returns a cleared note that gets woken up when the item is popped by the
-// interrupt handler.
-func (p *IntrQueue[T]) Push(v T) (popped *rtos.Note) {
+// interrupt handler.  The borrowed note must be returned via IntrQueue.Free().
+func (p *IntrQueue[T]) Push(v T) (vp *T, popped *rtos.Note) {
 retry:
 	start := p.start.Load()
 	end := p.end.Load()
@@ -73,13 +76,23 @@ retry:
 	}
 
 	p.ring[end] = v
-	popped = &p.popped[end]
+	vp = &p.ring[end]
+	p.popped[end] = notes.Get().(*rtos.Note)
+	popped = p.popped[end]
 	popped.Clear()
 
 	if !p.end.CompareAndSwap(end, next) {
 		panic("intr queue corrupted")
 	}
 	return
+}
+
+func (p *IntrQueue[_]) Free(note *rtos.Note) {
+	if note != nil {
+		note.Wakeup()
+		note.Sleep(0) // TODO takes ~800us, find better way
+		notes.Put(note)
+	}
 }
 
 //go:nosplit

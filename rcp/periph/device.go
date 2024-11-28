@@ -76,6 +76,7 @@ func (v *Device) Read(p []byte) (n int, err error) {
 	if done != nil && !done.Sleep(1*time.Second) {
 		panic("dma queue timeout")
 	}
+	dmaQueue.Free(done)
 
 	v.Seek(int64(n), io.SeekCurrent)
 	return
@@ -101,8 +102,13 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 }
 
 func (v *Device) Flush() {
-	if v.flushed != nil && !v.flushed.Sleep(1*time.Second) {
+	if v.flushed == nil {
+		return
+	}
+
+	if !v.flushed.Sleep(1 * time.Second) {
 		panic("dma queue timeout")
 	}
+	dmaQueue.Free(v.flushed)
 	v.flushed = nil
 }

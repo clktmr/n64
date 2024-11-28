@@ -24,6 +24,7 @@ func (r *R32[T]) Store(val T) {
 	if done != nil && !done.Sleep(1*time.Second) {
 		panic("pi write timeout")
 	}
+	dmaQueue.Free(done)
 }
 
 func (r *R32[T]) Load() (v T) {
@@ -33,6 +34,7 @@ func (r *R32[T]) Load() (v T) {
 	if done != nil && !done.Sleep(1*time.Second) {
 		panic("pi read timeout")
 	}
+	dmaQueue.Free(done)
 	return T(p[0])<<24 | T(p[1])<<16 | T(p[2])<<8 | T(p[3])
 }
 

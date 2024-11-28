@@ -120,19 +120,25 @@ next:
 // note that signals the completion of this and all previous transfers.  A nil
 // note is returned if the transfer was done synchronously.
 func dma(piAddr cpu.Addr, p []byte, dir dmaDirection) (done *rtos.Note) {
-	job := dmaJob{piAddr, p, dir}
-	done = dmaQueue.Push(job)
+	job, done := dmaQueue.Push(dmaJob{piAddr, p, dir})
 	if !dmaActive.Swap(true) {
 		// initially trigger dma queue
-		if activated := job.initiate(); !activated {
-			job, ok := dmaQueue.Pop()
+		for {
+			initjob, ok := dmaQueue.Peek()
 			if !ok {
 				dmaActive.Store(false)
-				panic("dma queue empty")
+				return
 			}
-			job.finish()
-			done = nil
-			dmaActive.Store(false)
+			activated := initjob.initiate()
+			if activated {
+				return
+			}
+			dmaQueue.Pop()
+			initjob.finish()
+			if job == initjob {
+				dmaQueue.Free(done)
+				done = nil
+			}
 		}
 	}
 
