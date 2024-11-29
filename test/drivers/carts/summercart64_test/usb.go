@@ -10,7 +10,7 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-func mustSC64(t *testing.T) (sc64 *summercart64.SummerCart64) {
+func mustSC64(t *testing.T) (sc64 *summercart64.Cart) {
 	sc64 = summercart64.Probe()
 	if sc64 == nil {
 		t.Skip("needs SummerCart64")

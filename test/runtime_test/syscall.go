@@ -14,7 +14,7 @@ import (
 )
 
 var blocker atomic.Bool
-var sc64 *summercart64.SummerCart64
+var sc64 *summercart64.Cart
 var note rtos.Note
 
 //go:linkname cartHandler IRQ4_Handler

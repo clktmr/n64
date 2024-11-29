@@ -84,18 +84,18 @@ var saveStorageParams = [...]struct {
 	{0x0800_0000, 128 * 1024},
 }
 
-type SummerCart64 struct {
+type Cart struct {
 	saveStorage periph.Device
 }
 
-func Probe() *SummerCart64 {
+func Probe() *Cart {
 	// sc64 magic unlock sequence
 	regs.key.Store(0x0)
 	regs.key.Store(0x5f554e4c)
 	regs.key.Store(0x4f434b5f)
 
 	if regs.identifier.Load() == 0x53437632 { // SummerCart64 V2
-		s := &SummerCart64{}
+		s := &Cart{}
 		if st, err := s.Config(CfgSaveType); err == nil {
 			params := saveStorageParams[st]
 			s.saveStorage = *periph.NewDevice(params.addr, params.size)
@@ -113,12 +113,12 @@ func Probe() *SummerCart64 {
 // FIXME shouldn't be here, instead have a generic Probe function to get
 // storage.  Otherwise we could get multiple periph.Devices pointing to the same
 // address range, messing up the caching.
-func (v *SummerCart64) SaveStorage() *periph.Device {
+func (v *Cart) SaveStorage() *periph.Device {
 	// FIXME no writeback triggered for EEPROM savetypes
 	return &v.saveStorage
 }
 
 //go:nosplit
-func (v *SummerCart64) ClearInterrupt() {
+func (v *Cart) ClearInterrupt() {
 	regs.identifier.Store(0)
 }

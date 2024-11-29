@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (v *SummerCart64) Write(p []byte) (n int, err error) {
+func (v *Cart) Write(p []byte) (n int, err error) {
 	for errShort := io.ErrShortWrite; errShort == io.ErrShortWrite; {
 		err = waitUSB(cmdUSBWriteStatus)
 		if err != nil {
@@ -36,12 +36,12 @@ func (v *SummerCart64) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-func (v *SummerCart64) Close() (err error) {
+func (v *Cart) Close() (err error) {
 	_, err = v.SetConfig(CfgROMWriteEnable, 0)
 	return
 }
 
-func (v *SummerCart64) Read(p []byte) (n int, err error) {
+func (v *Cart) Read(p []byte) (n int, err error) {
 	msgtype, length, err := execCommand(cmdUSBReadStatus, 0, 0)
 	if msgtype == 0 || err != nil {
 		return 0, err

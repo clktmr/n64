@@ -11,11 +11,11 @@ const bufferSize = 512
 
 var usbBuf = periph.NewDevice(0x1f80_0400, bufferSize)
 
-type EverDrive64 struct {
+type Cart struct {
 	buf []byte
 }
 
-func Probe() *EverDrive64 {
+func Probe() *Cart {
 	regs.key.Store(0xaa55) // magic key to unlock registers
 	switch regs.version.Load() {
 	case 0xed64_0008: // EverDrive64 X3
@@ -23,7 +23,7 @@ func Probe() *EverDrive64 {
 	case 0x0000_0001: // EverDrive64 X7 without sdcard inserted
 		fallthrough
 	case 0xed64_0013: // EverDrive64 X7
-		cart := &EverDrive64{
+		cart := &Cart{
 			buf: cpu.MakePaddedSlice[byte](bufferSize),
 		}
 		return cart
@@ -31,7 +31,7 @@ func Probe() *EverDrive64 {
 	return nil
 }
 
-func (v *EverDrive64) Write(p []byte) (n int, err error) {
+func (v *Cart) Write(p []byte) (n int, err error) {
 	for err = io.ErrShortWrite; err == io.ErrShortWrite; {
 		regs.usbCfgW.Store(writeNop)
 
@@ -63,10 +63,10 @@ type UNFLoader struct {
 	// Can't use an interface here because presumably it causes "malloc
 	// during signal" if called via SystemWriter in a syscall.
 	// TODO try using generics to make this available for other carts
-	w *EverDrive64
+	w *Cart
 }
 
-func NewUNFLoader(w *EverDrive64) *UNFLoader {
+func NewUNFLoader(w *Cart) *UNFLoader {
 	// send a single heartbeat to let UNFLoader know which protocol version
 	// we are speaking.
 	w.Write([]byte{'D', 'M', 'A', '@', 5, 0, 0, 4, 0, 2, 0, 1, 'C', 'M', 'P', 'H'})

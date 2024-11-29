@@ -25,19 +25,19 @@ type registers struct {
 
 var piBuf *periph.Device = periph.NewDevice(cpu.PhysicalAddress(regs.buf[0].Addr()), bufferSize)
 
-type ISViewer struct{}
+type Cart struct{}
 
-func Probe() *ISViewer {
+func Probe() *Cart {
 	regs.token.Store(0xbeefcafe)
 	if regs.token.Load() == 0xbeefcafe {
 		regs.readPtr.Store(0)
 		regs.writePtr.Store(0)
-		return &ISViewer{}
+		return &Cart{}
 	}
 	return nil
 }
 
-func (v *ISViewer) Write(p []byte) (n int, err error) {
+func (v *Cart) Write(p []byte) (n int, err error) {
 	for err = io.ErrShortWrite; err == io.ErrShortWrite; {
 		piBuf.Seek(io.SeekStart, 0)
 		n, err = piBuf.Write(p)
