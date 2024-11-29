@@ -1,28 +1,35 @@
 package summercart64
 
 import (
+	"embedded/rtos"
+	"errors"
 	"io"
+	"runtime"
+	"time"
 )
 
 func (v *SummerCart64) Write(p []byte) (n int, err error) {
 	for errShort := io.ErrShortWrite; errShort == io.ErrShortWrite; {
 		err = waitUSB(cmdUSBWriteStatus)
 		if err != nil {
-			return 0, err
+			return
 		}
 
 		_, err = usbBuf.Seek(0, io.SeekStart)
 		if err != nil {
-			return 0, err
+			return
 		}
-		n, errShort = usbBuf.Write(p)
-		p = p[n:]
+
+		var nn int
+		nn, errShort = usbBuf.Write(p)
+		p = p[nn:]
+		n += nn
 
 		datatype := 1
-		header := uint32(((datatype) << 24) | ((n) & 0x00FFFFFF))
+		header := uint32(((datatype) << 24) | ((nn) & 0x00FFFFFF))
 		_, _, err = execCommand(cmdUSBWrite, uint32(usbBuf.Addr()), header)
 		if err != nil {
-			return 0, err
+			return
 		}
 	}
 
@@ -73,14 +80,19 @@ func (v *SummerCart64) Read(p []byte) (n int, err error) {
 }
 
 func waitUSB(cmd command) error {
+	start := rtos.Nanotime()
 	for {
 		status, _, err := execCommand(cmd, 0, 0)
 		if err != nil {
 			return err
 		}
-		if status != uint32(statusBusy) {
+		if status&uint32(statusBusy) == 0 {
 			break
 		}
+		if rtos.Nanotime()-start > time.Second {
+			return errors.New("usb timeout")
+		}
+		runtime.Gosched()
 	}
 	return nil
 }
