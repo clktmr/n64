@@ -4,6 +4,7 @@ import (
 	"embedded/rtos"
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -16,9 +17,11 @@ const (
 	piBus1End   = 0x7fff_ffff
 )
 
-// Implememts io.ReadWriteSeeker for accessing devices on the PI bus.  It will
-// automatically choose DMA transfers where alignment and cacheline padding
-// allow it, otherwise fall back to copying via mmio.
+// Device implememts io.ReaderAt and io.WriterAt for accessing devices on the PI
+// bus.  It will automatically choose DMA transfers where alignment and
+// cacheline padding allow it, otherwise fall back to copying via mmio.
+//
+// Device is safe for concurrent use.
 type Device struct {
 	addr cpu.Addr
 	size uint32
@@ -26,6 +29,7 @@ type Device struct {
 
 	wJodId uint64
 	done   rtos.Note
+	mtx    sync.Mutex
 }
 
 func NewDevice(piAddr cpu.Addr, size uint32) *Device {
@@ -46,7 +50,49 @@ func (v *Device) Size() int {
 	return int(v.size)
 }
 
+func (v *Device) ReadAt(p []byte, off int64) (n int, err error) {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
+	left := int(v.size) - int(off)
+	if len(p) >= left {
+		p = p[:left]
+		err = io.EOF
+	}
+
+	n = len(p)
+	id := dma(dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, nil})
+	flush(id, &v.done)
+
+	return
+}
+
+func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
+	left := int(v.size) - int(off)
+	if len(p) > left {
+		p = p[:left]
+		err = io.ErrShortWrite
+	}
+
+	for len(p) > 0 {
+		buf, _ := getBuf()
+		nn := copy(buf, p)
+		p = p[nn:]
+		v.wJodId = dma(dmaJob{v.addr + cpu.Addr(off), buf[:nn], dmaStore, nil})
+
+		n += nn
+	}
+
+	return
+}
+
 func (v *Device) Write(p []byte) (n int, err error) {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
 	left := int(v.size) - int(v.seek)
 	if len(p) > left {
 		p = p[:left]
@@ -68,6 +114,9 @@ func (v *Device) Write(p []byte) (n int, err error) {
 }
 
 func (v *Device) Read(p []byte) (n int, err error) {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
 	n = len(p)
 	left := int(v.size) - int(v.seek)
 	if n >= left {
@@ -84,6 +133,9 @@ func (v *Device) Read(p []byte) (n int, err error) {
 }
 
 func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
 	switch whence {
 	case io.SeekStart:
 		// newoffset = 0
@@ -103,5 +155,8 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 }
 
 func (v *Device) Flush() {
+	v.mtx.Lock()
+	defer v.mtx.Unlock()
+
 	flush(v.wJodId, &v.done)
 }
