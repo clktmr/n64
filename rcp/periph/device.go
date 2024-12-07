@@ -20,8 +20,6 @@ const (
 // Device implememts io.ReaderAt and io.WriterAt for accessing devices on the PI
 // bus.  It will automatically choose DMA transfers where alignment and
 // cacheline padding allow it, otherwise fall back to copying via mmio.
-//
-// Device is safe for concurrent use.
 type Device struct {
 	addr cpu.Addr
 	size uint32
@@ -90,9 +88,6 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 }
 
 func (v *Device) Write(p []byte) (n int, err error) {
-	v.mtx.Lock()
-	defer v.mtx.Unlock()
-
 	left := int(v.size) - int(v.seek)
 	if len(p) > left {
 		p = p[:left]
@@ -114,9 +109,6 @@ func (v *Device) Write(p []byte) (n int, err error) {
 }
 
 func (v *Device) Read(p []byte) (n int, err error) {
-	v.mtx.Lock()
-	defer v.mtx.Unlock()
-
 	n = len(p)
 	left := int(v.size) - int(v.seek)
 	if n >= left {
@@ -133,9 +125,6 @@ func (v *Device) Read(p []byte) (n int, err error) {
 }
 
 func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
-	v.mtx.Lock()
-	defer v.mtx.Unlock()
-
 	switch whence {
 	case io.SeekStart:
 		// newoffset = 0
