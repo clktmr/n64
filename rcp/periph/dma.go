@@ -58,6 +58,8 @@ type dmaJob struct {
 	done *rtos.Note
 }
 
+// initiate returns true if a dma transfer was started.  If it returns false,
+// that means the whole job did fallback to mmio.
 func (job *dmaJob) initiate() bool {
 	if job.buf == nil {
 		return false
@@ -90,6 +92,7 @@ func (job *dmaJob) initiate() bool {
 	return true
 }
 
+// finish does remaining mmio and wakeups any waiter on the job's note.
 func (job *dmaJob) finish() {
 	rcp.DisableInterrupts(rcp.IntrPeriph)
 	if job.buf != nil {
@@ -109,17 +112,18 @@ func (job *dmaJob) finish() {
 	}
 }
 
+// split returns two positions which split p in three parts.  The slice
+// p[head:tail] is safe for DMA, p[:head] and p[tail:] must fallback to mmio.
 func (job *dmaJob) split(p []byte, addr cpu.Addr) (head, tail int) {
 	head, tail = cpu.Pads(p)
 
-	// If DMA end address isn't 2 byte aligned, fallback to mmio for the
-	// last byte.
+	// If DMA length isn't 2 byte aligned, fallback to mmio for last byte.
 	if (tail-head)&0x1 != 0 {
 		tail -= 1
 	}
 
 	// If DMA start address isn't 2 byte aligned there is no way to use DMA
-	// at all, fallback to io for the whole transfer.
+	// at all, fallback to mmio for the whole transfer.
 	if (addr+cpu.Addr(head))&0x1 != 0 {
 		head = 0
 		tail = 0
