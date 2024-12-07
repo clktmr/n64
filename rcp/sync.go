@@ -53,10 +53,9 @@ const qsize = 32
 type IntrQueue[T any] struct {
 	ring              [qsize]T
 	start, end, write atomic.Int32
-	pushCnt, popCnt   atomic.Uint64
 }
 
-func (p *IntrQueue[T]) Push(v T) (id uint64) {
+func (p *IntrQueue[T]) Push(v T) {
 retry:
 	start := p.start.Load()
 	end := p.end.Load()
@@ -70,12 +69,10 @@ retry:
 	}
 
 	p.ring[end] = v
-	id = p.pushCnt.Add(1)
 
 	if !p.end.CompareAndSwap(end, next) {
 		panic("intr queue corrupted")
 	}
-	return
 }
 
 //go:nosplit
@@ -89,13 +86,6 @@ func (p *IntrQueue[T]) Peek() (v *T, ok bool) {
 	return &p.ring[start], true
 }
 
-func (p *IntrQueue[T]) Popped(id uint64) bool {
-	if p.popCnt.Load() >= id {
-		return true
-	}
-	return false
-}
-
 //go:nosplit
 func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 	start := p.start.Load()
@@ -106,7 +96,6 @@ func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 
 	v = &p.ring[start]
 	ok = true
-	p.popCnt.Add(1)
 
 	// Write zero value in the unused buffer to avoid holding hidden
 	// references that might prevent freeing memory.

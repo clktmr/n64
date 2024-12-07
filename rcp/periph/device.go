@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -25,9 +26,8 @@ type Device struct {
 	size uint32
 	seek int32 // TODO rename offset, make uint32
 
-	wJodId uint64
-	done   rtos.Note
-	mtx    sync.Mutex
+	done rtos.Note
+	mtx  sync.Mutex
 }
 
 func NewDevice(piAddr cpu.Addr, size uint32) *Device {
@@ -58,9 +58,12 @@ func (v *Device) ReadAt(p []byte, off int64) (n int, err error) {
 		err = io.EOF
 	}
 
+	v.done.Clear()
+	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, &v.done})
+	if !v.done.Sleep(1 * time.Second) {
+		panic("dma timeout")
+	}
 	n = len(p)
-	id := dma(dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, nil})
-	flush(id, &v.done)
 
 	return
 }
@@ -75,14 +78,12 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 		err = io.ErrShortWrite
 	}
 
-	for len(p) > 0 {
-		buf, _ := getBuf()
-		nn := copy(buf, p)
-		p = p[nn:]
-		v.wJodId = dma(dmaJob{v.addr + cpu.Addr(off), buf[:nn], dmaStore, nil})
-
-		n += nn
+	v.done.Clear()
+	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaStore, &v.done})
+	if !v.done.Sleep(1 * time.Second) {
+		panic("dma timeout")
 	}
+	n = len(p)
 
 	return
 }
@@ -94,32 +95,29 @@ func (v *Device) Write(p []byte) (n int, err error) {
 		err = io.ErrShortWrite
 	}
 
-	for len(p) > 0 {
-		buf, _ := getBuf()
-		nn := copy(buf, p)
-		p = p[nn:]
-		v.wJodId = dma(dmaJob{v.addr + cpu.Addr(v.seek), buf[:nn], dmaStore, nil})
-
-		n += nn
+	v.done.Clear()
+	dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaStore, &v.done})
+	if !v.done.Sleep(1 * time.Second) {
+		panic("dma timeout")
 	}
-
+	n = len(p)
 	v.Seek(int64(n), io.SeekCurrent)
-
 	return
 }
 
 func (v *Device) Read(p []byte) (n int, err error) {
-	n = len(p)
 	left := int(v.size) - int(v.seek)
-	if n >= left {
-		n = left
+	if len(p) >= left {
 		p = p[:left]
 		err = io.EOF
 	}
 
-	id := dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaLoad, nil})
-	flush(id, &v.done)
-
+	v.done.Clear()
+	dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaLoad, &v.done})
+	if !v.done.Sleep(1 * time.Second) {
+		panic("dma timeout")
+	}
+	n = len(p)
 	v.Seek(int64(n), io.SeekCurrent)
 	return
 }
@@ -143,9 +141,6 @@ func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
 	return
 }
 
+// TODO remove
 func (v *Device) Flush() {
-	v.mtx.Lock()
-	defer v.mtx.Unlock()
-
-	flush(v.wJodId, &v.done)
 }

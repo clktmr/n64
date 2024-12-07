@@ -4,6 +4,9 @@ package periph
 
 import (
 	"embedded/mmio"
+	"embedded/rtos"
+	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -17,26 +20,61 @@ type U32 struct{ R32[uint32] }
 type R32[T mmio.T32] struct{ r uint32 }
 
 func (r *R32[T]) Store(val T) {
-	p, _ := getBuf() // TODO dont waste a whole buffer
+	bufid, p, done := getBuf()
 	_ = p[3]
 	p[0] = byte(val >> 24)
 	p[1] = byte(val >> 16)
 	p[2] = byte(val >> 8)
 	p[3] = byte(val)
 	vaddr := uintptr(unsafe.Pointer(r))
-	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:4], dmaStore, nil})
+	done.Clear()
+	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaStore, done})
+	if !done.Sleep(1 * time.Second) {
+		panic("dma timeout")
+	}
+	putBuf(bufid)
 }
 
 func (r *R32[T]) Load() (v T) {
-	p, done := getBuf() // TODO dont waste a whole buffer
+	bufid, p, done := getBuf()
+	done.Clear()
 	vaddr := uintptr(unsafe.Pointer(r))
-	jid := dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:4], dmaLoad, nil})
-	flush(jid, done)
-	return T(p[0])<<24 | T(p[1])<<16 | T(p[2])<<8 | T(p[3])
+	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaLoad, done})
+	if !done.Sleep(1 * time.Second) {
+		panic("dma timeout")
+	}
+	v = T(p[0])<<24 | T(p[1])<<16 | T(p[2])<<8 | T(p[3])
+	putBuf(bufid)
+	return
 }
 
 func (r *R32[_]) Addr() uintptr {
 	return uintptr(unsafe.Pointer(r))
+}
+
+var dmaBufPool [32]struct {
+	buf  [4]byte
+	done rtos.Note
+	used atomic.Bool
+}
+
+func getBuf() (int, []byte, *rtos.Note) {
+	for i := range dmaBufPool {
+		b := &dmaBufPool[i]
+		if b.used.CompareAndSwap(false, true) {
+			return i, b.buf[:], &b.done
+		}
+	}
+
+	var buf [4]byte
+	return -1, buf[:], &rtos.Note{}
+}
+
+func putBuf(i int) {
+	if i < 0 {
+		return
+	}
+	dmaBufPool[i].used.Store(false)
 }
 
 type U32Safe struct{ R32Safe[uint32] }
