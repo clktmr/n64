@@ -14,12 +14,12 @@ const baseAddr uintptr = cpu.KSEG1 | 0x13ff_0000
 const bufferSize = 512 // actually 64*1024 - 0x20, but ISViewer.buf will allocate this
 
 type registers struct {
-	token    periph.U32Safe
-	readPtr  periph.U32Safe
-	_        [3]periph.U32Safe
-	writePtr periph.U32Safe
-	_        [2]periph.U32Safe
-	buf      [bufferSize / 4]periph.U32Safe
+	token    periph.U32
+	readPtr  periph.U32
+	_        [3]periph.U32
+	writePtr periph.U32
+	_        [2]periph.U32
+	buf      [bufferSize / 4]periph.U32
 }
 
 // Writes to ISViewer registers, regardless if a ISViewer is present or not.  Is
@@ -39,7 +39,7 @@ func DefaultWrite(fd int, p []byte) int {
 
 		for i := 0; i < n/4; i++ {
 			pi := 4 * i
-			regs.buf[i].Store(0 |
+			regs.buf[i].StoreSafe(0 |
 				uint32(p[pi])<<24 |
 				uint32(p[pi+1])<<16 |
 				uint32(p[pi+2])<<8 |
@@ -52,18 +52,18 @@ func DefaultWrite(fd int, p []byte) int {
 				base := len(p) - n%4
 				tail |= uint32(p[base+i]) << ((3 - i) * 8)
 			}
-			regs.buf[n/4].Store(tail)
+			regs.buf[n/4].StoreSafe(tail)
 		}
 
-		regs.readPtr.Store(0)
-		regs.writePtr.Store(uint32(n))
-		regs.token.Store(token)
+		regs.readPtr.StoreSafe(0)
+		regs.writePtr.StoreSafe(uint32(n))
+		regs.token.StoreSafe(token)
 
-		for regs.readPtr.Load() != regs.writePtr.Load() {
+		for regs.readPtr.LoadSafe() != regs.writePtr.LoadSafe() {
 			// wait
 		}
 
-		regs.token.Store(0x0)
+		regs.token.StoreSafe(0x0)
 		p = p[n:]
 	}
 

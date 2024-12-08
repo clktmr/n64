@@ -48,6 +48,23 @@ func (r *R32[T]) Load() (v T) {
 	return
 }
 
+func (r *R32[T]) StoreSafe(v T) {
+	for !dmaActive.CompareAndSwap(false, true) {
+		// wait
+	}
+	(*r32[T])(unsafe.Pointer(r)).Store(v)
+	dmaActive.Store(false)
+}
+
+func (r *R32[T]) LoadSafe() (v T) {
+	for !dmaActive.CompareAndSwap(false, true) {
+		// wait
+	}
+	v = (*r32[T])(unsafe.Pointer(r)).Load()
+	dmaActive.Store(false)
+	return
+}
+
 func (r *R32[_]) Addr() uintptr {
 	return uintptr(unsafe.Pointer(r))
 }
@@ -75,30 +92,6 @@ func putBuf(i int) {
 		return
 	}
 	dmaBufPool[i].used.Store(false)
-}
-
-type U32Safe struct{ R32Safe[uint32] }
-type R32Safe[T mmio.T32] struct{ r uint32 }
-
-func (r *R32Safe[T]) Store(v T) {
-	for !dmaActive.CompareAndSwap(false, true) {
-		// wait
-	}
-	(*r32[T])(unsafe.Pointer(r)).Store(v)
-	dmaActive.Store(false)
-}
-
-func (r *R32Safe[T]) Load() (v T) {
-	for !dmaActive.CompareAndSwap(false, true) {
-		// wait
-	}
-	v = (*r32[T])(unsafe.Pointer(r)).Load()
-	dmaActive.Store(false)
-	return
-}
-
-func (r *R32Safe[_]) Addr() uintptr {
-	return uintptr(unsafe.Pointer(r))
 }
 
 type u32 struct{ r32[uint32] }
