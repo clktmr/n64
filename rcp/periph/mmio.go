@@ -111,9 +111,9 @@ func (r *r32[T]) Load() T { return r.r.Load() }
 //go:nosplit
 func (r *r32[_]) Addr() uintptr { return r.r.Addr() }
 
-// WriteIO copies slice p to PI bus address addr using PI bus IO.  Note that all
-// writes are 4-byte long and unaligned writes will write garbage to the
-// remaining bytes.
+// WriteIO copies slice p to PI bus address addr using PI bus IO.  Note that it
+// needs to read from the PI bus if p's start or end aren't 4 byte aligned.
+// This might lead to unexpected behaviour of write-only devices.
 // TODO unexport, only for intr
 //
 //go:nosplit
@@ -127,10 +127,10 @@ func WriteIO(busAddr cpu.Addr, p []byte) {
 	pPtr = unsafe.Add(pPtr, shift)
 	for uintptr(busPtr) < end {
 		data, mask := uint32(0), uint32(0xffff_ffff)
-		if shift != 0 { // first read
+		if shift != 0 { // first dword
 			mask &= 0xffff_ffff >> ((-shift) << 3)
 		}
-		if end-uintptr(busPtr) == 4 && endshift != 0 { // last read
+		if end-uintptr(busPtr) == 4 && endshift != 0 { // last dword
 			mask &= 0xffff_ffff << (endshift << 3)
 		}
 		if mask != 0xffff_ffff { // read data before writing
