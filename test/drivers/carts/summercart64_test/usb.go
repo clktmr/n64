@@ -76,14 +76,13 @@ func TestSaveStorage(t *testing.T) {
 
 	buf := cpu.MakePaddedSlice[byte](len(testBytes))
 
-	_, err := sc64.SaveStorage().Read(buf)
+	_, err := sc64.SaveStorage().ReadAt(buf, 0)
 	if err != nil && err != io.EOF {
 		t.Fatal(err)
 	}
 	t.Log(strconv.Quote(string(buf)))
 
-	sc64.SaveStorage().Seek(0, io.SeekStart)
-	_, err = sc64.SaveStorage().Write([]byte("hello savegame!"))
+	_, err = sc64.SaveStorage().WriteAt([]byte("hello savegame!"), 0)
 	if err != nil {
 		t.Fatal(err)
 	}

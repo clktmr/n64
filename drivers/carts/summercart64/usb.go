@@ -9,21 +9,18 @@ import (
 )
 
 func (v *Cart) Write(p []byte) (n int, err error) {
-	for errShort := io.ErrShortWrite; errShort == io.ErrShortWrite; {
+	for len(p) > 0 {
 		err = waitUSB(cmdUSBWriteStatus)
 		if err != nil {
 			return
 		}
 
-		_, err = usbBuf.Seek(0, io.SeekStart)
-		if err != nil {
+		var nn int
+		nn, err = usbBuf.WriteAt(p, 0)
+		if err != nil && err != io.ErrShortWrite {
 			return
 		}
-
-		var nn int
-		nn, errShort = usbBuf.Write(p)
 		p = p[nn:]
-		n += nn
 
 		datatype := 1
 		header := uint32(((datatype) << 24) | ((nn) & 0x00FFFFFF))
@@ -31,9 +28,11 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 		if err != nil {
 			return
 		}
+
+		n += nn
 	}
 
-	return n, err
+	return
 }
 
 func (v *Cart) Close() (err error) {
@@ -63,8 +62,7 @@ func (v *Cart) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
-	usbBuf.Seek(0, io.SeekStart)
-	n, err1 := usbBuf.Read(p[:pending])
+	n, err1 := usbBuf.ReadAt(p[:pending], 0)
 
 	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
 	if err != nil {

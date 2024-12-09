@@ -24,7 +24,6 @@ const (
 type Device struct {
 	addr cpu.Addr
 	size uint32
-	seek int32 // TODO rename offset, make uint32
 
 	done rtos.Note
 	mtx  sync.Mutex
@@ -86,61 +85,4 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 	n = len(p)
 
 	return
-}
-
-func (v *Device) Write(p []byte) (n int, err error) {
-	left := int(v.size) - int(v.seek)
-	if len(p) > left {
-		p = p[:left]
-		err = io.ErrShortWrite
-	}
-
-	v.done.Clear()
-	dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaStore, &v.done})
-	if !v.done.Sleep(1 * time.Second) {
-		panic("dma timeout")
-	}
-	n = len(p)
-	v.Seek(int64(n), io.SeekCurrent)
-	return
-}
-
-func (v *Device) Read(p []byte) (n int, err error) {
-	left := int(v.size) - int(v.seek)
-	if len(p) >= left {
-		p = p[:left]
-		err = io.EOF
-	}
-
-	v.done.Clear()
-	dma(dmaJob{v.addr + cpu.Addr(v.seek), p, dmaLoad, &v.done})
-	if !v.done.Sleep(1 * time.Second) {
-		panic("dma timeout")
-	}
-	n = len(p)
-	v.Seek(int64(n), io.SeekCurrent)
-	return
-}
-
-func (v *Device) Seek(offset int64, whence int) (newoffset int64, err error) {
-	switch whence {
-	case io.SeekStart:
-		// newoffset = 0
-	case io.SeekCurrent:
-		newoffset += int64(v.seek)
-	case io.SeekEnd:
-		newoffset = int64(v.size)
-	}
-	newoffset += offset
-	if newoffset < 0 || newoffset > int64(v.size) {
-		return int64(v.seek), ErrSeekOutOfRange
-	}
-
-	v.seek = int32(newoffset)
-
-	return
-}
-
-// TODO remove
-func (v *Device) Flush() {
 }

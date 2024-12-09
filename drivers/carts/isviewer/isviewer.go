@@ -38,14 +38,16 @@ func Probe() *Cart {
 }
 
 func (v *Cart) Write(p []byte) (n int, err error) {
-	for err = io.ErrShortWrite; err == io.ErrShortWrite; {
-		piBuf.Seek(io.SeekStart, 0)
-		n, err = piBuf.Write(p)
-		p = p[n:]
-		piBuf.Flush()
+	for len(p) > 0 {
+		var nn int
+		nn, err = piBuf.WriteAt(p, 0)
+		if err != nil && err != io.ErrShortWrite {
+			return
+		}
+		p = p[nn:]
 
 		regs.readPtr.Store(0)
-		regs.writePtr.Store(uint32(n))
+		regs.writePtr.Store(uint32(nn))
 		regs.token.Store(token)
 
 		for regs.readPtr.Load() != regs.writePtr.Load() {
@@ -53,7 +55,8 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 		}
 
 		regs.token.Store(0x0)
+		n += nn
 	}
 
-	return n, err
+	return
 }

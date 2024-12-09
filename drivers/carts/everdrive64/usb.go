@@ -35,23 +35,22 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 	for err = io.ErrShortWrite; err == io.ErrShortWrite; {
 		regs.usbCfgW.Store(writeNop)
 
-		var offset int64 = int64(min(len(p), bufferSize))
-		offset, err = usbBuf.Seek(-offset, io.SeekEnd)
+		offset := int64(min(len(p), bufferSize))
+
+		var nn int
+		nn, err = usbBuf.WriteAt(p, int64(usbBuf.Size())-offset)
 		if err != nil {
 			return
 		}
-
-		var written int
-		written, err = usbBuf.Write(p)
-		n += written
-		p = p[written:]
-		usbBuf.Flush()
+		p = p[nn:]
 
 		regs.usbCfgW.Store(write | usbMode(offset))
 
 		for regs.usbCfgR.Load()&act != 0 {
 			// wait
 		}
+
+		n += nn
 	}
 
 	return
