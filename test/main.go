@@ -29,7 +29,9 @@ import (
 
 func init() {
 	systim.Setup(cpu.ClockSpeed)
+}
 
+func main() {
 	var err error
 	var cart carts.Cart
 
@@ -51,9 +53,7 @@ func init() {
 	if isviewer.Probe() == nil {
 		fmt.Print("\nWARN: no isviewer found, print() and panic() won't printed\n\n")
 	}
-}
 
-func main() {
 	os.Args = append(os.Args, "-test.v")
 	os.Args = append(os.Args, "-test.short")
 	os.Args = append(os.Args, "-test.bench=.")
