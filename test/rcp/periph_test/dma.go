@@ -3,7 +3,10 @@ package periph_test
 import (
 	"bytes"
 	"io"
+	"math/rand"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/clktmr/n64/drivers/carts/isviewer"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -187,4 +190,58 @@ func TestReadWriteIO(t *testing.T) {
 			}
 		}
 	}
+}
+
+const lorem = `Lorem ipsum dolor sit amet, consectetur adipisici elit, sed
+eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad
+minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquid
+ex ea commodi consequat. Quis aute iure reprehenderit in voluptate velit
+esse cillum dolore eu fugiat nulla pariatur. Excepteur sint obcaecat
+cupiditat non proident, sunt in culpa qui officia deserunt mollit anim
+id est laborum.`
+
+func TestConcurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
+	const devSize = 1024
+	devs := [...]*periph.Device{
+		periph.NewDevice(0x13fffc00, devSize),
+		periph.NewDevice(0x13fff800, devSize),
+		periph.NewDevice(0x13fff400, devSize),
+		periph.NewDevice(0x13fff000, devSize),
+	}
+
+	var wg sync.WaitGroup
+	for _, dev := range devs {
+		dev := dev
+		wg.Add(1)
+		go func() {
+			timer := time.NewTimer(5 * time.Second)
+			exit := false
+			for !exit {
+				offset := int64(rand.Intn(devSize - len(lorem)))
+				_, err := dev.WriteAt([]byte(lorem), offset)
+				if err != nil {
+					t.Error(err)
+				}
+				buf := make([]byte, len(lorem))
+				_, err = dev.ReadAt(buf, offset)
+				if err != nil {
+					t.Error(err)
+				}
+				if !bytes.Equal(buf, []byte(lorem)) {
+					t.Error("read unexpected data")
+				}
+
+				select {
+				case <-timer.C:
+					exit = true
+				}
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }

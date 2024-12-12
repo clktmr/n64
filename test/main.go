@@ -72,6 +72,7 @@ func main() {
 			newInternalTest(draw_test.TestDrawMask),
 			newInternalTest(periph_test.TestReaderWriterAt),
 			newInternalTest(periph_test.TestReadWriteIO),
+			newInternalTest(periph_test.TestConcurrent),
 			newInternalTest(summercart64_test.TestUSBRead),
 			newInternalTest(summercart64_test.TestSaveStorage),
 			newInternalTest(controller_test.TestControllerState),
