@@ -40,7 +40,7 @@ func init() {
 func handler() {
 	regs.status.Store(0) // clears interrupt
 
-	buf, _ := cmdBuffer.Load()
+	buf, _ := cmdBuffer.Get()
 	if buf == nil {
 		return
 	}
@@ -87,7 +87,7 @@ func Run(block *CommandBlock) {
 	buf[len(buf)-1] = byte(block.cmd)
 
 	cmdFinished.Clear()
-	cmdBuffer.Store(buf)
+	cmdBuffer.Put(buf)
 	cpu.WritebackSlice(buf)
 	regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
 	regs.pifWriteAddr.Store(pifRamAddr)
@@ -97,5 +97,5 @@ func Run(block *CommandBlock) {
 		panic("pif timeout")
 	}
 
-	cmdBuffer.Store(nil)
+	cmdBuffer.Put(nil)
 }

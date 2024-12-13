@@ -15,13 +15,14 @@ type IntrInput[T any] struct {
 	ptr  atomic.Int32
 }
 
-// Get can be used by the writer goroutine to read back the currently stored
+// Read can be used by the writer goroutine to read back the currently stored
 // value.
-func (p *IntrInput[T]) Get() (v T) {
+func (p *IntrInput[T]) Read() (v T) {
 	return p.bufs[(p.next+1)&0x1]
 }
 
-func (p *IntrInput[T]) Store(v T) {
+// Put updates the stored value atomically.
+func (p *IntrInput[T]) Put(v T) {
 	// Write alternating to bufs[0] and bufs[1] and set ptr to the latest
 	// write.  Will never write where ptr points at.
 	p.bufs[p.next] = v
@@ -34,8 +35,10 @@ func (p *IntrInput[T]) Store(v T) {
 	p.bufs[p.next] = zero
 }
 
+// Get returns the stored value and if it was updated since the last call.
+//
 //go:nosplit
-func (p *IntrInput[T]) Load() (v T, updated bool) {
+func (p *IntrInput[T]) Get() (v T, updated bool) {
 	ptr := p.ptr.Swap(-1)
 	// Since we aren't preemptible by the writer, we can read *ptr safely.
 	if ptr == -1 {

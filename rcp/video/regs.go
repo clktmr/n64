@@ -151,7 +151,7 @@ func SetupPAL(interlace, pal60 bool) {
 // Scale returns the rectangle inside the current video standards boundaries
 // which contains the video output.
 func Scale() image.Rectangle {
-	return scale.Get()
+	return scale.Read()
 }
 
 // SetScale sets and returns the rectangle which contains the video output.  If
@@ -186,7 +186,7 @@ func SetScale(r image.Rectangle) image.Rectangle {
 	shift.Y = max(limits.Min.Y-r.Min.Y, 0) + min(limits.Max.Y-r.Max.Y, 0)
 	r = r.Add(shift)
 
-	scale.Store(r)
+	scale.Put(r)
 	return r
 }
 
@@ -194,10 +194,10 @@ func SetScale(r image.Rectangle) image.Rectangle {
 // framebuffer was already set, does a fast switch without reconfigure.  Setting
 // a nil framebuffer will disable video output.
 func SetFramebuffer(fb texture.Texture) {
-	currentFb := framebuffer.Get()
+	currentFb := framebuffer.Read()
 	if fb == nil {
 		regs.control.Store(0)
-		framebuffer.Store(nil)
+		framebuffer.Put(nil)
 	} else if currentFb == nil ||
 		currentFb.BPP() != fb.BPP() ||
 		currentFb.Bounds().Size() != fb.Bounds().Size() {
@@ -209,7 +209,7 @@ func SetFramebuffer(fb texture.Texture) {
 
 		regs.control.Store(0)
 
-		framebuffer.Store(fb)
+		framebuffer.Put(fb)
 		fbSize := fb.Bounds().Size()
 		videoSize := SetScale(Scale()).Size()
 		regs.xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
@@ -219,7 +219,7 @@ func SetFramebuffer(fb texture.Texture) {
 		updateFramebuffer(fb)
 		regs.control.Store(control)
 	} else {
-		framebuffer.Store(fb)
+		framebuffer.Put(fb)
 		if !VSync {
 			updateFramebuffer(fb)
 		}
@@ -228,7 +228,7 @@ func SetFramebuffer(fb texture.Texture) {
 
 // Returns the currently displayed framebuffer.
 func Framebuffer() texture.Texture {
-	return framebuffer.Get()
+	return framebuffer.Read()
 }
 
 // Returns the currently configured native resolution.  Use this resolution or a

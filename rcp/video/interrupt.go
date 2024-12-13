@@ -29,13 +29,13 @@ func init() {
 func handler() {
 	regs.vCurrent.Store(0) // clears interrupt
 
-	fb, _ := framebuffer.Load()
+	fb, _ := framebuffer.Get()
 	if fb == nil { // only needed for Ares
 		return
 	}
 
 	// update scale if it was changed
-	if r, updated := scale.Load(); updated {
+	if r, updated := scale.Get(); updated {
 		fbSize := fb.Bounds().Size()
 		videoSize := r.Size()
 		regs.hVideo.Store(uint32(r.Min.X<<16 | r.Max.X))
