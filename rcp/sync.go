@@ -1,7 +1,10 @@
 package rcp
 
 import (
+	"embedded/rtos"
+	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const flagUpdated = 1 << 31
@@ -49,20 +52,27 @@ const qsize = 32
 // goroutines and a single reader are allowed.  The reader must not be
 // preemptible by the writers, i.e. an interrupt.
 type IntrQueue[T any] struct {
-	ring              [qsize]T
-	start, end, write atomic.Int32
+	ring       [qsize]T
+	start, end atomic.Int32
+	mtx        sync.Mutex
+	pop        rtos.Note
 }
 
 func (p *IntrQueue[T]) Push(v T) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
 retry:
+	p.pop.Clear()
+
 	start := p.start.Load()
 	end := p.end.Load()
 	next := (end + 1) % int32(len(p.ring))
-	if next == start {
-		goto retry
-	}
 
-	if !p.write.CompareAndSwap(end, next) {
+	if next == start {
+		if !p.pop.Sleep(1 * time.Second) {
+			panic("dma queue timeout")
+		}
 		goto retry
 	}
 
@@ -104,6 +114,8 @@ func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 	if !p.start.CompareAndSwap(start, (start+1)%int32(len(p.ring))) {
 		panic("multiple readers")
 	}
+
+	p.pop.Wakeup()
 
 	return
 }
