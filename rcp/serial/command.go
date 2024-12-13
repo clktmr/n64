@@ -81,7 +81,7 @@ func (c *CommandBlock) Free() int {
 
 func Run(block *CommandBlock) {
 	mtx.Lock()
-	defer func() { mtx.Unlock() }()
+	defer mtx.Unlock()
 
 	buf := block.buf[:pifRamSize]
 	buf[len(buf)-1] = byte(block.cmd)
