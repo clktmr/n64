@@ -4,48 +4,43 @@ import (
 	"sync/atomic"
 )
 
-// IntrInput passes any value safely into an interrupt context.  Only a single
-// writer goroutine and a single reader are allowed.  The reader must not be
-// preemptible by the writer, i.e. an interrupt.
-type IntrInput[T any] struct {
-	next    int32 // owned by writer
-	current int32 // owned by reader
+const flagUpdated = 1 << 31
 
+// IntrInput passes any value safely into an interrupt context using a double
+// buffer.  Only a single writer and a single reader are allowed.
+type IntrInput[T any] struct {
 	bufs [2]T
-	ptr  atomic.Int32
+	seq  atomic.Uint32 // bit 0: read index, bit 31: update flag
 }
 
 // Read can be used by the writer goroutine to read back the currently stored
 // value.
 func (p *IntrInput[T]) Read() (v T) {
-	return p.bufs[(p.next+1)&0x1]
+	return p.bufs[p.seq.Load()&0x1]
 }
 
 // Put updates the stored value atomically.
 func (p *IntrInput[T]) Put(v T) {
-	// Write alternating to bufs[0] and bufs[1] and set ptr to the latest
-	// write.  Will never write where ptr points at.
-	p.bufs[p.next] = v
-	p.ptr.Store(p.next)
-	p.next = (p.next + 1) & 0x1
-
-	// Write zero value in the unused buffer to avoid holding hidden
-	// references that might prevent freeing memory.
-	var zero T
-	p.bufs[p.next] = zero
+	new := (p.seq.Load() + 1) | flagUpdated
+	p.bufs[new&0x1] = v
+	p.seq.Store(new)
 }
 
-// Get returns the stored value and if it was updated since the last call.
+// Get returns the currently stored value and if it was updated by Put since the
+// last call to Get.
 //
 //go:nosplit
 func (p *IntrInput[T]) Get() (v T, updated bool) {
-	ptr := p.ptr.Swap(-1)
-	// Since we aren't preemptible by the writer, we can read *ptr safely.
-	if ptr == -1 {
-		return p.bufs[p.current], false
+	for {
+		old := p.seq.Load()
+		v = p.bufs[old&0x1]
+		updated = old&flagUpdated != 0
+
+		new := old &^ flagUpdated
+		if p.seq.CompareAndSwap(old, new) {
+			return
+		}
 	}
-	p.current = ptr
-	return p.bufs[p.current], true
 }
 
 const qsize = 32
