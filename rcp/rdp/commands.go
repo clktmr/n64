@@ -57,7 +57,7 @@ type state struct {
 	interlace               InterlaceFrame
 
 	size image.Point
-	bbp  texture.BitDepth
+	bpp  texture.BitDepth
 }
 
 var RDP DisplayList
@@ -108,9 +108,9 @@ func (dl *DisplayList) Push(cmd command) {
 func (dl *DisplayList) SetColorImage(img texture.Texture) {
 	debug.Assert(img.Addr()%64 == 0, "rdp framebuffer alignment")
 	debug.Assert(img.Stride() < 1<<10, "rdp framebuffer width too big")
-	debug.Assert(img.Format() == texture.RGBA && img.BPP() == texture.BBP16 ||
-		img.Format() == texture.RGBA && img.BPP() == texture.BBP32 ||
-		img.Format() == texture.I && img.BPP() == texture.BBP8, "rdp unsupported format")
+	debug.Assert(img.Format() == texture.RGBA && img.BPP() == texture.BPP16 ||
+		img.Format() == texture.RGBA && img.BPP() == texture.BPP32 ||
+		img.Format() == texture.I && img.BPP() == texture.BPP8, "rdp unsupported format")
 
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
@@ -118,10 +118,10 @@ func (dl *DisplayList) SetColorImage(img texture.Texture) {
 		command(img.Addr()))
 
 	dl.size = img.Bounds().Size()
-	dl.bbp = img.BPP()
+	dl.bpp = img.BPP()
 }
 
-// Sets the zbuffer.  Width is taken from SetColorImage, bbp is always 18.
+// Sets the zbuffer.  Width is taken from SetColorImage, bpp is always 18.
 func (dl *DisplayList) SetDepthImage(addr uintptr) {
 	debug.Assert(addr%64 == 0, "rdp zbuffer must be 64 byte aligned")
 
@@ -150,15 +150,15 @@ const (
 func supportedFormat(fmt texture.ImageFormat, bpp texture.BitDepth) bool {
 	switch fmt {
 	case texture.RGBA:
-		return bpp == texture.BBP16 || bpp == texture.BBP32
+		return bpp == texture.BPP16 || bpp == texture.BPP32
 	case texture.YUV:
-		return bpp == texture.BBP16
+		return bpp == texture.BPP16
 	case texture.IA:
-		return bpp == texture.BBP4 || bpp == texture.BBP8 || bpp == texture.BBP16
+		return bpp == texture.BPP4 || bpp == texture.BPP8 || bpp == texture.BPP16
 	case texture.I:
 		fallthrough
 	case texture.ColorIdx:
-		return bpp == texture.BBP4 || bpp == texture.BBP8
+		return bpp == texture.BPP4 || bpp == texture.BPP8
 	}
 	return false
 }
@@ -190,7 +190,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	debug.Assert(supportedFormat(ts.Format, ts.Size), "tile unsupported format")
 
 	// some formats must indicate 16 byte instead of 8 byte texels
-	if ts.Size == texture.BBP32 && (ts.Format == texture.RGBA || ts.Format == texture.YUV) {
+	if ts.Size == texture.BPP32 && (ts.Format == texture.RGBA || ts.Format == texture.YUV) {
 		ts.Line = ts.Line >> 1
 	}
 
@@ -352,8 +352,8 @@ func (dl *DisplayList) SetOtherModes(
 	cvgDest CvgDest,
 	blend BlendMode,
 ) {
-	debug.Assert(!(ct == CycleTypeCopy && dl.bbp == texture.BBP32), "COPY mode unavailable for 32-bit framebuffer")
-	debug.Assert(!(ct == CycleTypeFill && dl.bbp == texture.BBP4), "FILL mode unavailable for 4-bit framebuffer")
+	debug.Assert(!(ct == CycleTypeCopy && dl.bpp == texture.BPP32), "COPY mode unavailable for 32-bit framebuffer")
+	debug.Assert(!(ct == CycleTypeFill && dl.bpp == texture.BPP4), "FILL mode unavailable for 4-bit framebuffer")
 
 	m := flags | blend.modeFlags()
 	m |= ModeFlags(ct) | ModeFlags(cDith) | ModeFlags(aDith) | ModeFlags(zMode) | ModeFlags(cvgDest)
@@ -413,12 +413,12 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 
 	r, g, b, a := uint32(dl.fillColor.R), uint32(dl.fillColor.G), uint32(dl.fillColor.B), uint32(dl.fillColor.A)
 	var ci uint32
-	if dl.bbp == texture.BBP32 {
+	if dl.bpp == texture.BPP32 {
 		ci = (r << 24) | (g << 16) | (b << 8) | a
-	} else if dl.bbp == texture.BBP16 {
+	} else if dl.bpp == texture.BPP16 {
 		ci = ((r >> 3) << 11) | ((g >> 3) << 6) | ((b >> 3) << 1) | (a >> 15)
 		ci |= ci << 16
-	} else if dl.bbp == texture.BBP8 {
+	} else if dl.bpp == texture.BPP8 {
 		ci = (a << 24) | (a << 16) | (a << 8) | a
 	} else {
 		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")

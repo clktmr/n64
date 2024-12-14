@@ -244,9 +244,9 @@ func NativeResolution() image.Point {
 
 func bpp(bpp texture.BitDepth) ColorDepth {
 	switch bpp {
-	case texture.BBP16:
+	case texture.BPP16:
 		return BPP16
-	case texture.BBP32:
+	case texture.BPP32:
 		return BPP32
 	default:
 		debug.Assert(false, "video: unsupported framebuffer format")

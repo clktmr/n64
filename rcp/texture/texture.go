@@ -20,10 +20,10 @@ const (
 type BitDepth uint64
 
 const (
-	BBP4 BitDepth = iota << 51
-	BBP8
-	BBP16
-	BBP32
+	BPP4 BitDepth = iota << 51
+	BPP8
+	BPP16
+	BPP32
 )
 
 type Texture interface {
