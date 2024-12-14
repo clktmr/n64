@@ -18,6 +18,8 @@ const (
 	piBus1End   = 0x7fff_ffff
 )
 
+var ErrEndOfDevice = errors.New("end of device")
+
 // Device implememts io.ReaderAt and io.WriterAt for accessing devices on the PI
 // bus.  It will automatically choose DMA transfers where alignment and
 // cacheline padding allow it, otherwise fall back to copying via mmio.
@@ -36,8 +38,6 @@ func NewDevice(piAddr cpu.Addr, size uint32) *Device {
 		"invalid pi bus address")
 	return &Device{addr: piAddr, size: size}
 }
-
-var ErrSeekOutOfRange = errors.New("seek out of range")
 
 func (v *Device) Addr() cpu.Addr {
 	return v.addr
@@ -74,7 +74,7 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 	left := int(v.size) - int(off)
 	if len(p) > left {
 		p = p[:left]
-		err = io.ErrShortWrite
+		err = ErrEndOfDevice
 	}
 
 	v.done.Clear()

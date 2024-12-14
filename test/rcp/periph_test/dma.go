@@ -30,7 +30,7 @@ func newBytesReadWriter(b []byte) *bytesReadWriter {
 func (b *bytesReadWriter) WriteAt(p []byte, offset int64) (n int, err error) {
 	n = copy(b.buf[offset:], p)
 	if n < len(p) {
-		err = io.ErrShortWrite
+		err = periph.ErrEndOfDevice
 	}
 	return
 }

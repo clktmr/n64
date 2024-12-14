@@ -3,7 +3,6 @@ package summercart64
 import (
 	"embedded/rtos"
 	"errors"
-	"io"
 	"runtime"
 	"time"
 )
@@ -16,8 +15,8 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 		}
 
 		var nn int
-		nn, err = usbBuf.WriteAt(p, 0)
-		if err != nil && err != io.ErrShortWrite {
+		nn, err = usbBuf.WriteAt(p[:min(len(p), usbBuf.Size())], 0)
+		if err != nil {
 			return
 		}
 		p = p[nn:]

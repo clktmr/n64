@@ -1,8 +1,6 @@
 package everdrive64
 
 import (
-	"io"
-
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/periph"
 )
@@ -32,13 +30,14 @@ func Probe() *Cart {
 }
 
 func (v *Cart) Write(p []byte) (n int, err error) {
-	for err = io.ErrShortWrite; err == io.ErrShortWrite; {
+	for len(p) > 0 {
 		regs.usbCfgW.Store(writeNop)
 
 		offset := int64(min(len(p), bufferSize))
 
 		var nn int
-		nn, err = usbBuf.WriteAt(p, int64(usbBuf.Size())-offset)
+		nn, err = usbBuf.WriteAt(p[:min(len(p), usbBuf.Size())],
+			int64(usbBuf.Size())-offset)
 		if err != nil {
 			return
 		}
@@ -73,26 +72,33 @@ func NewUNFLoader(w *Cart) *UNFLoader {
 }
 
 func (v *UNFLoader) Write(p []byte) (n int, err error) {
-	n = len(p)
-	if n >= 1<<24 {
-		n = 1 << 24
-		err = io.ErrShortWrite
-	}
-	v.w.Write([]byte{'D', 'M', 'A', '@', 1, byte(n >> 16), byte(n >> 8), byte(n)})
+	for len(p) > 0 {
+		nn := min(len(p), (1<<24)-1)
+		_, err = v.w.Write([]byte{'D', 'M', 'A', '@', 1, byte(nn >> 16), byte(nn >> 8), byte(nn)})
+		if err != nil {
+			return
+		}
 
-	// Align pi addr to 2 byte to ensure use of DMA.  This might cause the
-	// last byte to be discarded.  If that's the case, we prepend it to the
-	// footer.
-	s, err1 := v.w.Write(p[:n&^1])
-	if err1 != nil {
-		return s, err1
-	}
+		// Align pi addr to 2 byte to ensure use of DMA.  This might cause the
+		// last byte to be discarded.  If that's the case, we prepend it to the
+		// footer.
+		_, err = v.w.Write(p[:nn&^1])
+		if err != nil {
+			return
+		}
 
-	footer := []byte{p[len(p)-1], 'C', 'M', 'P', 'H', '0'}
-	if n%2 == 0 {
-		footer = footer[1 : len(footer)-1]
+		footer := []byte{p[nn-1], 'C', 'M', 'P', 'H', '0'}
+		if nn%2 == 0 {
+			footer = footer[1 : len(footer)-1]
+		}
+		_, err = v.w.Write(footer)
+		if err != nil {
+			return
+		}
+
+		p = p[nn:]
+		n += nn
 	}
-	v.w.Write(footer)
 
 	return
 }

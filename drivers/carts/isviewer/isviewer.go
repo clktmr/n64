@@ -1,7 +1,6 @@
 package isviewer
 
 import (
-	"io"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -40,8 +39,8 @@ func Probe() *Cart {
 func (v *Cart) Write(p []byte) (n int, err error) {
 	for len(p) > 0 {
 		var nn int
-		nn, err = piBuf.WriteAt(p, 0)
-		if err != nil && err != io.ErrShortWrite {
+		nn, err = piBuf.WriteAt(p[:min(len(p), piBuf.Size())], 0)
+		if err != nil {
 			return
 		}
 		p = p[nn:]
