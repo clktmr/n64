@@ -14,9 +14,9 @@ TEXT _rt0_mips64_noos(SB),NOSPLIT|NOFRAME,$0
 
 	JAL  ·rt0_tlb(SB)
 
-	MOVW (0x80000318), R8 // memory size
+	MOVW (0x80000318), R16 // memory size
 	MOVV $0x10, R9
-	SUBV R9, R8, R29 // init stack pointer
+	SUBV R9, R16, R29 // init stack pointer
 	MOVV $0, RSB // init data pointer
 	MOVW $8, R2
 	MOVW R2, (0xbfc007fc) // trigger PIF command 'terminate boot process'
@@ -48,6 +48,7 @@ wait_dma_end:
 	AND  $3, R9 // PI_STATUS_DMA_BUSY | PI_STATUS_IO_BUSY
 	BGTZ R9, wait_dma_end
 
+	MOVV R16, R4
 	JMP runtime·_rt0_mips64_noos1(SB)
 
 // The n64 actually needs to be compiled for GOARCH=mips64p32 which isn't
