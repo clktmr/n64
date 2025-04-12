@@ -19,7 +19,7 @@ type dmaJob struct {
 	cart cpu.Addr
 	buf  []byte
 	dir  dmaDirection
-	done *rtos.Note
+	done *rtos.Cond
 }
 
 // initiate returns true if a dma transfer was started.  If it returns false,
@@ -70,7 +70,7 @@ func (job *dmaJob) finish() {
 	}
 
 	if job.done != nil {
-		job.done.Wakeup()
+		job.done.Signal()
 	}
 }
 

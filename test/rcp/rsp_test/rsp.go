@@ -78,10 +78,10 @@ func TestInterrupt(t *testing.T) {
 	ucode := rsp.NewUCode("testcode", uint32(rsp.IMEM&0xffffffff), code, data)
 	ucode.Load()
 
-	rsp.IntBreak.Clear()
+	rsp.IntBreak.Wait(0)
 	ucode.Run()
 
-	if triggered := rsp.IntBreak.Sleep(10 * time.Millisecond); !triggered {
+	if triggered := rsp.IntBreak.Wait(10 * time.Millisecond); !triggered {
 		t.Fatal("timeout")
 	}
 }

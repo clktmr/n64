@@ -27,9 +27,9 @@ func (r *R32[T]) Store(val T) {
 	p[2] = byte(val >> 8)
 	p[3] = byte(val)
 	vaddr := uintptr(unsafe.Pointer(r))
-	done.Clear()
+	done.Wait(0)
 	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaStore, done})
-	if !done.Sleep(1 * time.Second) {
+	if !done.Wait(1 * time.Second) {
 		panic("dma timeout")
 	}
 	putBuf(bufid)
@@ -37,10 +37,10 @@ func (r *R32[T]) Store(val T) {
 
 func (r *R32[T]) Load() (v T) {
 	bufid, p, done := getBuf()
-	done.Clear()
+	done.Wait(0)
 	vaddr := uintptr(unsafe.Pointer(r))
 	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaLoad, done})
-	if !done.Sleep(1 * time.Second) {
+	if !done.Wait(1 * time.Second) {
 		panic("dma timeout")
 	}
 	v = T(p[0])<<24 | T(p[1])<<16 | T(p[2])<<8 | T(p[3])
@@ -71,11 +71,11 @@ func (r *R32[_]) Addr() uintptr {
 
 var dmaBufPool [32]struct {
 	buf  [4]byte
-	done rtos.Note
+	done rtos.Cond
 	used atomic.Bool
 }
 
-func getBuf() (int, []byte, *rtos.Note) {
+func getBuf() (int, []byte, *rtos.Cond) {
 	for i := range dmaBufPool {
 		b := &dmaBufPool[i]
 		if b.used.CompareAndSwap(false, true) {
@@ -84,7 +84,7 @@ func getBuf() (int, []byte, *rtos.Note) {
 	}
 
 	var buf [4]byte
-	return -1, buf[:], &rtos.Note{}
+	return -1, buf[:], &rtos.Cond{}
 }
 
 func putBuf(i int) {

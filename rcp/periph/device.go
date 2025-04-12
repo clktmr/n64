@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/clktmr/n64/debug"
@@ -27,7 +28,7 @@ type Device struct {
 	addr cpu.Addr
 	size uint32
 
-	done rtos.Note
+	done *rtos.Cond
 	mtx  sync.Mutex
 }
 
@@ -36,7 +37,7 @@ func NewDevice(piAddr cpu.Addr, size uint32) *Device {
 	debug.Assert((addr >= piBus0Start && addr+size <= piBus0End) ||
 		(addr >= piBus1Start && addr+size <= piBus1End),
 		"invalid pi bus address")
-	return &Device{addr: piAddr, size: size}
+	return &Device{addr: piAddr, size: size, done: allocCond()}
 }
 
 func (v *Device) Addr() cpu.Addr {
@@ -57,9 +58,9 @@ func (v *Device) ReadAt(p []byte, off int64) (n int, err error) {
 		err = io.EOF
 	}
 
-	v.done.Clear()
-	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, &v.done})
-	if !v.done.Sleep(1 * time.Second) {
+	v.done.Wait(0)
+	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, v.done})
+	if !v.done.Wait(1 * time.Second) {
 		panic("dma timeout")
 	}
 	n = len(p)
@@ -77,12 +78,21 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 		err = ErrEndOfDevice
 	}
 
-	v.done.Clear()
-	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaStore, &v.done})
-	if !v.done.Sleep(1 * time.Second) {
+	v.done.Wait(0)
+	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaStore, v.done})
+	if !v.done.Wait(1 * time.Second) {
 		panic("dma timeout")
 	}
 	n = len(p)
 
 	return
+}
+
+var (
+	condPool    [32]rtos.Cond
+	condPoolIdx atomic.Int32
+)
+
+func allocCond() *rtos.Cond {
+	return &condPool[condPoolIdx.Add(1)-1]
 }

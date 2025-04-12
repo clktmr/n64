@@ -49,8 +49,8 @@ func (p *Display) Swap() texture.Texture {
 	video.SetFramebuffer(p.read)
 
 	if video.VSync {
-		video.VBlank.Clear()
-		if !video.VBlank.Sleep(1 * time.Second) {
+		video.VBlank.Wait(0)
+		if !video.VBlank.Wait(1 * time.Second) {
 			panic("vblank timeout")
 		}
 	}

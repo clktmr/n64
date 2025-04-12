@@ -9,7 +9,7 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
-var VBlank rtos.Note
+var VBlank rtos.Cond
 
 // Consumed by interrupt handler
 var (
@@ -46,7 +46,7 @@ func handler() {
 
 	updateFramebuffer(fb)
 
-	VBlank.Wakeup()
+	VBlank.Signal()
 }
 
 // Updates the framebuffer based on currently configured framebuffer and field.

@@ -19,7 +19,7 @@ func InterruptOnBreak(enable bool) {
 	}
 }
 
-var IntBreak rtos.Note
+var IntBreak rtos.Cond
 
 func init() {
 	rcp.SetHandler(rcp.IntrRSP, handler)
@@ -30,5 +30,5 @@ func init() {
 //go:nowritebarrierrec
 func handler() {
 	regs.status.Store(clrIntr)
-	IntBreak.Wakeup()
+	IntBreak.Signal()
 }

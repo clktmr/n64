@@ -26,7 +26,7 @@ var mtx sync.Mutex
 
 // state shared with interrupt handler
 var (
-	cmdFinished rtos.Note
+	cmdFinished rtos.Cond
 	cmdBuffer   rcp.IntrInput[[]byte]
 )
 
@@ -47,7 +47,7 @@ func handler() {
 
 	if buf[pifRamSize-1] == 0x00 {
 		// DMA read finished
-		cmdFinished.Wakeup()
+		cmdFinished.Signal()
 	} else {
 		// DMA write finished, trigger read back
 		cpu.InvalidateSlice(buf)
@@ -86,14 +86,14 @@ func Run(block *CommandBlock) {
 	buf := block.buf[:pifRamSize]
 	buf[len(buf)-1] = byte(block.cmd)
 
-	cmdFinished.Clear()
+	cmdFinished.Wait(0)
 	cmdBuffer.Put(buf)
 	cpu.WritebackSlice(buf)
 	regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
 	regs.pifWriteAddr.Store(pifRamAddr)
 
 	// Wait until message was received
-	if !cmdFinished.Sleep(1 * time.Second) {
+	if !cmdFinished.Wait(1 * time.Second) {
 		panic("pif timeout")
 	}
 

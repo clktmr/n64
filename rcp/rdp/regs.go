@@ -62,7 +62,7 @@ type registers struct {
 	// TODO there are more undocumented registers (DPC_* and DPS_*)
 }
 
-var FullSync rtos.Note
+var FullSync rtos.Cond
 
 func init() {
 	rcp.SetHandler(rcp.IntrRDP, handler)
@@ -73,7 +73,7 @@ func init() {
 //go:nowritebarrierrec
 func handler() {
 	rcp.ClearDPIntr()
-	FullSync.Wakeup()
+	FullSync.Signal()
 }
 
 func Busy() (cmd, pipe, tmem uint32) {

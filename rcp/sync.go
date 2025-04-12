@@ -55,7 +55,7 @@ type IntrQueue[T any] struct {
 	ring       [qsize]T
 	start, end atomic.Int32
 	mtx        sync.Mutex
-	pop        rtos.Note
+	pop        rtos.Cond
 }
 
 func (p *IntrQueue[T]) Push(v T) {
@@ -63,14 +63,14 @@ func (p *IntrQueue[T]) Push(v T) {
 	defer p.mtx.Unlock()
 
 retry:
-	p.pop.Clear()
+	p.pop.Wait(0)
 
 	start := p.start.Load()
 	end := p.end.Load()
 	next := (end + 1) % int32(len(p.ring))
 
 	if next == start {
-		if !p.pop.Sleep(1 * time.Second) {
+		if !p.pop.Wait(1 * time.Second) {
 			panic("dma queue timeout")
 		}
 		goto retry
@@ -115,7 +115,7 @@ func (p *IntrQueue[T]) Pop() (v *T, ok bool) {
 		panic("multiple readers")
 	}
 
-	p.pop.Wakeup()
+	p.pop.Signal()
 
 	return
 }

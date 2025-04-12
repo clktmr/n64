@@ -15,7 +15,7 @@ import (
 
 var blocker atomic.Bool
 var sc64 *summercart64.Cart
-var note rtos.Note
+var note rtos.Cond
 
 //go:linkname cartHandler IRQ4_Handler
 //go:interrupthandler
@@ -35,7 +35,7 @@ func blockingHandler() {
 	for time.Since(start) < 5*time.Second && blocker.Load() == true {
 		// block
 	}
-	note.Wakeup()
+	note.Signal()
 }
 
 func TestInterruptPrio(t *testing.T) {
@@ -86,9 +86,9 @@ func TestInterruptPrio(t *testing.T) {
 			// generate single 5 second blocking low prio interrupt
 			t.Log("Press SummerCart64 button in the next 5 seconds")
 			start := time.Now()
-			note.Clear()
+			note.Wait(0)
 			rdp.RDP.Push(rdp.SyncFull)
-			note.Sleep(5 * time.Second)
+			note.Wait(5 * time.Second)
 
 			if blocker.Load() == true {
 				t.Fatal("no button press detected")
