@@ -27,7 +27,6 @@ func (r *R32[T]) Store(val T) {
 	p[2] = byte(val >> 8)
 	p[3] = byte(val)
 	vaddr := uintptr(unsafe.Pointer(r))
-	done.Wait(0)
 	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaStore, done})
 	if !done.Wait(1 * time.Second) {
 		panic("dma timeout")
@@ -37,7 +36,6 @@ func (r *R32[T]) Store(val T) {
 
 func (r *R32[T]) Load() (v T) {
 	bufid, p, done := getBuf()
-	done.Wait(0)
 	vaddr := uintptr(unsafe.Pointer(r))
 	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaLoad, done})
 	if !done.Wait(1 * time.Second) {

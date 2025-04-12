@@ -72,7 +72,6 @@ func init() {
 }
 
 func (dl *DisplayList) Flush() {
-	FullSync.Wait(0)
 	dl.Push(SyncFull)
 	if !FullSync.Wait(1 * time.Second) {
 		panic("rdp timeout")

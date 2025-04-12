@@ -86,7 +86,6 @@ func TestInterruptPrio(t *testing.T) {
 			// generate single 5 second blocking low prio interrupt
 			t.Log("Press SummerCart64 button in the next 5 seconds")
 			start := time.Now()
-			note.Wait(0)
 			rdp.RDP.Push(rdp.SyncFull)
 			note.Wait(5 * time.Second)
 

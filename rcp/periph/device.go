@@ -58,7 +58,6 @@ func (v *Device) ReadAt(p []byte, off int64) (n int, err error) {
 		err = io.EOF
 	}
 
-	v.done.Wait(0)
 	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, v.done})
 	if !v.done.Wait(1 * time.Second) {
 		panic("dma timeout")
@@ -78,7 +77,6 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 		err = ErrEndOfDevice
 	}
 
-	v.done.Wait(0)
 	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaStore, v.done})
 	if !v.done.Wait(1 * time.Second) {
 		panic("dma timeout")

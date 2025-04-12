@@ -86,7 +86,6 @@ func Run(block *CommandBlock) {
 	buf := block.buf[:pifRamSize]
 	buf[len(buf)-1] = byte(block.cmd)
 
-	cmdFinished.Wait(0)
 	cmdBuffer.Put(buf)
 	cpu.WritebackSlice(buf)
 	regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
