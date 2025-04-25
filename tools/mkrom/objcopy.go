@@ -7,18 +7,26 @@ package main
 import (
 	"bytes"
 	"debug/elf"
+	"encoding/binary"
 	"fmt"
 	"os"
 	"sort"
 )
 
-var ones []byte
+// Objcopy holds the binary copy and still provides access to symbols.
+type Objcopy struct {
+	elf    *elf.File
+	offset uint64
+	data   *bytes.Buffer
+}
 
 type section struct {
 	addr   uint64
 	offset int64
 	data   []byte
 }
+
+var ones []byte
 
 func padBytes(cache *[]byte, n int, b byte) []byte {
 	if len(*cache) < n {
@@ -30,11 +38,7 @@ func padBytes(cache *[]byte, n int, b byte) []byte {
 	return (*cache)[:n]
 }
 
-func objcopy(elfFile string) *bytes.Buffer {
-	r := must(os.Open(elfFile))
-	defer r.Close()
-	f := must(elf.NewFile(r))
-	defer f.Close()
+func NewObjcopy(f *elf.File) *Objcopy {
 	sections := make([]*section, 0, 10)
 	for i, s := range f.Sections {
 		if s.Type != elf.SHT_PROGBITS || s.Flags&elf.SHF_ALLOC == 0 {
@@ -50,7 +54,7 @@ func objcopy(elfFile string) *bytes.Buffer {
 		sections = append(sections, &section{s.Addr, int64(s.Offset), data})
 	}
 	if len(sections) == 0 {
-		return bytes.NewBuffer([]byte(""))
+		return &Objcopy{}
 	}
 	sort.Slice(
 		sections,
@@ -77,5 +81,20 @@ func objcopy(elfFile string) *bytes.Buffer {
 		must(w.Write(padBytes(&ones, pad, 0xff)))
 	}
 
-	return w
+	return &Objcopy{f, startAddr, w}
+}
+
+func (p *Objcopy) ByteOrder() binary.ByteOrder {
+	return p.elf.ByteOrder
+}
+
+func (p *Objcopy) SymbolData(name string) []byte {
+	syms := must(p.elf.Symbols())
+	for _, sym := range syms {
+		if sym.Name == name {
+			sv, ss := sym.Value-p.offset, sym.Size
+			return p.data.Bytes()[sv : sv+ss]
+		}
+	}
+	return nil
 }

@@ -15,6 +15,7 @@ import (
 	_ "github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp/cpu"
 
+	"github.com/clktmr/n64/test/drivers/cartfs_test"
 	"github.com/clktmr/n64/test/drivers/carts/summercart64_test"
 	"github.com/clktmr/n64/test/drivers/controller_test"
 	"github.com/clktmr/n64/test/drivers/draw_test"
@@ -60,6 +61,12 @@ func main() {
 	testing.Main(
 		matchAll,
 		[]testing.InternalTest{
+			newInternalTest(cartfs_test.TestEmbed),
+			newInternalTest(cartfs_test.TestGlobal),
+			newInternalTest(cartfs_test.TestDir),
+			newInternalTest(cartfs_test.TestHidden),
+			newInternalTest(cartfs_test.TestUninitialized),
+			newInternalTest(cartfs_test.TestOffset),
 			newInternalTest(runtime_test.TestFPUPreemption),
 			newInternalTest(runtime_test.TestInterruptPrio),
 			newInternalTest(cpu_test.TestMakePaddedSlice),
