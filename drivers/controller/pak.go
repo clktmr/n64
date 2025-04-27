@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"io"
 
 	"github.com/clktmr/n64/debug"
@@ -23,7 +22,7 @@ const (
 	pakRumble = 0xC000 + 0x1f
 )
 
-// Values written to pakProbe to identify pak type.  If the pak is capable of
+// Values written to pakProbe to identify pak type. If the pak is capable of
 // power on/off, writing the probe value also powers the pak on.
 const (
 	probeMem         = 0x01
@@ -35,8 +34,7 @@ const (
 	probePowerOff = 0xfe // Special value powers off the pak, if supported by the pak
 )
 
-var ErrSeekOutOfRange = errors.New("pak seek out of range")
-
+// Pak represents a generic pak implementing [io.ReaderAt] and [io.WriterAt].
 type Pak struct {
 	port   uint8
 	offset uint16
@@ -47,7 +45,7 @@ type Pak struct {
 	writeCmd      joybus.WritePakCommand
 }
 
-func NewPak(port uint8) (pak *Pak) {
+func newPak(port uint8) (pak *Pak) {
 	pak = &Pak{
 		port:          port,
 		readCmdBlock:  *serial.NewCommandBlock(serial.CmdConfigureJoybus),
@@ -143,12 +141,15 @@ func (pak *Pak) WriteAt(p []byte, off int64) (n int, err error) {
 	return
 }
 
+// ProbePak tries to identify the paks type and returns a [MemPak], [RumblePak]
+// or [TransferPak] respectively. If no type could be determined, a generic
+// [Pak] is returned.
 func ProbePak(port uint8) (io.ReaderAt, error) {
 	var err error
-	pak := NewPak(port)
+	pak := newPak(port)
 
 	// Controller Pak is special as it does use pakProbe for SRAM bank
-	// selection.  Probe by looking for a filesystem instead.
+	// selection. Probe by looking for a filesystem instead.
 	_, errFS := pakfs.Read(pak)
 	if errFS == nil {
 		return &MemPak{*pak}, nil
@@ -188,6 +189,7 @@ func ProbePak(port uint8) (io.ReaderAt, error) {
 	return pak, nil
 }
 
+// MemPak represents a Controller Pak with a [pakfs.FS] filesystem.
 type MemPak struct {
 	Pak
 }
@@ -196,6 +198,7 @@ func newMemPak(pak *Pak) (io.ReaderAt, error) {
 	return &MemPak{*pak}, nil
 }
 
+// RumblePak represents Rumble Pak providing force feedback.
 type RumblePak struct {
 	Pak
 	on bool
@@ -205,6 +208,7 @@ func newRumblePak(pak *Pak) (io.ReaderAt, error) {
 	return &RumblePak{*pak, false}, nil
 }
 
+// Set enables or disables vibration.
 func (pak *RumblePak) Set(on bool) error {
 	var data byte
 	if on {
@@ -220,10 +224,13 @@ func (pak *RumblePak) Set(on bool) error {
 	return nil
 }
 
+// Toggle toggles vibration based on it's current state.
 func (pak *RumblePak) Toggle() error {
 	return pak.Set(!pak.on)
 }
 
+// TransferPak represents a Transfer Pak providing read and write access to an
+// Game Boy cartridge.
 type TransferPak struct {
 	Pak
 }

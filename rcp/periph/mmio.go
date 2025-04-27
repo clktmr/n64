@@ -1,5 +1,3 @@
-// MMIO on the PI external bus has additional sync and aligment requirements.
-// Further reading: https://n64brew.dev/wiki/Memory_map#Physical_Memory_Map_accesses
 package periph
 
 import (
@@ -12,13 +10,17 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-// Use for MMIO on the PI external bus:
-// - 0x0500_0000 to 0x1fbf_ffff
-// - 0x1fd0_0000 to 0x7fff_ffff
-
-type U32 struct{ R32[uint32] }
+// R32 represents an register on the PI external bus.
+//   - 0x0500_0000 to 0x1fbf_ffff
+//   - 0x1fd0_0000 to 0x7fff_ffff
+//
+// MMIO on the PI external bus has additional sync and aligment requirements.
+// Further reading: https://n64brew.dev/wiki/Memory_map#Physical_Memory_Map_accesses
 type R32[T mmio.T32] struct{ r uint32 }
+type U32 struct{ R32[uint32] }
 
+// Store writes the value to the register. If the PI bus is currently busy via
+// MMIO or DMA the goroutine is parked until the value was written.
 func (r *R32[T]) Store(val T) {
 	bufid, p, done := getBuf()
 	_ = p[3]
@@ -34,6 +36,8 @@ func (r *R32[T]) Store(val T) {
 	putBuf(bufid)
 }
 
+// Load reads the value from the register. If the PI bus is currently busy via
+// MMIO or DMA the goroutine is parked until the value was read.
 func (r *R32[T]) Load() (v T) {
 	bufid, p, done := getBuf()
 	vaddr := uintptr(unsafe.Pointer(r))
@@ -46,6 +50,10 @@ func (r *R32[T]) Load() (v T) {
 	return
 }
 
+// StoreSafe is the same as [R32.Store] but instead of parking the goroutine it
+// will busywait until done, which makes it safe to use from interrupt.
+//
+//go:nosplit
 func (r *R32[T]) StoreSafe(v T) {
 	for !dmaActive.CompareAndSwap(false, true) {
 		// wait
@@ -54,6 +62,10 @@ func (r *R32[T]) StoreSafe(v T) {
 	dmaActive.Store(false)
 }
 
+// LoadSafe is the same as [R32.Load] but instead of parking the goroutine it
+// will busywait until done, which makes it safe to use from interrupt.
+//
+//go:nosplit
 func (r *R32[T]) LoadSafe() (v T) {
 	for !dmaActive.CompareAndSwap(false, true) {
 		// wait
@@ -63,6 +75,7 @@ func (r *R32[T]) LoadSafe() (v T) {
 	return
 }
 
+// Addr returns the virtual address which is used to access the register.
 func (r *R32[_]) Addr() uintptr {
 	return uintptr(unsafe.Pointer(r))
 }
@@ -109,13 +122,12 @@ func (r *r32[T]) Load() T { return r.r.Load() }
 //go:nosplit
 func (r *r32[_]) Addr() uintptr { return r.r.Addr() }
 
-// WriteIO copies slice p to PI bus address addr using PI bus IO.  Note that it
-// needs to read from the PI bus if p's start or end aren't 4 byte aligned.
-// This might lead to unexpected behaviour of write-only devices.
-// TODO unexport, only for intr
+// WriteIO copies slice p to PI bus address addr using PI bus IO. Note that it
+// needs to read from the PI bus if p's start or end aren't 4 byte aligned. This
+// might lead to unexpected behaviour of write-only devices.
 //
 //go:nosplit
-func WriteIO(busAddr cpu.Addr, p []byte) {
+func WriteIO(busAddr cpu.Addr, p []byte) { // TODO unexport, only for intr
 	end := cpu.KSEG1 | uintptr(busAddr+cpu.Addr(len(p)+3))&^0x3
 	shift := -(int(busAddr) & 0x3)
 	endshift := ^(int(busAddr) + len(p) - 1) & 0x3
@@ -149,10 +161,9 @@ func WriteIO(busAddr cpu.Addr, p []byte) {
 }
 
 // ReadIO copies from PI bus address addr to slice p using PI bus IO.
-// TODO unexport, only for intr
 //
 //go:nosplit
-func ReadIO(busAddr cpu.Addr, p []byte) {
+func ReadIO(busAddr cpu.Addr, p []byte) { // TODO unexport, only for intr
 	end := cpu.KSEG1 | uintptr(busAddr+cpu.Addr(len(p)+3))&^0x3
 	shift := -(int(busAddr) & 0x3)
 

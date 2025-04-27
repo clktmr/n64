@@ -1,3 +1,4 @@
+// Package test builds a ROM for executing tests on n64.
 package main
 
 import (

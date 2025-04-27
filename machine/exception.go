@@ -20,7 +20,7 @@ var excNames = [32]string{
 }
 
 //go:nosplit
-func Exception(cause, epc, status, badvaddr, ra uint64) {
+func exception(cause, epc, status, badvaddr, ra uint64) {
 	var buf [16]byte
 	DefaultWrite(0, []byte("Unhandled "))
 	DefaultWrite(0, []byte(excNames[cause>>2&31]))

@@ -1,3 +1,9 @@
+// Package carts provides probing for various n64 flashcarts.
+//
+// These are not required to run ROMs on the flashcarts. They provide access to
+// additional features of the carts like usb logging.
+//
+// See the subdirectories for supported flashcarts.
 package carts
 
 import (

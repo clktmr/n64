@@ -9,6 +9,7 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
+// SubfontData implements [subfont.Data].
 type SubfontData struct {
 	height, ascent int
 	positions      []byte
@@ -47,6 +48,7 @@ func (p *SubfontData) glyph(i int) (img texture.I8, origin image.Point, advance 
 	return
 }
 
+// Returns data for a subfont from an image.
 func NewSubfontData(pos, imgPng string, height, ascent int) *SubfontData {
 	f := &SubfontData{
 		height:    height,
@@ -54,6 +56,7 @@ func NewSubfontData(pos, imgPng string, height, ascent int) *SubfontData {
 		positions: []byte(pos),
 	}
 
+	// TODO Store images raw instead of compressed
 	fontMapReader := strings.NewReader(imgPng)
 	fontMap, err := png.Decode(fontMapReader)
 	debug.AssertErrNil(err)

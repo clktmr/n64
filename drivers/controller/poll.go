@@ -38,11 +38,14 @@ func init() {
 	}
 }
 
-type allControllers [4]Controller
+// States of the four controller ports on the console's front. Updated by
+// [Poll].
+var States [4]Controller
 
-var States allControllers
-
-func (p *allControllers) Poll() {
+// Updates the state of all four controllers and stores them in [States]. Blocks
+// until all states were received.
+func Poll() {
+	p := States
 	// poll info
 	for _, cmd := range cmdAllInfoPorts {
 		cmd.Reset()

@@ -12,6 +12,7 @@ import (
 
 type pifCommand byte
 
+// Commands known by PIF microchip.
 const (
 	CmdConfigureJoybus pifCommand = 0x1 << iota
 	CmdCICChallenge
@@ -56,6 +57,8 @@ func handler() {
 	}
 }
 
+// CommandBlock holds the buffer that is used to write the command and read the
+// response.
 type CommandBlock struct {
 	cmd pifCommand
 	buf []byte
@@ -66,19 +69,25 @@ func NewCommandBlock(cmd pifCommand) *CommandBlock {
 	return &CommandBlock{cmd, buf}
 }
 
+// Alloc returns a slice with the next n bytes. It returns [io.EOF] if there
+// aren't enough free bytes.
 func (c *CommandBlock) Alloc(n int) ([]byte, error) {
 	if n > c.Free() {
-		return nil, io.EOF
+		return nil, io.EOF // TODO return another error value
 	}
 	l := len(c.buf)
 	c.buf = c.buf[:l+n]
 	return c.buf[l:], nil
 }
 
+// Free returns the number of free bytes available in the CommandBlock for
+// additional commands.
 func (c *CommandBlock) Free() int {
 	return cap(c.buf) - len(c.buf) - 1 // save one byte for PIF command
 }
 
+// Run executes the given CommandBlock on the PIF and blocks until the response
+// was written back.
 func Run(block *CommandBlock) {
 	mtx.Lock()
 	defer mtx.Unlock()

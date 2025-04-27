@@ -22,9 +22,11 @@ type registers struct {
 	buf      [bufferSize / 4]periph.U32
 }
 
-// Writes to ISViewer registers, regardless if a ISViewer is present or not.  Is
-// rather slow, because it avoids using DMA.  Only intended as a fail safe
-// logger in very early boot.
+// DefaultWrite implements the targets print() function. It can be changed by
+// [embedded/rtos.SetSystemWriter]. This implementation writes to ISViewer
+// registers, regardless if a ISViewer is present or not. It's rather slow,
+// because it avoids using DMA. Only intended as a fail safe logger for early
+// boot and unrecovered panics.
 //
 //go:nowritebarrierrec
 //go:nosplit
@@ -72,6 +74,7 @@ func DefaultWrite(fd int, p []byte) int {
 
 type defaultWriter int
 
+// DefaultWriter implements [io.Writer] using the [DefaultWrite] function.
 const DefaultWriter defaultWriter = 0
 
 func (v defaultWriter) Write(p []byte) (int, error) {

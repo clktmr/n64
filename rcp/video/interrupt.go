@@ -9,6 +9,7 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
+// VBlank can be used to wait until the next vertical blank.
 var VBlank rtos.Cond
 
 // Consumed by interrupt handler
@@ -54,7 +55,7 @@ func handler() {
 //go:nosplit
 func updateFramebuffer(fb texture.Texture) {
 	addr := fb.Addr()
-	if regs.control.Load()&uint32(ControlSerrate) != 0 {
+	if regs.control.Load()&uint32(controlSerrate) != 0 {
 		// Shift the framebuffer vertically based on current field.
 		yScale := regs.yScale.Load()
 		if regs.vCurrent.Load()&1 == 0 { // odd field
@@ -63,7 +64,7 @@ func updateFramebuffer(fb texture.Texture) {
 			// more than a pixel.
 			for yOffset >= 1024 {
 				yOffset -= 1024
-				addr += cpu.Addr(texture.PixelsToBytes(fb.Stride(), fb.BPP()))
+				addr += cpu.Addr(fb.BPP().Bytes(fb.Stride()))
 			}
 			yScale = (uint32(yOffset)<<16 | 0xffff&regs.yScale.Load())
 		} else { // even field

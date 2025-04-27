@@ -46,7 +46,7 @@ func absDiffInt(a int, b int) int {
 	return max(diff, -diff)
 }
 
-// Returns the absolute difference in RGB.  Alpha channel is ignored.
+// Returns the absolute difference in RGB. Alpha channel is ignored.
 func absDiffColor(a color.Color, b color.Color) int {
 	ac := color.RGBAModel.Convert(a).(color.RGBA)
 	bc := color.RGBAModel.Convert(b).(color.RGBA)

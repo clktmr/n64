@@ -1,6 +1,6 @@
 // Package cartfs wraps an embed.FS and stores it on the cartridge.
 //
-// The embed package can be used on the N64, but it will store the embedded data
+// The embed package can be used on the n64, but it will store the embedded data
 // in the binary, which is loaded into RAM as a whole at boot. Instead, a
 // cartfs.FS can be initialized from an embed.FS. The `mkrom` utility will copy
 // the embedded files to the cartridge and initialize the filesystem. The

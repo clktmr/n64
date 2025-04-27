@@ -1,3 +1,6 @@
+// Go Mono 12
+//
+// https://go.dev/blog/go-fonts
 package gomono12
 
 import (

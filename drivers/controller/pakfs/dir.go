@@ -44,8 +44,8 @@ func (d *rootDir) ModTime() time.Time { return time.Unix(0, 0) }
 func (d *rootDir) IsDir() bool        { return true }
 func (d *rootDir) Sys() any           { return nil }
 
-// Holds only the filename and tries to open it on Info().  This resembles the
-// behavoiur of the os package, at least on linux ext4.  fs.FileInfoToDirEntry
+// Holds only the filename and tries to open it on Info(). This resembles the
+// behavoiur of the os package, at least on linux ext4. fs.FileInfoToDirEntry
 // shouldn't be used create dir entries on writable filesystems, because Name()
 // will fail if the underlying file is (re)moved.
 type dirEntry struct {

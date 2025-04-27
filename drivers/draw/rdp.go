@@ -1,3 +1,4 @@
+// Package draw provides hardware accelerated implementations of [draw.Drawer].
 package draw
 
 import (
@@ -14,6 +15,10 @@ import (
 	"github.com/embeddedgo/display/images"
 )
 
+// Rdp provides hardware accelerated drawing capabilities.
+//
+// Besides implementing [draw.Drawer], it provides additional functions for
+// drawing text efficiently.
 type Rdp struct {
 	target texture.Texture
 	dlist  *rdp.DisplayList
@@ -139,7 +144,7 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 }
 
 // These modes expect the color combiner to pass (1-alpha) instead of alpha to
-// the blender.  This allows to calculate all ops with the same color combiner
+// the blender. This allows to calculate all ops with the same color combiner
 // configuration.
 var (
 	blendOver = rdp.BlendMode{ // dst = cc_alpha*dst + (1-cc_alpha)*cc
@@ -216,7 +221,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 		Format: src.Format(),
 		Size:   src.BPP(),
 		Addr:   0x0,
-		Line:   uint16(texture.PixelsToBytes(step.Dx()/scale.X, src.BPP()) >> 3),
+		Line:   uint16(src.BPP().Bytes(step.Dx()/scale.X) >> 3),
 		Idx:    idx,
 
 		MaskS: 5, MaskT: 5, // ignore fractional part
@@ -243,8 +248,8 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Po
 	// TODO runtime.KeepAlive(src.addr) until FullSync?
 }
 
-// Draws text str inside r, beginning at p.  Returns the next p.
-// Fore- and background colors fg and bg don't support alpha.  If a nil
+// Draws text str inside r, beginning at p. Returns the next p.
+// Fore- and background colors fg and bg don't support alpha. If a nil
 // background color is passed, it will be transparent.
 func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.Color, str []byte) image.Point {
 	fb.dlist.SetEnvironmentColor(fg)
@@ -277,7 +282,7 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 		Format: tex.Format(),
 		Size:   tex.BPP(),
 		Addr:   0x0,
-		Line:   uint16(texture.PixelsToBytes(tex.Bounds().Dx()+1, tex.BPP()) >> 3),
+		Line:   uint16(tex.BPP().Bytes(tex.Bounds().Dx()+1) >> 3),
 		Idx:    idx,
 
 		MaskS: 5, MaskT: 5, // ignore fractional part

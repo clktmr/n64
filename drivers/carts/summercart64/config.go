@@ -4,6 +4,7 @@ import "errors"
 
 type config uint32
 
+// Errors returned by the cart.
 var (
 	ErrBadArgument = errors.New("bad argument")
 	ErrBadAddress  = errors.New("bad address")
@@ -23,6 +24,7 @@ var errCodes = map[uint32]error{
 	0xffffff: ErrUnknownCmd,
 }
 
+// Configuration options for [Cart.SetConfig].
 const (
 	CfgBootloaderSwitch = iota
 	CfgROMWriteEnable
@@ -41,7 +43,7 @@ const (
 	CfgROMExtendedEnable
 )
 
-// Config option values
+// Config option values for [CfgButtonMode].
 const (
 	ButtonModeDisabled uint32 = iota
 	ButtonModeInterrupt

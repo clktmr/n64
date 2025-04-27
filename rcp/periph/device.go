@@ -1,3 +1,4 @@
+// Package periph provides IO and DMA on the PI bus.
 package periph
 
 import (
@@ -22,8 +23,8 @@ const (
 var ErrEndOfDevice = errors.New("end of device")
 
 // Device implememts io.ReaderAt and io.WriterAt for accessing devices on the PI
-// bus.  It will automatically choose DMA transfers where alignment and
-// cacheline padding allow it, otherwise fall back to copying via mmio.
+// bus. It will automatically choose DMA transfers where alignment and cacheline
+// padding allow it, otherwise fall back to copying via mmio.
 type Device struct {
 	addr cpu.Addr
 	size uint32

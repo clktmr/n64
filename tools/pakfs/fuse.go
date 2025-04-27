@@ -102,7 +102,7 @@ func (p *File) ReadAll(intr fuse.Intr) ([]byte, fuse.Error) {
 	return b, nil
 }
 
-// Only WriteAll is supported.  Write is not implemented on purpose because it
+// Only WriteAll is supported. Write is not implemented on purpose because it
 // might cause unexpected behaviour when appending to a file, since filesize is
 // always rounded up to the next page boundary.
 func (p *File) WriteAll(data []byte, intr fuse.Intr) fuse.Error {

@@ -15,7 +15,8 @@ const (
 	inodeFree = 3
 )
 
-// Implements fs.File
+// Implements [fs.File] and [fs.FileInfo] as well as [io.ReaderAt] and
+// [io.WriterAt].
 type File struct {
 	io.Reader
 
@@ -51,7 +52,7 @@ func (f *File) pages() ([]uint16, error) {
 }
 
 // Returns the pages of a note which contain a section of the note with offset
-// `off` and length `n`.  If the section extends beyond EOF, pagesEOF is the
+// `off` and length `n`. If the section extends beyond EOF, pagesEOF is the
 // number of pages to be allocated.
 func (f *File) section(off int64, n int64) (pages []uint16, pagesEOF int, err error) {
 	if off < 0 {
@@ -295,6 +296,7 @@ func (f *File) setName(filename string) error {
 	return nil
 }
 
+// Returns the ASCII encoded company code of this file.
 func (f *File) CompanyCode() [2]byte {
 	f.fs.mtx.RLock()
 	defer f.fs.mtx.RUnlock()
@@ -302,6 +304,7 @@ func (f *File) CompanyCode() [2]byte {
 	return f.note.PublisherCode
 }
 
+// Writes the ASCII encoded company code of this file.
 func (f *File) SetCompanyCode(code [2]byte) error {
 	f.fs.mtx.Lock()
 	defer f.fs.mtx.Unlock()
@@ -310,6 +313,7 @@ func (f *File) SetCompanyCode(code [2]byte) error {
 	return f.sync()
 }
 
+// Returns the ASCII encoded game code of this file.
 func (f *File) GameCode() [4]byte {
 	f.fs.mtx.RLock()
 	defer f.fs.mtx.RUnlock()
@@ -317,6 +321,7 @@ func (f *File) GameCode() [4]byte {
 	return f.note.GameCode
 }
 
+// Writes the ASCII encoded game code of this file.
 func (f *File) SetGameCode(code [4]byte) error {
 	f.fs.mtx.Lock()
 	defer f.fs.mtx.Unlock()

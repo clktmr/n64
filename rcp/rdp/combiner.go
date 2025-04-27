@@ -46,7 +46,7 @@ const (
 
 // The ColorCombiner computes it's output with the equation `(A-B)*C + D`, where
 // the inputs A, B, C and D can be choosen from the predefined CombineSource
-// values.  Color and alpha are calculated separately.
+// values. Color and alpha are calculated separately.
 // If CycleTypeTwo is active two passes can be defined, where the second pass
 // can use the first pass output as it's input.
 type CombineMode struct{ One, Two CombinePass }

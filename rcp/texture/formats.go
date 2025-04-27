@@ -1,5 +1,5 @@
-// Package texture provides a common datastructure for images used by the rcp,
-// e.g. textures and framebuffers.
+// Package texture provides image types used by the rcp, e.g. textures and
+// framebuffers.
 package texture
 
 // TODO ensure alignment in New*FromImage() and *.SubImage()
@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	AlignFramebuffer = 64
-	AlignTexture     = 8
+	alignFramebuffer = 64
+	alignTexture     = 8
 )
 
 // Stores pixels in RGBA with 32bit (8:8:8:8)
@@ -21,7 +21,7 @@ type RGBA32 struct{ image.RGBA }
 
 func NewRGBA32(r image.Rectangle) *RGBA32 {
 	return &RGBA32{image.RGBA{
-		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, AlignFramebuffer),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, alignFramebuffer),
 		Stride: 4 * r.Dx(),
 		Rect:   r,
 	}}
@@ -54,7 +54,7 @@ type NRGBA32 struct{ image.NRGBA }
 
 func NewNRGBA32(r image.Rectangle) *NRGBA32 {
 	return &NRGBA32{image.NRGBA{
-		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, AlignFramebuffer),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, alignFramebuffer),
 		Stride: 4 * r.Dx(),
 		Rect:   r,
 	}}
@@ -85,7 +85,7 @@ type RGBA16 struct{ imageRGBA16 }
 
 func NewRGBA16(r image.Rectangle) *RGBA16 {
 	return &RGBA16{imageRGBA16{
-		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*2, AlignFramebuffer),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*2, alignFramebuffer),
 		Stride: 2 * r.Dx(),
 		Rect:   r,
 	}}
@@ -111,7 +111,7 @@ type I8 struct{ image.Alpha }
 
 func NewI8(r image.Rectangle) *I8 {
 	return &I8{image.Alpha{
-		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy(), AlignFramebuffer),
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy(), alignFramebuffer),
 		Stride: r.Dx(),
 		Rect:   r,
 	}}

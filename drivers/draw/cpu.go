@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/draw"
 
+	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/texture"
 )
 
@@ -38,7 +39,7 @@ func (p *Cpu) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask 
 }
 
 func (p *Cpu) Flush() {
-	if tex, ok := p.target.(texture.CachedTexture); ok {
+	if tex, ok := p.target.(cpu.Cached); ok {
 		tex.Writeback()
 	}
 }

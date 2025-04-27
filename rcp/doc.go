@@ -1,8 +1,8 @@
-// Hardware abstracktion layer for the Nintento 64
+// The rcp package provides an hardware abstraction layer for the Nintendo 64.
 //
-// This package provides low-level access to the Nintendo 64's hardware.  All
-// hardware capabilities are directly exposed and in general unsafe.  Use the
-// higher level libraries to write applications instead.
+// It implements low-level access to the hardware. All hardware capabilities are
+// directly exposed and in general unsafe. Use the higher level libraries to
+// write applications instead.
 package rcp
 
 // Reality Coprocessor

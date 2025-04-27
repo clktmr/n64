@@ -1,3 +1,6 @@
+// Package summercart64 implements support for SummerCart64.
+//
+// See https://summercart64.dev/
 package summercart64
 
 import (
@@ -10,7 +13,7 @@ import (
 const baseAddr uintptr = cpu.KSEG1 | 0x1fff_0000
 const bufferSize = 512
 
-// It's up to us to choose a location in the ROM.  This puts it at the end of a
+// It's up to us to choose a location in the ROM. This puts it at the end of a
 // 64MB cartridge.
 var usbBuf = periph.NewDevice(0x1400_0000-bufferSize, bufferSize)
 
@@ -84,10 +87,13 @@ var saveStorageParams = [...]struct {
 	{0x0800_0000, 128 * 1024},
 }
 
+// Cart represents a SummerCart64.
 type Cart struct {
 	saveStorage periph.Device
 }
 
+// Probe returns the [Cart] if a SummerCart64 was detected and enables write
+// access to the ROM.
 func Probe() *Cart {
 	// sc64 magic unlock sequence
 	regs.key.Store(0x0)
@@ -108,16 +114,26 @@ func Probe() *Cart {
 	return nil
 }
 
-// Returns the current storage for save files, configured by savetype.  Returns
-// a device with Size==0 if no savetype is configured.
-// FIXME shouldn't be here, instead have a generic Probe function to get
-// storage.  Otherwise we could get multiple periph.Devices pointing to the same
-// address range, messing up the caching.
+// Close disables the Cart by setting the ROM to read-only.
+func (v *Cart) Close() (err error) {
+	_, err = v.SetConfig(CfgROMWriteEnable, 0)
+	return
+}
+
+// Returns the current storage for save files, configured by savetype. Returns a
+// device with Size==0 if no savetype is configured.
 func (v *Cart) SaveStorage() *periph.Device {
+	// FIXME shouldn't be here, instead have a generic Probe function to get
+	// storage. Otherwise we could get multiple periph.Devices pointing to
+	// the same address range, messing up the caching.
 	// FIXME no writeback triggered for EEPROM savetypes
 	return &v.saveStorage
 }
 
+// ClearInterrupt clears a pending interrupt raised by the cart. Call this from
+// the handler if your application implements a custom one for
+// [github.com/clktmr/n64/rcp.IrqCart].
+//
 //go:nosplit
 func (v *Cart) ClearInterrupt() {
 	regs.identifier.StoreSafe(0)

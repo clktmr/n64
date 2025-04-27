@@ -74,7 +74,7 @@ func (job *dmaJob) finish() {
 	}
 }
 
-// split returns two positions which split p in three parts.  The slice
+// split returns two positions which split p in three parts. The slice
 // p[head:tail] is safe for DMA, p[:head] and p[tail:] must fallback to mmio.
 func (job *dmaJob) split(p []byte, addr cpu.Addr) (head, tail int) {
 	head, tail = cpu.Pads(p)

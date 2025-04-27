@@ -1,6 +1,8 @@
-// Video DAC which reads an image from RDRAM and outputs it to screen as either
-// NTSC, PAL or M-PAL.  This package ensures register writes are done only
-// during vblank.
+// Package video provides configuration of the analog video output.
+//
+// The video DAC reads a framebuffer image from RDRAM and outputs it to screen
+// as either NTSC, PAL or M-PAL. All function are safe to call at any time, as
+// this implementation ensures reconfiguration is done only during vblank.
 package video
 
 import (
@@ -42,44 +44,42 @@ const (
 	BPP32 ColorDepth = 3
 )
 
-type AntiAliasMode uint32
+type antiAliasMode uint32
 
 const (
-	AANone       AntiAliasMode = 3 << 8
-	AAResampling AntiAliasMode = 2 << 8
-	AAEnabled    AntiAliasMode = 1 << 8
-	AADedither   AntiAliasMode = 0 << 8
+	aaNone       antiAliasMode = 3 << 8
+	aaResampling antiAliasMode = 2 << 8
+	aaEnabled    antiAliasMode = 1 << 8
+	aaDedither   antiAliasMode = 0 << 8
 )
 
-type ControlFlags uint32
+type controlFlags uint32
 
 const (
-	ControlDedither    ControlFlags = 1 << 16
-	ControlSerrate     ControlFlags = 1 << 6
-	ControlDivot       ControlFlags = 1 << 4
-	ControlGamma       ControlFlags = 1 << 3
-	ControlGammaDither ControlFlags = 1 << 2
+	controlDedither    controlFlags = 1 << 16
+	controlSerrate     controlFlags = 1 << 6
+	controlDivot       controlFlags = 1 << 4
+	controlGamma       controlFlags = 1 << 3
+	controlGammaDither controlFlags = 1 << 2
 )
 
 var (
 	// True if current configuration is interlaced.
 	// There are three parts involved in generating interlaced video output:
-	// (1) Framebuffer sampling:  This must be done manually by shifting the
-	// framebuffer by one line.  If the framebuffer has the same vertical
-	// resolution as video lines, it must be shifted by one pixel.  This can
-	// be done by offsetting the origin register by one stride.  At lower
+	// (1) Framebuffer sampling: This must be done manually by shifting the
+	// framebuffer by one line. If the framebuffer has the same vertical
+	// resolution as video lines, it must be shifted by one pixel. This can
+	// be done by offsetting the origin register by one stride. At lower
 	// resolutions the yScale's subpixel offset must be used.
-	// (2) Interrupt handling:  Setting vSync register's bit 0 causes
-	// vCurrent to report alternating fields.  This information can be used
+	// (2) Interrupt handling: Setting vSync register's bit 0 causes
+	// vCurrent to report alternating fields. This information can be used
 	// to select the correct field when shifting in (1).
-	// (3) Video signal generation:  Interlaced video output is enabled by
+	// (3) Video signal generation: Interlaced video output is enabled by
 	// ControlSerrate, which "serrates" the vertical sync pulse, shifting
 	// even and odd fields by one halfline to another, effectively doubling
-	// vertical resolution at the cost of flickering.  It also reduces the
+	// vertical resolution at the cost of flickering. It also reduces the
 	// scanlines.
 	interlaced bool
-
-	VSync bool = true
 
 	limits     image.Rectangle
 	limitsNTSC = image.Rect(0, 0, 640, 480).Add(image.Point{108, 35})
@@ -88,7 +88,7 @@ var (
 
 // Automatically configure video output based on detected console type.
 func Setup(interlace bool) {
-	switch machine.Video {
+	switch machine.VideoType {
 	case machine.VideoPAL:
 		SetupPAL(interlace, false)
 	case machine.VideoNTSC:
@@ -97,6 +97,8 @@ func Setup(interlace bool) {
 	}
 }
 
+// SetupNTSC configures video output to be NTSC. Can be used to force NTSC
+// output on a PAL console.
 func SetupNTSC(interlace bool) {
 	fb := Framebuffer()
 	SetFramebuffer(nil)
@@ -120,6 +122,12 @@ func SetupNTSC(interlace bool) {
 	SetFramebuffer(fb)
 }
 
+// SetupPAL configures video output to be PAL. Can be used to force PAL output
+// on a NTSC console.
+//
+// Additionally it allows to enable PAL60, which sets the same dimensions and
+// refresh rate as NTSC. Since the pixel aspect ratio can't be changed this will
+// result in black borders at top and bottom.
 func SetupPAL(interlace, pal60 bool) {
 	fb := Framebuffer()
 	SetFramebuffer(nil)
@@ -154,11 +162,11 @@ func Scale() image.Rectangle {
 	return scale.Read()
 }
 
-// SetScale sets and returns the rectangle which contains the video output.  If
+// SetScale sets and returns the rectangle which contains the video output. If
 // r's dimensions exceed the limits of the screen it will be shrunk, possibly
-// changing aspect ratio.  If r's dimensions result in exceeding scaling limits
-// it will be enlarged, possibly changing aspect ratio.  If r's offset exceeds
-// the screen's limits, it will be shifted accordingly.  The new scale will be
+// changing aspect ratio. If r's dimensions result in exceeding scaling limits
+// it will be enlarged, possibly changing aspect ratio. If r's offset exceeds
+// the screen's limits, it will be shifted accordingly. The new scale will be
 // applied during the next vblank.
 func SetScale(r image.Rectangle) image.Rectangle {
 	r = r.Canon()
@@ -190,9 +198,18 @@ func SetScale(r image.Rectangle) image.Rectangle {
 	return r
 }
 
-// Sets the framebuffer to the specified texture and enables video output.  If a
-// framebuffer was already set, does a fast switch without reconfigure.  Setting
-// a nil framebuffer will disable video output.
+// VSync controls whether [SetFramebuffer] will wait for the next vblank to
+// avoid tearing.
+var VSync bool = true
+
+// Sets the framebuffer to the specified texture and enables video output. If a
+// framebuffer was already set, does a fast swap without reconfigure. Setting a
+// nil framebuffer will disable video output.
+//
+// The framebuffer texture must be of type [texture.RGBA16] or [texture.RGBA32].
+//
+// If [VSync] is set, the SetFramebuffer returns immediately but the last
+// framebuffer will still be in use until next vblank.
 func SetFramebuffer(fb texture.Texture) {
 	currentFb := framebuffer.Read()
 	if fb == nil {
@@ -202,9 +219,9 @@ func SetFramebuffer(fb texture.Texture) {
 		currentFb.BPP() != fb.BPP() ||
 		currentFb.Bounds().Size() != fb.Bounds().Size() {
 
-		control := uint32(bpp(fb.BPP())) | uint32(AAResampling)
+		control := uint32(bpp(fb.BPP())) | uint32(aaResampling)
 		if interlaced {
-			control |= uint32(ControlSerrate)
+			control |= uint32(controlSerrate)
 		}
 
 		regs.control.Store(0)
@@ -231,9 +248,12 @@ func Framebuffer() texture.Texture {
 	return framebuffer.Read()
 }
 
-// Returns the currently configured native resolution.  Use this resolution or a
-// divisible of it for the framebuffer to avoid scaling artifacts, i.e. get
-// pixel perfect output.  Note that the resolution might have non-square pixels.
+// NativeResolution reports the currently configured resolution which is output
+// to the screen. Use this resolution or a divisible of it for the framebuffer
+// to avoid resampling by the video DAC, i.e. get pixel perfect output.
+//
+// Note that if interlacing is disabled the vertical resolution is cut in half,
+// doubling aspect ratio.
 func NativeResolution() image.Point {
 	resolution := Scale().Size()
 	if !interlaced {

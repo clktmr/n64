@@ -1,3 +1,6 @@
+// Package everdrive64 implements support for EverDrive64.
+//
+// Tested on EverDrive64 X7, but should also work on X3.
 package everdrive64
 
 import (

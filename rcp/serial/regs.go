@@ -1,8 +1,10 @@
-// The serial interface provides access to the PIF microchip, which in turn
-// handles console startup, reset and most importantly the joyBus.  The joyBus
-// is connected to the controllers and their accessories, e.g. rumble pak.
+// Package serial provides running commands on the PIF microchip.
 //
-// The serial interface is very slow.  Blocking reads and writes should be
+// The serial interface provides access to the PIF microchip, which in turn
+// handles console startup, reset and most importantly the joyBus. The joyBus is
+// connected to the controllers and their accessories, e.g. rumble pak.
+//
+// The serial interface is very slow. Blocking reads and writes should be
 // avoided.
 package serial
 

@@ -1,6 +1,3 @@
-// This file gives direct access to some of the low-level RDP commands, which
-// can be used for simple 2D graphics.  For 3D graphics the GBI interface of the
-// RSP should be used.  Further documentation can be found in the official docs.
 package rdp
 
 import (
@@ -18,21 +15,21 @@ type command uint64
 
 const (
 	// Waits until all previous commands have finished reading and writing
-	// to RDRAM.  Additionally raises the RDP interrupt.  Use to sync memory
+	// to RDRAM. Additionally raises the RDP interrupt.  Use to sync memory
 	// access between RDP and other components (e.g. switching framebuffers)
 	// or when changing RDPs RDRAM buffers (e.g. Render to texture).
 	SyncFull command = 0xe9 << 56
 
-	// Stalls pipeline for exactly 25 GCLK cycles.  Guarantees loading
+	// Stalls pipeline for exactly 25 GCLK cycles. Guarantees loading
 	// pipeline is safe for use.
 	SyncLoad command = 0xf1 << 56
 
-	// Stalls pipeline for exactly 50 GCLK cycles.  Guarantees any
+	// Stalls pipeline for exactly 50 GCLK cycles. Guarantees any
 	// preceeding primitives have finished rendering and it's safe to change
 	// rendering modes.
 	SyncPipe command = 0xe7 << 56
 
-	// Stalls pipeline for exactly 33 GCLK cycles.  Guarantees that any
+	// Stalls pipeline for exactly 33 GCLK cycles. Guarantees that any
 	// preceding primitives have finished using tile information and
 	// it's safe to modify tile descriptors.
 	SyncTile command = 0xe8 << 56
@@ -71,15 +68,16 @@ func init() {
 	regs.end.Store(cpu.PhysicalAddress(RDP.end))
 }
 
+// Flush blocks until all enqueued commands are fully processed.
 func (dl *DisplayList) Flush() {
 	dl.Push(SyncFull)
-	if !FullSync.Wait(1 * time.Second) {
+	if !fullSync.Wait(1 * time.Second) {
 		panic("rdp timeout")
 	}
 }
 
 //go:nosplit
-func (dl *DisplayList) Push(cmd command) {
+func (dl *DisplayList) Push(cmd command) { // TODO unexport
 	regs := regs // avoid multiple nilcheck() on regs
 	retries := 0
 	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= cpu.PhysicalAddress(dl.end) {
@@ -120,7 +118,7 @@ func (dl *DisplayList) SetColorImage(img texture.Texture) {
 	dl.bpp = img.BPP()
 }
 
-// Sets the zbuffer.  Width is taken from SetColorImage, bpp is always 18.
+// Sets the zbuffer. Width is taken from SetColorImage, bpp is always 18.
 func (dl *DisplayList) SetDepthImage(addr uintptr) {
 	debug.Assert(addr%64 == 0, "rdp zbuffer must be 64 byte aligned")
 
@@ -174,7 +172,7 @@ type TileDescriptor struct {
 	Flags          TileDescFlags
 }
 
-// Sets a tile's properties.  There are a total of eight tiles, identified by
+// Sets a tile's properties. There are a total of eight tiles, identified by
 // the Idx field, which can later be referenced in other commands, e.g.
 // LoadTile().
 func (dl *DisplayList) SetTile(ts TileDescriptor) {
@@ -204,7 +202,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	dl.Push(cmd)
 }
 
-// Copies a tile into TMEM.  The tile is copied from the texture image, which
+// Copies a tile into TMEM. The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
 	dl.Push(SyncTile)
@@ -379,7 +377,7 @@ const (
 	InterlaceEven // skip even lines
 )
 
-// Everything outside `r` is skipped when rendering.  Additionally odd or even
+// Everything outside `r` is skipped when rendering. Additionally odd or even
 // lines can be skipped to render interlaced frames.
 func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
 	dl.scissorSet = r
@@ -516,6 +514,8 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 		command(((0x8000/scale.X)>>5)<<16|(0x8000/scale.Y)>>5))
 }
 
+// MaxTileSize returns the largest tile that fits into TMEM for the given
+// bitdepth.
 func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
 	size := 256 >> uint(bpp>>51)
 	return image.Rect(0, 0, size, size)

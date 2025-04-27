@@ -1,6 +1,8 @@
-// The signal processor provides fast vector instructions.  It's usually used
-// for vertex transformations and audio mixing.  It can directly control the RDP
-// via XBUS or shared memory in RDRAM.  There are several precompiled microcodes
+// Package rsp provides loading and running microcode on the signal processor.
+//
+// The signal processor provides fast vector instructions. It's usually used for
+// vertex transformations and audio mixing. It can directly control the RDP via
+// XBUS or shared memory in RDRAM. There are several precompiled microcodes
 // which can be loaded to provide different functionalities.
 package rsp
 
@@ -11,7 +13,7 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-// RSP program counter.  Access only allowed when RSP is halted.
+// RSP program counter. Access only allowed when RSP is halted.
 var pc *mmio.U32 = (*mmio.U32)(unsafe.Pointer(cpu.KSEG1 | 0x0408_0000))
 
 var regs *registers = (*registers)(unsafe.Pointer(baseAddr))

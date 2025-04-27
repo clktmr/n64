@@ -16,6 +16,6 @@ TEXT runtime·unhandledException(SB),NOSPLIT|NOFRAME,$0
 	MOVV  R26, 32(R29)
 	MOVV  R31, 40(R29)
 
-	JAL ·Exception(SB)
+	JAL ·exception(SB)
 	NOOP
 	JMP -1(PC)

@@ -57,9 +57,9 @@ func TestInterruptPrio(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			rcp.CART.Enable(tc.prio, 0)
+			rcp.IrqCart.Enable(tc.prio, 0)
 
-			_, prio, err := rcp.CART.Status(0)
+			_, prio, err := rcp.IrqCart.Status(0)
 			if err != nil {
 				t.Error(err)
 			}

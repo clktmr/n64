@@ -1,3 +1,5 @@
+// Package display provides video output by managing framebuffers and video DAC
+// behind the scenes.
 package display
 
 import (
@@ -38,8 +40,8 @@ func NewDisplay(resolution image.Point, bpp video.ColorDepth) *Display {
 	return fb
 }
 
-// Returns the next framebuffer for rendering.  The framebuffer returned by the
-// last call becomes invalid.  Blocks until a framebuffer is available for
+// Swap returns the next framebuffer for rendering. The framebuffer returned by
+// the last call becomes invalid. Blocks until a framebuffer is available for
 // rendering.
 func (p *Display) Swap() texture.Texture {
 	p.rendertime = time.Since(p.start)

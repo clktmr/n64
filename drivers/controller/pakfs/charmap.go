@@ -38,14 +38,19 @@ var encode = map[rune]byte{
 	'パ': 144, 'ピ': 145, 'プ': 146, 'ペ': 147, 'ポ': 148,
 }
 
+// ErrEncoding is returned by [N64FontCodeStrict]
 var ErrEncoding = errors.New("unsupported character")
 
 type charmap struct {
 	strict bool // Don't allow replacement characters
 }
 
+// Character encodings used for files on the Controller Pak.
 var (
-	N64FontCode       encoding.Encoding = &charmap{false}
+	// Uses replacement characters for unsupported characters.
+	N64FontCode encoding.Encoding = &charmap{false}
+
+	// Returns an error on unsupported characters.
 	N64FontCodeStrict encoding.Encoding = &charmap{true}
 )
 

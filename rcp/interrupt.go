@@ -7,17 +7,17 @@ import (
 )
 
 const (
-	RCP      rtos.IRQ = 3 // RCP forwards interrupt by another peripheral
-	CART     rtos.IRQ = 4 // Interrupt caused by a peripheral on the cartridge
-	PRENMI   rtos.IRQ = 5 // User has pushd reset button on console
-	RDBREAD  rtos.IRQ = 6 // Devboard has read the value in the RDB port
-	RDBWRITE rtos.IRQ = 7 // Devboard has written a value in the RDB port
+	IrqRcp      rtos.IRQ = 3 // RCP forwards an interrupt by another peripheral
+	IrqCart     rtos.IRQ = 4 // Interrupt caused by a peripheral on the cartridge
+	IrqPrenmi   rtos.IRQ = 5 // User has pushed reset button on console
+	IrqRdbRead  rtos.IRQ = 6 // Devboard has read the value in the RDB port
+	IrqRdbWrite rtos.IRQ = 7 // Devboard has written a value in the RDB port
 )
 
 var handlers = [6]func(){}
 
 func init() {
-	DisableInterrupts(^InterruptFlag(0))
+	DisableInterrupts(^interruptFlag(0))
 }
 
 //go:linkname rcpHandler IRQ3_Handler
@@ -26,7 +26,7 @@ func rcpHandler() {
 	pending := regs.interrupt.Load()
 	mask := regs.mask.Load()
 	irq := 0
-	for flag := InterruptFlag(1); flag != IntrLast; flag = flag << 1 {
+	for flag := interruptFlag(1); flag != IntrLast; flag = flag << 1 {
 		if flag&pending != 0 && flag&mask != 0 {
 			handler := handlers[irq]
 			if handler == nil {
@@ -38,12 +38,12 @@ func rcpHandler() {
 	}
 }
 
-func SetHandler(int InterruptFlag, handler func()) {
-	en, prio, _ := RCP.Status(0)
-	RCP.Disable(0)
+func SetHandler(int interruptFlag, handler func()) {
+	en, prio, _ := IrqRcp.Status(0)
+	IrqRcp.Disable(0)
 
 	irq := 0
-	for flag := InterruptFlag(1); flag != IntrLast; flag = flag << 1 {
+	for flag := interruptFlag(1); flag != IntrLast; flag = flag << 1 {
 		if flag&int != 0 {
 			handlers[irq] = handler
 			break
@@ -52,13 +52,13 @@ func SetHandler(int InterruptFlag, handler func()) {
 	}
 
 	if en {
-		RCP.Enable(prio, 0)
+		IrqRcp.Enable(prio, 0)
 	}
 }
 
-func Handler(int InterruptFlag) func() {
+func Handler(int interruptFlag) func() {
 	irq := 0
-	for flag := InterruptFlag(1); flag != IntrLast; flag = flag << 1 {
+	for flag := interruptFlag(1); flag != IntrLast; flag = flag << 1 {
 		if flag&int != 0 {
 			return handlers[irq]
 		}

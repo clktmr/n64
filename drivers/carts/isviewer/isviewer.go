@@ -1,3 +1,11 @@
+// Package isviewer provides a logging via an ISViewer devices.
+//
+// ISViewer was a development cartridge with logging capabilities. While the
+// original hardware is not available anymore, it can be emulated by ares
+// emulator as well as SummerCart64. To enable ISViewer emulation on
+// SummerCart64 use the sc64deployer utility:
+//
+//	sc64deployer debug --isv 0x03FF0000
 package isviewer
 
 import (
@@ -26,6 +34,7 @@ var piBuf = periph.NewDevice(cpu.PhysicalAddress(regs.buf[0].Addr()), bufferSize
 
 type Cart struct{}
 
+// Probe reports the ISV
 func Probe() *Cart {
 	regs.token.Store(0xbeefcafe)
 	if regs.token.Load() == 0xbeefcafe {

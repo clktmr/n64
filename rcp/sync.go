@@ -10,14 +10,14 @@ import (
 const flagUpdated = 1 << 31
 
 // IntrInput passes any value safely into an interrupt context using a double
-// buffer.  Only a single writer and a single reader are allowed.
+// buffer. Only a single writer and a single reader are allowed.
 type IntrInput[T any] struct {
 	bufs [2]T
 	seq  atomic.Uint32 // bit 0: read index, bit 31: update flag
 }
 
 // Read can be used by the writer goroutine to read back the currently stored
-// value.
+// value, i.e. the argument of the last call to [Put].
 func (p *IntrInput[T]) Read() (v T) {
 	return p.bufs[p.seq.Load()&0x1]
 }
@@ -29,8 +29,8 @@ func (p *IntrInput[T]) Put(v T) {
 	p.seq.Store(new)
 }
 
-// Get returns the currently stored value and if it was updated by Put since the
-// last call to Get.
+// Get returns the currently stored value and if it was updated by [Put] since
+// the last call to Get.
 //
 //go:nosplit
 func (p *IntrInput[T]) Get() (v T, updated bool) {
@@ -48,8 +48,8 @@ func (p *IntrInput[T]) Get() (v T, updated bool) {
 
 const qsize = 32
 
-// IntrQueue queues any value safely into an interrupt context.  Multiple writer
-// goroutines and a single reader are allowed.  The reader must not be
+// IntrQueue queues any value safely into an interrupt context. Multiple writer
+// goroutines and a single reader are allowed. The reader must not be
 // preemptible by the writers, i.e. an interrupt.
 type IntrQueue[T any] struct {
 	ring       [qsize]T

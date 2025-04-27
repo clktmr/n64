@@ -52,17 +52,17 @@ wait_dma_end:
 	JMP runtime·_rt0_mips64_noos1(SB)
 
 // The n64 actually needs to be compiled for GOARCH=mips64p32 which isn't
-// supported by gc.  Instead we use mips64, but to do so we must ensure at
+// supported by gc. Instead we use mips64, but to do so we must ensure at
 // runtime that pointers are always 32-bit and correctly sign-extended to 64-bit
-// pointers.  Sign-extending means, setting all bits of the upper DWORD to the
+// pointers. Sign-extending means, setting all bits of the upper DWORD to the
 // same value as bit 31.
 // In 32-bit kernel mode the VR4300 has all of it's physical memory mapped to
-// KSEG0=0x80000000 and again at KSEG1=0xa0000000 for uncached access.  Running
+// KSEG0=0x80000000 and again at KSEG1=0xa0000000 for uncached access. Running
 // code there generally works, but we get in trouble as soon es we read pointers
-// from external sources, e.g. when doing symbol lookup.  These addresses won't
+// from external sources, e.g. when doing symbol lookup. These addresses won't
 // get sign-extended correctly, but always padded with zeroes instead.
 // To solve this we map KSEG0, KSEG1 to the beginning of the virtual address
-// space and continue execution there.  This saves us from sign-extending
+// space and continue execution there. This saves us from sign-extending
 // pointers correctly, as we avoid pointers with bit 31 set, leaving us
 // effectively with an 31-bit wide address space.
 //

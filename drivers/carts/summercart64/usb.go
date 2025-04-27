@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// Write writes data from p to the USB port.
 func (v *Cart) Write(p []byte) (n int, err error) {
 	for len(p) > 0 {
 		err = waitUSB(cmdUSBWriteStatus)
@@ -34,11 +35,7 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 	return
 }
 
-func (v *Cart) Close() (err error) {
-	_, err = v.SetConfig(CfgROMWriteEnable, 0)
-	return
-}
-
+// Read reads pending data from the USB port into p.
 func (v *Cart) Read(p []byte) (n int, err error) {
 	msgtype, length, err := execCommand(cmdUSBReadStatus, 0, 0)
 	if msgtype == 0 || err != nil {

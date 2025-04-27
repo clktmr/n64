@@ -13,6 +13,7 @@ type Cart struct {
 	buf []byte
 }
 
+// Probe returns the [Cart] if an EverDrive64 was detected.
 func Probe() *Cart {
 	regs.key.Store(0xaa55) // magic key to unlock registers
 	switch regs.version.Load() {
@@ -29,6 +30,7 @@ func Probe() *Cart {
 	return nil
 }
 
+// Write writes data from p to the USB port as raw bytes.
 func (v *Cart) Write(p []byte) (n int, err error) {
 	for len(p) > 0 {
 		regs.usbCfgW.Store(writeNop)
@@ -55,15 +57,16 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 	return
 }
 
-// Wraps an io.Writer to provide a new io.Writer, which sends encapsulates each
-// write in an UNFLoader packet.
+// Wraps an io.Writer to provide a new io.Writer, which encapsulates each write
+// in an UNFLoader packet.
 type UNFLoader struct {
 	// Can't use an interface here because presumably it causes "malloc
 	// during signal" if called via SystemWriter in a syscall.
-	// TODO try using generics to make this available for other carts
 	w *Cart
 }
 
+// Returns a new [UNFLoader]. Use this if you intend to use the USB port for
+// logging.
 func NewUNFLoader(w *Cart) *UNFLoader {
 	// send a single heartbeat to let UNFLoader know which protocol version
 	// we are speaking.
@@ -71,6 +74,7 @@ func NewUNFLoader(w *Cart) *UNFLoader {
 	return &UNFLoader{w: w}
 }
 
+// Write writes data from p to the underlying writer in UNFLoader packets.
 func (v *UNFLoader) Write(p []byte) (n int, err error) {
 	for len(p) > 0 {
 		nn := min(len(p), (1<<24)-1)
@@ -79,8 +83,8 @@ func (v *UNFLoader) Write(p []byte) (n int, err error) {
 			return
 		}
 
-		// Align pi addr to 2 byte to ensure use of DMA.  This might cause the
-		// last byte to be discarded.  If that's the case, we prepend it to the
+		// Align pi addr to 2 byte to ensure use of DMA. This might cause the
+		// last byte to be discarded. If that's the case, we prepend it to the
 		// footer.
 		_, err = v.w.Write(p[:nn&^1])
 		if err != nil {

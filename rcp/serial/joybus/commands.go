@@ -1,6 +1,6 @@
 // Package joybus contains functions for creating and parsing of joybus messages
 // as they are represented in the n64 PIF, which adds a 2-byte header to each
-// message.  It doesn't handle the execution of commands on the bus.
+// message. It doesn't handle the execution of commands on the bus.
 package joybus
 
 import (

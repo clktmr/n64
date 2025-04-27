@@ -1,6 +1,12 @@
-// The diplay processor is a hardware rasterizer.  It controls the texture cache
-// and draws primitives directly into a framebuffer in RDRAM.  It's usually not
+// Package rdp provides writing commands to the display processor.
+//
+// The diplay processor is a hardware rasterizer. It controls the texture cache
+// and draws primitives directly into a framebuffer in RDRAM. It's usually not
 // used directly but through the RSP instead.
+//
+// This package gives direct access to some of the low-level RDP commands, which
+// can be used for simple 2D graphics. For 3D graphics the RSP with a suitable
+// microcode will be necessary.
 package rdp
 
 import (
@@ -50,7 +56,7 @@ const (
 type registers struct {
 	start   mmio.R32[cpu.Addr] // Physical start address of DMA transfer
 	end     mmio.R32[cpu.Addr] // Physical end address of DMA transfer
-	current mmio.R32[cpu.Addr] // DMA transfer progress.  Address between start and end.  Read-only.
+	current mmio.R32[cpu.Addr] // DMA transfer progress. Address between start and end.  Read-only.
 
 	status mmio.R32[statusFlags]
 	clock  mmio.U32 // 24-bit counter running at RCP frequency
@@ -62,7 +68,7 @@ type registers struct {
 	// TODO there are more undocumented registers (DPC_* and DPS_*)
 }
 
-var FullSync rtos.Cond
+var fullSync rtos.Cond
 
 func init() {
 	rcp.SetHandler(rcp.IntrRDP, handler)
@@ -73,9 +79,11 @@ func init() {
 //go:nowritebarrierrec
 func handler() {
 	rcp.ClearDPIntr()
-	FullSync.Signal()
+	fullSync.Signal()
 }
 
+// Busy returns the number of GCLK cycles in which the specified component was
+// busy since the last call to Busy.
 func Busy() (cmd, pipe, tmem uint32) {
 	cmd = regs.cmdBusy.Load()
 	pipe = regs.pipeBusy.Load()

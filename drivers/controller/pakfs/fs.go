@@ -1,3 +1,15 @@
+// Package pakfs implements access the Controller Pak's filesystem.
+//
+// The Controller Pak supports exactly sixteen files (aka notes) in a root
+// directory. Each file has a GameCode and a PublisherCode, which aren't part of
+// their name. The name can be at most sixteen characters long with a very
+// limited character set (see [N64FontCode]). Additionally each file has a four
+// character extension, which is part of the files name and was usually used to
+// distinguish multiple savegames for the same game.
+//
+// Another peculiarity of pakfs files is their size, which can only be a
+// multiple of the pagesize of 256 byte. Appending to a file will most probably
+// have undesired effects.
 package pakfs
 
 import (
@@ -11,11 +23,14 @@ import (
 	"sync"
 )
 
-var ErrInconsistent = errors.New("damaged filesystem")
-var ErrNoSpace = errors.New("no space left on device")
-var ErrReadOnly = errors.New("read-only file system")
-var ErrIsDir = errors.New("is a directory")
-var ErrNameTooLong = errors.New("file name too long")
+// Errors returned by pakfs.
+var (
+	ErrInconsistent = errors.New("damaged filesystem")
+	ErrNoSpace      = errors.New("no space left on device")
+	ErrReadOnly     = errors.New("read-only file system")
+	ErrIsDir        = errors.New("is a directory")
+	ErrNameTooLong  = errors.New("file name too long")
+)
 
 const (
 	pagesPerBankBits = 7
@@ -82,6 +97,8 @@ type note struct {
 	FileName      [16]byte
 }
 
+// FS implements [fs.FS] for the Controller Pak's filesystem to read and write
+// savegames from it.
 type FS struct {
 	mtx sync.RWMutex
 	dev io.ReaderAt
@@ -91,6 +108,7 @@ type FS struct {
 	notes  [noteCnt]note
 }
 
+// Read opens an existing pakfs.
 func Read(dev io.ReaderAt) (fs *FS, err error) {
 	fs = &FS{dev: dev}
 
@@ -134,6 +152,7 @@ validINodes:
 	return fs, nil
 }
 
+// Open opens the named file for reading.
 func (p *FS) Open(name string) (fs.File, error) {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
@@ -163,6 +182,7 @@ func (p *FS) open(name string) (fs.File, error) {
 	return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrNotExist}
 }
 
+// Label returns the filesystem label. Usually it doesn't contain useful data.
 func (p *FS) Label() string {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
@@ -175,10 +195,12 @@ func (p *FS) Label() string {
 	return string(label[:])
 }
 
+// Root returns the root directory. There are no other directories in a pakfs.
 func (p *FS) Root() fs.ReadDirFile {
 	return &rootDir{p, nil}
 }
 
+// ReadDirRoot returns the list of files in the root directory.
 func (p *FS) ReadDirRoot() []fs.DirEntry {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
@@ -194,6 +216,7 @@ func (p *FS) ReadDirRoot() []fs.DirEntry {
 	return root
 }
 
+// Size returns the total available storage for file data in bytes.
 func (p *FS) Size() int64 {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
@@ -202,6 +225,7 @@ func (p *FS) Size() int64 {
 	return totalPages << pageBits
 }
 
+// Free returns the unused storage for file data in bytes.
 func (p *FS) Free() int64 {
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
@@ -216,6 +240,7 @@ func (p *FS) Free() int64 {
 	return int64(freePages << pageBits)
 }
 
+// Create creates the named file.
 func (p *FS) Create(name string) (*File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: "create", Path: name, Err: fs.ErrInvalid}
@@ -259,6 +284,7 @@ freeNote:
 	return f, nil
 }
 
+// Remove deletes the named file.
 func (p *FS) Remove(name string) (err error) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -287,6 +313,7 @@ func (p *FS) remove(name string) (err error) {
 	return
 }
 
+// Rename renames the file from oldpath to newpath.
 func (p *FS) Rename(oldpath, newpath string) (err error) {
 	if oldpath == newpath {
 		return
@@ -319,6 +346,8 @@ func (p *FS) Rename(oldpath, newpath string) (err error) {
 	return f.setName(newpath)
 }
 
+// Truncate changes the size of the file. Note that size will always round up to
+// a multiple of the pagesize, i.e. 256 byte.
 func (p *FS) Truncate(name string, size int64) (err error) {
 	dev, ok := p.dev.(io.WriterAt)
 	if !ok {
@@ -369,7 +398,7 @@ func (p *FS) Truncate(name string, size int64) (err error) {
 	return
 }
 
-// Write inodes back to disk.  Also updates the inode backup.
+// Write inodes back to disk. Also updates the inode backup.
 func (p *FS) sync() (err error) {
 	dev, ok := p.dev.(io.WriterAt)
 	if !ok {
