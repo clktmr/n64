@@ -40,7 +40,7 @@ func (d *rootDir) ReadDir(n int) (root []fs.DirEntry, err error) {
 func (d *rootDir) Name() string       { return "." }
 func (d *rootDir) Size() int64        { return 0 }
 func (d *rootDir) Mode() fs.FileMode  { return fs.ModeDir | 0777 }
-func (d *rootDir) ModTime() time.Time { return time.Unix(0, 0) }
+func (d *rootDir) ModTime() time.Time { return time.Time{} }
 func (d *rootDir) IsDir() bool        { return true }
 func (d *rootDir) Sys() any           { return nil }
 
@@ -55,7 +55,7 @@ type dirEntry struct {
 
 func (p *dirEntry) Name() string      { return p.name }
 func (p *dirEntry) IsDir() bool       { return p.Type().IsDir() }
-func (p *dirEntry) Type() fs.FileMode { return 0666 }
+func (p *dirEntry) Type() fs.FileMode { return 0 }
 
 func (p *dirEntry) Info() (fs.FileInfo, error) {
 	f, err := p.fs.Open(p.name)

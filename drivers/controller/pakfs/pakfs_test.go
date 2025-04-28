@@ -13,10 +13,26 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"math/rand"
 )
+
+func TestFS(t *testing.T) {
+	data, err := os.ReadFile(path.Join("testdata", "clktmr.mpk"))
+	if err != nil {
+		t.Fatal("missing testdata:", err)
+	}
+	fs, err := Read(bytes.NewReader(data))
+	if err != nil {
+		t.Fatal("damaged testdata:", err)
+	}
+
+	if err := fstest.TestFS(fs, "PERFECT ", "PERFECT DARK", "V82, \"METIN\""); err != nil {
+		t.Fatal(err)
+	}
+}
 
 const lorem = `Lorem ipsum dolor sit amet, consectetur adipisici elit, sed
 eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad

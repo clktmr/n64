@@ -354,6 +354,6 @@ func (f *File) Size() int64 {
 	return int64(len(pages) << pageBits)
 }
 func (f *File) Mode() fs.FileMode  { return 0666 }
-func (f *File) ModTime() time.Time { return time.Unix(0, 0) }
+func (f *File) ModTime() time.Time { return time.Time{} }
 func (f *File) IsDir() bool        { return f.Mode().IsDir() }
 func (f *File) Sys() any           { return nil }
