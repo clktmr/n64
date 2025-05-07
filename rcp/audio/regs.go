@@ -66,6 +66,8 @@ func init() {
 	rcp.EnableInterrupts(rcp.IntrAudio)
 }
 
+// SetSampleRate sets how many samples per second are played back. Per default
+// it's set to 48000 Hz.
 func SetSampleRate(hz int) {
 	var clockrate int
 	switch machine.VideoType {
@@ -97,10 +99,17 @@ func SetSampleRate(hz int) {
 	}
 }
 
-var Buffer *Writer = &Writer{}
+// Buffer is the global audio buffer. It implements [io.Writer] and
+// [io.ReadFrom]. Data written to Buffer must hold 16-bit stereo samples.
+// Playback of audio will not start until enough samples were written for one
+// frame of audio, or a call to [Flush].
+var Buffer = &Writer{}
 
+// Writer is the type of the global audio buffer. It's not intended for manual
+// creation.
 type Writer struct{}
 
+// Write implements [io.Writer].
 func (b *Writer) Write(p []byte) (n int, err error) {
 	for len(p) > 0 {
 		buf := bufs[writing]
@@ -119,6 +128,7 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 	return
 }
 
+// ReadFrom implements [io.ReadFrom].
 func (b *Writer) ReadFrom(r io.Reader) (n int64, err error) {
 	for {
 		buf := bufs[writing]
@@ -140,6 +150,8 @@ func (b *Writer) ReadFrom(r io.Reader) (n int64, err error) {
 	}
 }
 
+// Flush blocks until all bytes written to the buffer were passed to the audio
+// DAC for playback.
 func (b *Writer) Flush() {
 	for {
 		if _, consumed := pending.Read(); consumed {
