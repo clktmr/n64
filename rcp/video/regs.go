@@ -159,7 +159,8 @@ func SetupPAL(interlace, pal60 bool) {
 // Scale returns the rectangle inside the current video standards boundaries
 // which contains the video output.
 func Scale() image.Rectangle {
-	return scale.Read()
+	s, _ := scale.Read()
+	return s
 }
 
 // SetScale sets and returns the rectangle which contains the video output. If
@@ -211,7 +212,7 @@ var VSync bool = true
 // If [VSync] is set, the SetFramebuffer returns immediately but the last
 // framebuffer will still be in use until next vblank.
 func SetFramebuffer(fb texture.Texture) {
-	currentFb := framebuffer.Read()
+	currentFb, _ := framebuffer.Read()
 	if fb == nil {
 		regs.control.Store(0)
 		framebuffer.Put(nil)
@@ -245,7 +246,8 @@ func SetFramebuffer(fb texture.Texture) {
 
 // Returns the currently displayed framebuffer.
 func Framebuffer() texture.Texture {
-	return framebuffer.Read()
+	f, _ := framebuffer.Read()
+	return f
 }
 
 // NativeResolution reports the currently configured resolution which is output

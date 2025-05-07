@@ -18,8 +18,9 @@ type IntrInput[T any] struct {
 
 // Read can be used by the writer goroutine to read back the currently stored
 // value, i.e. the argument of the last call to [Put].
-func (p *IntrInput[T]) Read() (v T) {
-	return p.bufs[p.seq.Load()&0x1]
+func (p *IntrInput[T]) Read() (v T, consumed bool) {
+	seq := p.seq.Load()
+	return p.bufs[seq&0x1], seq&flagUpdated == 0
 }
 
 // Put updates the stored value atomically.

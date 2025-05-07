@@ -21,6 +21,6 @@ func PhysicalAddress(addr uintptr) Addr {
 }
 
 // Same as [PhysicalAddress] but for slices.
-func PhysicalAddressSlice(s []byte) Addr {
+func PhysicalAddressSlice[T any](s []T) Addr {
 	return PhysicalAddress(uintptr(unsafe.Pointer(unsafe.SliceData(s))))
 }
