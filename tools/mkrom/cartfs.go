@@ -12,6 +12,7 @@ import (
 )
 
 type cartfsEmbed struct {
+	pkgname  string
 	dir      string
 	path     string
 	name     string
@@ -19,7 +20,11 @@ type cartfsEmbed struct {
 }
 
 func (p *cartfsEmbed) SymbolName() string {
-	return strings.Join([]string{p.path, p.name}, ".")
+	if p.pkgname == "main" {
+		return strings.Join([]string{p.pkgname, p.name}, ".")
+	} else {
+		return strings.Join([]string{p.path, p.name}, ".")
+	}
 }
 
 // scanCartfsEmbed searches the package at path for global cartfs.FS variable
@@ -75,6 +80,7 @@ found:
 	decls = make([]*cartfsEmbed, 0)
 	for _, v := range mappings {
 		decls = append(decls, &cartfsEmbed{
+			pkgname:  pkg.Name,
 			path:     pkg.ImportPath,
 			dir:      pkg.Dir,
 			patterns: v.patterns,

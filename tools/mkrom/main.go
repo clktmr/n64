@@ -74,7 +74,7 @@ func main() {
 	var cartfsEmbeds []*cartfsEmbed
 	var wg sync.WaitGroup
 	var mtx sync.Mutex
-	for _, dep := range v.Deps {
+	for _, dep := range append(v.Deps, binfo.Path) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
