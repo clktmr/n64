@@ -18,6 +18,8 @@ var handlers = [6]func(){}
 
 func init() {
 	DisableInterrupts(^interruptFlag(0))
+	IrqRcp.Enable(rtos.IntPrioLow, 0)
+	IrqPrenmi.Enable(rtos.IntPrioLow, 0)
 }
 
 //go:linkname rcpHandler IRQ3_Handler
@@ -65,4 +67,15 @@ func Handler(int interruptFlag) func() {
 		irq += 1
 	}
 	return nil
+}
+
+// Reset signals that the console's reset button was pressed. The hardware
+// reboots with the button's release, but not before 500ms have passed.
+var Reset rtos.Cond
+
+//go:linkname prenmiHandler IRQ5_Handler
+//go:interrupthandler
+func prenmiHandler() {
+	IrqPrenmi.Disable(0)
+	Reset.Signal()
 }
