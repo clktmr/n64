@@ -87,8 +87,6 @@ func main() {
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(runtime_test.BenchmarkSchedule),
-			newInternalBenchmark(draw_test.BenchmarkFillScreen),
-			newInternalBenchmark(draw_test.BenchmarkTextureRectangle),
 		}, nil,
 	)
 }
