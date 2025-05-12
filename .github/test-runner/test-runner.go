@@ -30,6 +30,7 @@ func main() {
 
 	scanner := bufio.NewScanner(stdout)
 	exiting := false
+	code := 0
 	for scanner.Scan() {
 		log.Println(scanner.Text())
 		if exiting {
@@ -41,17 +42,18 @@ func main() {
 			fallthrough
 		case line == "FAIL":
 			exiting = true
+			code = 1
 			go exitCmd(cmd, 1)
 		case line == "PASS":
 			exiting = true
 			go exitCmd(cmd, 0)
 		}
 	}
+	cmd.Wait()
+	os.Exit(code)
 }
 
 func exitCmd(cmd *exec.Cmd, code int) {
 	time.Sleep(500 * time.Millisecond)
 	cmd.Process.Signal(syscall.SIGTERM)
-	cmd.Wait()
-	os.Exit(1)
 }
