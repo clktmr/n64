@@ -15,6 +15,7 @@ import (
 )
 
 func main() {
+	log.Default().SetFlags(0)
 	cmd := exec.Command(os.Args[1], os.Args[2:]...)
 
 	stdout, err := cmd.StdoutPipe()
