@@ -1,0 +1,91 @@
+name: clktmr/n64
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install Embedded Go
+        run: |
+          go install -v github.com/clktmr/dl/gotip-embedded@latest
+          gotip-embedded download
+          ln -s gotip-embedded ~/go/bin/go1.22
+
+      - name: Install N64 tools
+        run: go install ./tools/mkrom
+
+      - name: Build testing ROM
+        run: |
+          gotip-embedded build -o test.elf ./test
+          mkrom test.elf
+        env:
+          GOOS: noos
+          GOARCH: mips64
+          GOFLAGS: -tags=n64 '-ldflags=-M=0x00000000:8M -F=0x00000400:8M -stripfn=1'
+          GOTOOLCHAIN: go1.22
+
+      - name: Upload testing ROM
+        uses: actions/upload-artifact@v4
+        with:
+          name: testing-ROM-${{ github.sha }}
+          path: test.z64
+
+  run:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ares-emulator
+        run: |
+          git clone --branch v144 --depth=1 https://github.com/ares-emulator/ares.git
+          sudo apt install -y cmake g++ libgtk-3-dev xvfb mesa-vulkan-drivers
+          cd ares && cmake -B build \
+                  -DARES_CORES=n64 \
+                  -DARES_ENABLE_LIBRASHADER=OFF \
+                  -DARES_ENABLE_OPENAL=OFF \
+                  -DARES_ENABLE_SDL=OFF \
+                  -DARES_ENABLE_OSS=OFF \
+                  -DARES_ENABLE_ALSA=OFF \
+                  -DARES_ENABLE_PULSEAUDIO=OFF \
+                  -DARES_ENABLE_AO=OFF \
+                  -DARES_ENABLE_UDEV=OFF \
+                  -UVULKAN
+          cd build && make -j4 && sudo make install
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - name: Install test-runner
+        run: go install ./.github/workflows/test-runner
+
+      - name: Download testing ROM
+        uses: actions/download-artifact@v4
+        with:
+          name: testing-ROM-${{ github.sha }}
+
+      - name: Run testing ROM
+        run: |
+          test-runner xvfb-run ares \
+                  --setting Input/Driver=None \
+                  --setting Video/Driver=None \
+                  --setting Audio/Driver=None \
+                  test.z64

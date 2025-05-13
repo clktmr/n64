@@ -17,6 +17,7 @@ import (
 func main() {
 	log.Default().SetFlags(0)
 	cmd := exec.Command(os.Args[1], os.Args[2:]...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -43,17 +44,17 @@ func main() {
 		case line == "FAIL":
 			exiting = true
 			code = 1
-			go exitCmd(cmd, 1)
+			go exitCmd(cmd)
 		case line == "PASS":
 			exiting = true
-			go exitCmd(cmd, 0)
+			go exitCmd(cmd)
 		}
 	}
 	cmd.Wait()
 	os.Exit(code)
 }
 
-func exitCmd(cmd *exec.Cmd, code int) {
+func exitCmd(cmd *exec.Cmd) {
 	time.Sleep(500 * time.Millisecond)
-	cmd.Process.Signal(syscall.SIGTERM)
+	syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
 }
