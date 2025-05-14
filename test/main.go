@@ -13,8 +13,10 @@ import (
 
 	"github.com/clktmr/n64/drivers/carts"
 	"github.com/clktmr/n64/drivers/carts/isviewer"
+	"github.com/clktmr/n64/drivers/controller"
 	_ "github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/serial/joybus"
 
 	"github.com/clktmr/n64/test/internal/drivers/cartfs_test"
 	"github.com/clktmr/n64/test/internal/drivers/carts/summercart64_test"
@@ -57,8 +59,17 @@ func main() {
 	}
 
 	os.Args = append(os.Args, "-test.v")
-	os.Args = append(os.Args, "-test.short")
 	os.Args = append(os.Args, "-test.bench=.")
+
+	print("Hold START to enable interactive test.. ")
+	controller.Poll()
+	if controller.States[0].Down()&joybus.ButtonStart == 0 {
+		os.Args = append(os.Args, "-test.short")
+		println("skipping")
+	} else {
+		println("ok")
+	}
+
 	testing.Main(
 		matchAll,
 		[]testing.InternalTest{
