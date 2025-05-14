@@ -1,4 +1,9 @@
-name: clktmr/n64
+name: CI
+
+env:
+  go-version: stable
+  ares-version: v144
+  embeddedgo-version: gotip-embedded
 
 on:
   push:
@@ -16,21 +21,35 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version: ${{ env.go-version }}
           cache: true
+
+      - name: Get gotip version
+        if: ${{ env.embeddedgo-version == 'gotip-embedded' }}
+        id: gotip-version
+        run: |
+          sha=$(git ls-remote -q https://github.com/clktmr/go.git/ master-embedded | cut -f1)
+          echo "SHA=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Cache embeddedgo build
+        id: embeddedgo-build
+        uses: actions/cache@v4
+        with:
+          path: ~/sdk
+          key: ${{ env.embeddedgo-version }}-${{ steps.gotip-version.outputs.SHA }}
 
       - name: Install Embedded Go
         run: |
-          go install -v github.com/clktmr/dl/gotip-embedded@latest
-          gotip-embedded download
-          ln -s gotip-embedded ~/go/bin/go1.22
+          go install -v github.com/clktmr/dl/${{ env.embeddedgo-version }}@latest
+          ${{ env.embeddedgo-version }} version || ${{ env.embeddedgo-version }} download
+          ln -s ${{ env.embeddedgo-version }} ~/go/bin/go1.22
 
       - name: Install N64 tools
         run: go install ./tools/mkrom
 
       - name: Build testing ROM
         run: |
-          gotip-embedded build -o test.elf ./test
+          go build -o test.elf ./test
           mkrom test.elf
         env:
           GOOS: noos
@@ -51,11 +70,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install ares-emulator
+      - name: Checkout ares
+        uses: actions/checkout@v4
+        with:
+          repository: ares-emulator/ares
+          path: ares
+          ref: ${{ env.ares-version }}
+
+      - name: Cache ares build
+        id: ares-build
+        uses: actions/cache@v4
+        with:
+          path: ares
+          key: ares-${{ env.ares-version }}
+
+      - name: Build ares
+        working-directory: ares
         run: |
-          git clone --branch v144 --depth=1 https://github.com/ares-emulator/ares.git
           sudo apt install -y cmake g++ libgtk-3-dev xvfb mesa-vulkan-drivers
-          cd ares && cmake -B build \
+          cmake -B build \
                   -DARES_CORES=n64 \
                   -DARES_ENABLE_LIBRASHADER=OFF \
                   -DARES_ENABLE_OPENAL=OFF \
@@ -64,14 +97,15 @@ jobs:
                   -DARES_ENABLE_ALSA=OFF \
                   -DARES_ENABLE_PULSEAUDIO=OFF \
                   -DARES_ENABLE_AO=OFF \
-                  -DARES_ENABLE_UDEV=OFF \
-                  -UVULKAN
-          cd build && make -j4 && sudo make install
+                  -DARES_ENABLE_UDEV=OFF
+          cd build
+          make -j4
+          sudo make install
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 'stable'
+          go-version: ${{ env.go-version }}
           cache: true
 
       - name: Install test-runner
