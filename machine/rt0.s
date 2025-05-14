@@ -12,7 +12,64 @@ TEXT _rt0_mips64_noos(SB),NOSPLIT|NOFRAME,$0
 	MOVW R0, M(C0_CAUSE)
 	MOVW R0, M(C0_WATCHLO)
 
-	JAL  ·rt0_tlb(SB)
+	// The n64 actually needs to be compiled for GOARCH=mips64p32 which isn't
+	// supported by gc. Instead we use mips64, but to do so we must ensure at
+	// runtime that pointers are always 32-bit and correctly sign-extended to 64-bit
+	// pointers. Sign-extending means, setting all bits of the upper DWORD to the
+	// same value as bit 31.
+	// In 32-bit kernel mode the VR4300 has all of it's physical memory mapped to
+	// KSEG0=0x80000000 and again at KSEG1=0xa0000000 for uncached access. Running
+	// code there generally works, but we get in trouble as soon es we read pointers
+	// from external sources, e.g. when doing symbol lookup. These addresses won't
+	// get sign-extended correctly, but always padded with zeroes instead.
+	// To solve this we map KSEG0, KSEG1 to the beginning of the virtual address
+	// space and continue execution there. This saves us from sign-extending
+	// pointers correctly, as we avoid pointers with bit 31 set, leaving us
+	// effectively with an 31-bit wide address space.
+	//
+	// Possibly another way of solving this would be running the n64 in actual
+	// 64-bit mode, but I'm not sure what other problems might occur when accessing
+	// the 32-bit wide system bus.
+	//
+	// TODO currently only 16 MiB of cartridge is mapped
+	MOVV $0, R8
+	MOVV R8, M(C0_INDEX)
+	MOVV $0xfff << 13, R8
+	MOVV R8, M(C0_PAGEMASK)
+	MOVV $(0x00000000 >> 6) | 0x7, R8
+	MOVV R8, M(C0_ENTRYLO0)
+	MOVV $(0x01000000 >> 6) | 0x7, R8
+	MOVV R8, M(C0_ENTRYLO1)
+	MOVV $0x00000000, R8
+	MOVV R8, M(C0_ENTRYHI)
+	TLBWI
+
+	MOVV $1, R8
+	MOVV R8, M(C0_INDEX)
+	MOVV $0xfff << 13, R8
+	MOVV R8, M(C0_PAGEMASK)
+	MOVV $(0x10000000 >> 6) | (2<<3) |  0x3, R8
+	MOVV R8, M(C0_ENTRYLO0)
+	MOVV $(0x11000000 >> 6) | (2<<3) |  0x3, R8
+	MOVV R8, M(C0_ENTRYLO1)
+	MOVV $0x10000000, R8
+	MOVV R8, M(C0_ENTRYHI)
+	TLBWI
+
+	MOVV $2, R8
+	MOVV R8, M(C0_INDEX)
+	MOVV $0xfff << 13, R8
+	MOVV R8, M(C0_PAGEMASK)
+	MOVV $(0x00000000 >> 6) | (2<<3) | 0x7, R8
+	MOVV R8, M(C0_ENTRYLO0)
+	MOVV $(0x01000000 >> 6) | (2<<3) | 0x7, R8
+	MOVV R8, M(C0_ENTRYLO1)
+	MOVV $0x20000000, R8
+	MOVV R8, M(C0_ENTRYHI)
+	TLBWI
+
+	JMP tlb // jumps to the tlb mapped memory
+tlb:
 
 	MOVW (0x80000318), R16 // memory size
 	MOVV $0x10, R9
@@ -50,65 +107,3 @@ wait_dma_end:
 
 	MOVV R16, R4
 	JMP runtime·_rt0_mips64_noos1(SB)
-
-// The n64 actually needs to be compiled for GOARCH=mips64p32 which isn't
-// supported by gc. Instead we use mips64, but to do so we must ensure at
-// runtime that pointers are always 32-bit and correctly sign-extended to 64-bit
-// pointers. Sign-extending means, setting all bits of the upper DWORD to the
-// same value as bit 31.
-// In 32-bit kernel mode the VR4300 has all of it's physical memory mapped to
-// KSEG0=0x80000000 and again at KSEG1=0xa0000000 for uncached access. Running
-// code there generally works, but we get in trouble as soon es we read pointers
-// from external sources, e.g. when doing symbol lookup. These addresses won't
-// get sign-extended correctly, but always padded with zeroes instead.
-// To solve this we map KSEG0, KSEG1 to the beginning of the virtual address
-// space and continue execution there. This saves us from sign-extending
-// pointers correctly, as we avoid pointers with bit 31 set, leaving us
-// effectively with an 31-bit wide address space.
-//
-// Possibly another way of solving this would be running the n64 in actual
-// 64-bit mode, but I'm not sure what other problems might occur when accessing
-// the 32-bit wide system bus.
-//
-// TODO currently only 16 MiB of cartridge is mapped
-TEXT ·rt0_tlb(SB),NOSPLIT|NOFRAME,$0
-	MOVV $0, R8
-	MOVV R8, M(C0_INDEX)
-	MOVV $0xfff << 13, R8
-	MOVV R8, M(C0_PAGEMASK)
-	MOVV $(0x00000000 >> 6) | 0x7, R8
-	MOVV R8, M(C0_ENTRYLO0)
-	MOVV $(0x01000000 >> 6) | 0x7, R8
-	MOVV R8, M(C0_ENTRYLO1)
-	MOVV $0x00000000, R8
-	MOVV R8, M(C0_ENTRYHI)
-	TLBWI
-
-	MOVV $1, R8
-	MOVV R8, M(C0_INDEX)
-	MOVV $0xfff << 13, R8
-	MOVV R8, M(C0_PAGEMASK)
-	MOVV $(0x10000000 >> 6) | (2<<3) |  0x3, R8
-	MOVV R8, M(C0_ENTRYLO0)
-	MOVV $(0x11000000 >> 6) | (2<<3) |  0x3, R8
-	MOVV R8, M(C0_ENTRYLO1)
-	MOVV $0x10000000, R8
-	MOVV R8, M(C0_ENTRYHI)
-	TLBWI
-
-	MOVV $2, R8
-	MOVV R8, M(C0_INDEX)
-	MOVV $0xfff << 13, R8
-	MOVV R8, M(C0_PAGEMASK)
-	MOVV $(0x00000000 >> 6) | (2<<3) | 0x7, R8
-	MOVV R8, M(C0_ENTRYLO0)
-	MOVV $(0x01000000 >> 6) | (2<<3) | 0x7, R8
-	MOVV R8, M(C0_ENTRYLO1)
-	MOVV $0x20000000, R8
-	MOVV R8, M(C0_ENTRYHI)
-	TLBWI
-
-	MOVV $0x7fffffff, R8
-	AND  R8, R31 // return to the tlb mapped address
-	RET
-
