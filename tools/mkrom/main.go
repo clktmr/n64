@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/build"
 	"io"
 	"os"
 	"os/exec"
@@ -62,7 +63,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	// TODO read buildsettings from binfo
+	bctx := build.Default
+	for _, v := range binfo.Settings {
+		switch v.Key {
+		case "GOOS":
+			bctx.GOOS = v.Value
+		case "GOARCH":
+			bctx.GOARCH = v.Value
+		case "-tags":
+			for _, tag := range strings.Split(v.Value, ",") {
+				bctx.BuildTags = append(bctx.BuildTags, tag)
+			}
+		}
+	}
 
 	cmd := exec.Command("go", "list", "-json", binfo.Path)
 	output := must(cmd.Output())
@@ -78,7 +91,7 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			decls := must(scanCartfsEmbed(dep))
+			decls := must(scanCartfsEmbed(&bctx, dep))
 			mtx.Lock()
 			defer mtx.Unlock()
 			cartfsEmbeds = append(cartfsEmbeds, decls...)

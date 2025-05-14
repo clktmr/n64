@@ -29,8 +29,8 @@ func (p *cartfsEmbed) SymbolName() string {
 
 // scanCartfsEmbed searches the package at path for global cartfs.FS variable
 // declarations initialized with cartfs.Embed.
-func scanCartfsEmbed(path string) (decls []*cartfsEmbed, err error) {
-	pkg, err := build.Default.Import(path, ".", 0)
+func scanCartfsEmbed(ctx *build.Context, path string) (decls []*cartfsEmbed, err error) {
+	pkg, err := ctx.Import(path, ".", 0)
 	if err != nil {
 		return
 	}
