@@ -45,7 +45,7 @@ var States [4]Controller
 // Updates the state of all four controllers and stores them in [States]. Blocks
 // until all states were received.
 func Poll() {
-	p := States
+	p := &States
 	// poll info
 	for _, cmd := range cmdAllInfoPorts {
 		cmd.Reset()
