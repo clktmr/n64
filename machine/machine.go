@@ -8,6 +8,7 @@
 package machine
 
 import (
+	"embedded/arch/r4000/systim"
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
@@ -46,3 +47,7 @@ var (
 	// Reports if an expansion pak is installed.
 	PakType pak = *(*pak)(unsafe.Pointer(cpu.KSEG1 | 0x8000_0318))
 )
+
+func init() {
+	systim.Setup(cpu.ClockSpeed)
+}

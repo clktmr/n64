@@ -2,7 +2,6 @@
 package main
 
 import (
-	"embedded/arch/r4000/systim"
 	"embedded/rtos"
 	"fmt"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"github.com/clktmr/n64/drivers/carts/isviewer"
 	"github.com/clktmr/n64/drivers/controller"
 	_ "github.com/clktmr/n64/machine"
-	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/serial/joybus"
 
 	"github.com/clktmr/n64/test/internal/drivers/cartfs_test"
@@ -30,10 +28,6 @@ import (
 
 	"github.com/embeddedgo/fs/termfs"
 )
-
-func init() {
-	systim.Setup(cpu.ClockSpeed)
-}
 
 func main() {
 	var err error
