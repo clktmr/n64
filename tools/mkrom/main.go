@@ -29,6 +29,7 @@ Usage: %s [flags] <elffile>
 var (
 	infile string
 	format = flag.String("format", "z64", "z64 | uf2")
+	run    = flag.String("run", "", "Run the ROM with this command")
 )
 
 func usage() {
@@ -138,6 +139,21 @@ func main() {
 	wg.Wait()
 
 	n64WriteROMFile(outfile, *format, obj.data)
+
+	if *run != "" {
+		cmd = exec.Command(*run, outfile)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err, ok := err.(*exec.ExitError); ok {
+			os.Exit(err.ExitCode())
+		}
+		if err != nil {
+			fmt.Println("run:", err)
+			os.Exit(1)
+		}
+	}
 }
 
 // Stolen from embed/embed.go
