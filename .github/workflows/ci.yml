@@ -45,7 +45,9 @@ jobs:
           ln -s ${{ env.embeddedgo-version }} ~/go/bin/go1.22
 
       - name: Install N64 tools
-        run: go install ./tools/mkrom
+        run: |
+          go install ./tools/mkrom
+          go install ./tools/n64toolexec
 
       - name: Build testing ROM
         run: |
