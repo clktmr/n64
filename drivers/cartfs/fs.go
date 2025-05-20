@@ -28,7 +28,6 @@ import (
 	"os"
 	"path"
 	"slices"
-	"strings"
 )
 
 type FS struct {
@@ -105,74 +104,43 @@ func populateDirs(files []string) (names []string) {
 	return
 }
 
-// resolveEmbeds mimics the pattern matching done by embed. It will however not
-// do all the checks (valid names, module boundaries, etc.), as it expects files
-// to be a list output by embed. The returned list is sorted as required by
-// cartfs.FS.
-func resolveEmbeds(files, patterns []string) ([]string, error) {
-	files = populateDirs(files)
-
-	// Find all matches
-	var incfiles []string
-	for _, pattern := range patterns {
-		for _, file := range files {
-			if match, err := path.Match(pattern, trimSlash(file)); err != nil {
-				return nil, err
-			} else if !match {
-				continue
-			}
-			incfiles = append(incfiles, file)
-		}
-	}
-
-	// Collect files in matched dirs
-	for _, incfile := range incfiles {
-		if _, _, isDir := split(incfile); isDir {
-			for _, file := range files {
-				if fname, found := strings.CutPrefix(trimSlash(file), incfile); found {
-					if strings.HasPrefix(fname, ".") || strings.HasPrefix(fname, "_") {
-						continue
-					}
-					incfiles = append(incfiles, file)
-				}
-			}
-		}
-	}
-	incfiles = populateDirs(incfiles)
-
-	slices.SortFunc(incfiles, compare)
-
-	return incfiles, nil
-}
-
 // Create generates a cartfs from a list of filenames.
-func Create(dev io.WriterAt, files, patterns []string) error {
-	incfiles, err := resolveEmbeds(files, patterns)
-	if err != nil {
-		return err
+func Create(dev io.WriterAt, filemap map[string]string) error {
+	files := make([]string, len(filemap))
+	i := 0
+	for k := range filemap {
+		files[i] = k
+		i++
 	}
+
+	files = populateDirs(files)
+	slices.SortFunc(files, compare)
 
 	// Calculate offsets for all files
 	var offset int64
 	paths := make([]byte, 0)
 	entries := make([]dirEntry, 0)
-	for _, file := range incfiles {
-		info, err := os.Stat(file)
-		if err != nil {
-			return err
+	for _, file := range files {
+		size := int64(0)
+		if _, _, isDir := split(file); !isDir {
+			info, err := os.Stat(filemap[file])
+			if err != nil {
+				return err
+			}
+			size = info.Size()
 		}
 		paths = append(paths, []byte(file)...)
 		entries = append(entries, dirEntry{
 			int64(len(paths) - len(file)), int64(len(paths)),
-			info.Size(),
+			size,
 			offset,
 		})
-		offset += info.Size()
+		offset += size
 		offset = (offset + alignMask) &^ alignMask
 	}
 
 	w := io.NewOffsetWriter(dev, 0)
-	err = binary.Write(w, binary.BigEndian, int64(len(entries)))
+	err := binary.Write(w, binary.BigEndian, int64(len(entries)))
 	if err != nil {
 		return err
 	}
@@ -200,7 +168,7 @@ func Create(dev io.WriterAt, files, patterns []string) error {
 		if _, _, isDir := split(path); isDir {
 			continue
 		}
-		r, err := os.Open(path)
+		r, err := os.Open(filemap[path])
 		if err != nil {
 			return err
 		}

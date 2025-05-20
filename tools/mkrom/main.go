@@ -6,18 +6,13 @@ package main
 
 import (
 	"debug/elf"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"go/build"
 	"io"
+	"log"
 	"os"
 	"os/exec"
-	"runtime/debug"
 	"strings"
-	"sync"
-
-	"github.com/clktmr/n64/drivers/cartfs"
 )
 
 const usageString = `ELF to n64 ROM converter.
@@ -38,6 +33,7 @@ func usage() {
 }
 
 func main() {
+	log.Default().SetFlags(log.Lshortfile)
 	flag.Usage = usage
 	flag.Parse()
 
@@ -51,97 +47,54 @@ func main() {
 	outfile, _ := strings.CutSuffix(infile, ".elf")
 	outfile += "." + *format
 
-	r := must(os.Open(infile))
-	defer r.Close()
-	elffile := must(elf.NewFile(r))
+	elffile, err := elf.Open(infile)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	defer elffile.Close()
 
-	obj := NewObjcopy(elffile)
+	rom, err := os.CreateTemp("", "mkrom")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer rom.Close()
 
-	binfo := buildinfo(obj)
-	if binfo.Path == "" {
-		fmt.Println("no module path in buildinfo")
+	err = objcopy(io.NewOffsetWriter(rom, int64(len(n64Header)+len(n64IPL3))), elffile)
+	if err != nil {
+		log.Fatalln("objcopy:", err)
+	}
+
+	err = n64WriteROMHeader(rom, outfile)
+	if err != nil {
+		log.Fatalln("write rom header:", err)
+	}
+
+	switch *format {
+	case "z64":
+		out, err := os.Create(outfile)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer out.Close()
+		rom.Seek(0, io.SeekStart)
+		_, err = io.Copy(out, rom)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	case "uf2":
+		// TODO pass file to n64WriteUF2
+		rom, err := io.ReadAll(rom)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		n64WriteUF2(outfile, rom)
+	default:
+		fmt.Printf("objcopy: %s format not supported", *format)
 		os.Exit(1)
 	}
 
-	bctx := build.Default
-	for _, v := range binfo.Settings {
-		switch v.Key {
-		case "GOOS":
-			bctx.GOOS = v.Value
-		case "GOARCH":
-			bctx.GOARCH = v.Value
-		case "-tags":
-			for _, tag := range strings.Split(v.Value, ",") {
-				bctx.BuildTags = append(bctx.BuildTags, tag)
-			}
-		}
-	}
-
-	cmd := exec.Command("go", "list", "-json", binfo.Path)
-	output := must(cmd.Output())
-	v := struct{ Deps []string }{}
-	json.Unmarshal(output, &v)
-
-	// scanCartfsDecls is slow (go/build.Import in particular), call it
-	// concurrently for each dependency.
-	var cartfsEmbeds []*cartfsEmbed
-	var wg sync.WaitGroup
-	var mtx sync.Mutex
-	for _, dep := range append(v.Deps, binfo.Path) {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			decls := must(scanCartfsEmbed(&bctx, dep))
-			mtx.Lock()
-			defer mtx.Unlock()
-			cartfsEmbeds = append(cartfsEmbeds, decls...)
-		}()
-	}
-	wg.Wait()
-
-	for _, decl := range cartfsEmbeds {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			cmd := exec.Command("go", "list", "-json", decl.path)
-			output := must(cmd.Output())
-			v := struct{ EmbedFiles []string }{}
-			json.Unmarshal(output, &v)
-
-			mtx.Lock()
-			defer mtx.Unlock()
-
-			const m = cartfs.Align - 1
-
-			pad := (obj.data.Len()+m)&^m - obj.data.Len()
-			must(obj.data.Write(padBytes(&ones, pad, 0xff)))
-
-			ptrbuf := obj.SymbolData(decl.SymbolName())
-			if ptrbuf == nil {
-				return // dead symbol
-			}
-
-			addr := uint32(obj.data.Len() + len(n64Header) + len(n64IPL3))
-			obj.ByteOrder().PutUint32(ptrbuf[:4], addr+0x1000_0000)
-
-			cartfsdev := must(os.CreateTemp("", "cartfs"))
-			cwd := must(os.Getwd())
-			os.Chdir(decl.dir)
-			must(0, cartfs.Create(cartfsdev, v.EmbedFiles, decl.patterns))
-			os.Chdir(cwd)
-			must(io.Copy(obj.data, cartfsdev))
-
-			pad = (obj.data.Len()+m)&^m - obj.data.Len()
-			must(obj.data.Write(padBytes(&ones, pad, 0xff)))
-		}()
-	}
-	wg.Wait()
-
-	n64WriteROMFile(outfile, *format, obj.data)
-
 	if *run != "" {
-		cmd = exec.Command(*run, outfile)
+		cmd := exec.Command(*run, outfile)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -154,28 +107,4 @@ func main() {
 			os.Exit(1)
 		}
 	}
-}
-
-// Stolen from embed/embed.go
-func trimSlash(name string) string {
-	if len(name) > 0 && name[len(name)-1] == '/' {
-		return name[:len(name)-1]
-	}
-	return name
-}
-
-// embeddedgo binaries aren't compatible with debug/buildinfo, as they store
-// buildinfo in a different way. But buildinfo can be read from modinfo, like in
-// debug.ReadBuildInfo().
-func buildinfo(obj *Objcopy) *debug.BuildInfo {
-	modinfo := string(obj.SymbolData("runtime.modinfo.str"))
-	return must(debug.ParseBuildInfo(modinfo[16 : len(modinfo)-16]))
-}
-
-func must[T any](ret T, err error) T {
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	return ret
 }

@@ -5,9 +5,8 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
-	"fmt"
+	"io"
 	"os"
 
 	_ "embed"
@@ -76,29 +75,31 @@ func n64CRC(buf []byte) (crc [2]uint32) {
 	return
 }
 
-func n64WriteROMFile(obj, format string, buf *bytes.Buffer) {
-	pad := n64ChecksumLen - buf.Len()
-	if pad > 0 {
-		buf.Write(padBytes(&ones, pad, 0xff))
+func n64WriteROMHeader(rom *os.File, gametitle string) error {
+	objOffset := int64(len(n64Header) + len(n64IPL3))
+	size, _ := rom.Seek(0, io.SeekEnd)
+	if size < n64ChecksumLen+objOffset {
+		err := rom.Truncate(n64ChecksumLen + objOffset)
+		if err != nil {
+			return err
+		}
 	}
-	crc := n64CRC(buf.Bytes()[:n64ChecksumLen])
+	buf := make([]byte, n64ChecksumLen)
+	_, err := rom.ReadAt(buf, objOffset)
+	if err != nil {
+		return err
+	}
+	crc := n64CRC(buf)
 	binary.BigEndian.PutUint32(n64Header[0x10:], crc[0])
 	binary.BigEndian.PutUint32(n64Header[0x14:], crc[1])
-	copy(n64Header[0x20:0x34], obj) // Game Title
-	rom := make([]byte, 0, len(n64Header)+len(n64IPL3)+buf.Len())
-	rom = append(rom, n64Header[:]...)
-	rom = append(rom, n64IPL3...)
-	rom = append(rom, buf.Bytes()...)
+	copy(n64Header[0x20:0x34], gametitle)
 
-	switch format {
-	case "z64":
-		must(0, os.WriteFile(obj, rom, 0644))
-	case "uf2":
-		n64WriteUF2(obj, rom)
-	default:
-		fmt.Printf("objcopy: %s format not supported", format)
-		os.Exit(1)
+	_, err = rom.WriteAt(append(n64Header[:], n64IPL3...), 0)
+	if err != nil {
+		return err
 	}
+
+	return nil
 }
 
 // 6102/7101 MD5=e24dd796b2fa16511521139d28c8356b

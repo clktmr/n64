@@ -12,25 +12,25 @@ import (
 )
 
 type cartfsEmbed struct {
-	pkgname  string
-	dir      string
-	path     string
-	name     string
-	patterns []string
+	Pkgname  string
+	Dir      string
+	Path     string
+	Name     string
+	Patterns []string
 }
 
 func (p *cartfsEmbed) SymbolName() string {
-	if p.pkgname == "main" {
-		return strings.Join([]string{p.pkgname, p.name}, ".")
+	if p.Pkgname == "main" {
+		return strings.Join([]string{p.Pkgname, p.Name}, ".")
 	} else {
-		return strings.Join([]string{p.path, p.name}, ".")
+		return strings.Join([]string{p.Path, p.Name}, ".")
 	}
 }
 
 // scanCartfsEmbed searches the package at path for global cartfs.FS variable
 // declarations initialized with cartfs.Embed.
-func scanCartfsEmbed(ctx *build.Context, path string) (decls []*cartfsEmbed, err error) {
-	pkg, err := ctx.Import(path, ".", 0)
+func scanCartfsEmbed(path string) (decls []cartfsEmbed, err error) {
+	pkg, err := build.Default.Import(path, ".", 0)
 	if err != nil {
 		return
 	}
@@ -77,14 +77,14 @@ found:
 		})
 	}
 
-	decls = make([]*cartfsEmbed, 0)
+	decls = make([]cartfsEmbed, 0)
 	for _, v := range mappings {
-		decls = append(decls, &cartfsEmbed{
-			pkgname:  pkg.Name,
-			path:     pkg.ImportPath,
-			dir:      pkg.Dir,
-			patterns: v.patterns,
-			name:     v.name,
+		decls = append(decls, cartfsEmbed{
+			Pkgname:  pkg.Name,
+			Path:     pkg.ImportPath,
+			Dir:      pkg.Dir,
+			Patterns: v.Patterns,
+			Name:     v.Name,
 		})
 	}
 	return
@@ -128,10 +128,10 @@ func inspectVarDecl(decl *ast.GenDecl, mapping map[string]cartfsEmbed) error {
 								if pkgident.String() == "cartfs" {
 									if embedfsRef, ok := initcall.Args[0].(*ast.Ident); ok {
 										m := mapping[embedfsRef.Name]
-										if m.name != "" {
+										if m.Name != "" {
 											return fmt.Errorf("Multiple cartfs.FS embed the same embed.FS")
 										}
-										m.name = spec.Names[i].Name
+										m.Name = spec.Names[i].Name
 										mapping[embedfsRef.Name] = m
 										continue
 									}
@@ -162,7 +162,7 @@ func inspectVarDecl(decl *ast.GenDecl, mapping map[string]cartfsEmbed) error {
 				}
 				patterns = append(patterns, p...)
 				m := mapping[spec.Names[0].Name]
-				m.patterns = patterns
+				m.Patterns = patterns
 				mapping[spec.Names[0].Name] = m
 			}
 		}

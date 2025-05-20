@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"unsafe"
 )
@@ -167,4 +168,11 @@ func n64WriteUF2(obj string, rom []byte) {
 	must(0, binary.Write(w, binary.LittleEndian, chunkMap))
 	must(w.Write(chunkData))
 	must(0, w.Flush())
+}
+
+func must[T any](ret T, err error) T {
+	if err != nil {
+		log.Fatal(err)
+	}
+	return ret
 }
