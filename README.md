@@ -11,18 +11,23 @@ which adds a minimal rtos to the runtime via GOOS=noos.
 
 ## Getting Started
 
-1. Install the embeddedgo toolchain:
+1. Install the embeddedgo toolchain with n64 patch:
 
 ```sh
-    go install github.com/clktmr/dl/gotip-embedded@latest
-    gotip-embedded download
+    go install github.com/clktmr/dl/go1.24.0-n64@latest
+    go1.24.0-n64 download
 ```
+
+   The next release of embeddedgo will have these changes included.
 
 2. Install n64toolexec:
 
 ```sh
     go install github.com/clktmr/n64/tools/n64toolexec@latest
 ```
+
+   This tool is hooked into the go command via the -toolexec flag to provide
+   generation of z64 and uf2 ROM files.
 
 3. Setup your build environment. Copy `go.env` from this repository to your
    desired location and make use of it:
