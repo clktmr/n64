@@ -126,6 +126,8 @@ func preLink(args []string) []string {
 		}
 		filteredArgs = append(filteredArgs, "-"+f.Name+"="+f.Value.String())
 	})
+	filteredArgs = append(filteredArgs, "-M=0x00000000:8M")
+	filteredArgs = append(filteredArgs, "-F=0x00000400:8M")
 	filteredArgs = append(filteredArgs, linkArgs.Args()...)
 
 	return filteredArgs
