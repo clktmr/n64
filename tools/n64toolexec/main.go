@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -59,18 +58,51 @@ func main() {
 	}
 }
 
+// boolFlag gets parsed like a bool flag, i.e. the optional parameter must be
+// set via the "=" flag syntax, but allows other values than true and false.
+type boolFlag struct{ val string }
+
+func (c *boolFlag) Set(s string) error { c.val = s; return nil }
+func (c *boolFlag) String() string     { return c.val }
+func (c *boolFlag) IsBoolFlag() bool   { return true }
+
 var linkArgs = flag.NewFlagSet("link", flag.ContinueOnError)
 var (
 	linkPrintVersion  = linkArgs.String("V", "", "")
 	linkOutfilePath   = linkArgs.String("o", "", "")
 	linkImportcfgPath = linkArgs.String("importcfg", "", "")
+	linkFormatType    = linkArgs.String("H", "", "")
 )
+
+var linkIgnoredBoolFlags = []string{
+	"8", "a", "asan", "aslr", "bindnow", "c", "checklinkname",
+	"compressdwarf", "d", "debugnosplit", "dumpdep", "f", "g", "h",
+	"linkshared", "msan", "n", "pruneweakmap", "race", "s", "v", "w",
+}
+
+var linkIgnoredFlags = []string{
+	"B", "E", "F", "I", "L", "M", "R", "T", "X", "benchmark",
+	"benchmarkprofile", "buildid", "buildmode", "capturehostobjs",
+	"cpuprofile", "debugtextsize", "debugtramp", "extar", "extld",
+	"extldflags", "fipso", "installsuffix", "k", "libgcc", "linkmode",
+	"memprofile", "memprofilerate", "pluginpath", "r", "randlayout",
+	"strictdups", "stripfn", "tmpdir",
+}
+
+func init() {
+	for _, name := range linkIgnoredBoolFlags {
+		linkArgs.Var(&boolFlag{}, name, "")
+	}
+	for _, name := range linkIgnoredFlags {
+		linkArgs.String(name, "", "")
+	}
+}
 
 func preLink(args []string) []string {
 	linkArgs.SetOutput(io.Discard)
-	unparsedArgs := args
-	for linkArgs.Parse(unparsedArgs) != nil {
-		unparsedArgs = linkArgs.Args()[1:]
+	err := linkArgs.Parse(args)
+	if err != nil {
+		die("ldflags:", err)
 	}
 
 	if *linkPrintVersion != "" {
@@ -79,17 +111,24 @@ func preLink(args []string) []string {
 		return args
 	}
 
-	// Enforce symbols cause they are currently needed by mkrom
-	// TODO Check if we can use ldflags -X instead
-	for {
-		if idx := slices.Index(args, "-s"); idx > 0 {
-			args = slices.Delete(args, idx, idx+1)
-		} else {
-			break
+	// Remove output format and forward it to mkrom
+	filteredArgs := make([]string, 0)
+	linkArgs.Visit(func(f *flag.Flag) {
+		// Enforce symbols cause they are currently needed by mkrom
+		// TODO Check if we can use ldflags -X instead
+		if f.Name == "s" {
+			return
 		}
-	}
+		// Remove output format
+		// TODO: forward it to mkrom
+		if f.Name == "H" {
+			return
+		}
+		filteredArgs = append(filteredArgs, "-"+f.Name+"="+f.Value.String())
+	})
+	filteredArgs = append(filteredArgs, linkArgs.Args()...)
 
-	return args
+	return filteredArgs
 }
 
 // postLink collects all generated cartfs images from the dependencies and
@@ -217,11 +256,36 @@ var (
 	compileEmbedcfgPath = compileArgs.String("embedcfg", "", "")
 )
 
+var compileIgnoredBoolFlags = []string{
+	"%", "+", "B", "C", "E", "K", "L", "N", "S", "W", "asan", "clobberdead",
+	"clobberdeadreg", "complete", "dwarf", "dwarfbasentries",
+	"dwarflocationlists", "dynlink", "e", "errorurl", "h", "j", "l",
+	"linkshared", "live", "m", "msan", "nolocalimports", "pack", "r",
+	"race", "shared", "smallframes", "std", "t", "v", "w", "wb",
+}
+
+var compileIgnoredFlags = []string{
+	"D", "I", "asmhdr", "bench", "blockprofile", "buildid", "c",
+	"coveragecfg", "cpuprofile", "d", "env", "gendwarfinl", "goversion",
+	"importcfg", "installsuffix", "json", "lang", "linkobj", "memprofile",
+	"memprofilerate", "mutexprofile", "pgoprofile", "spectre", "symabis",
+	"traceprofile", "trimpath",
+}
+
+func init() {
+	for _, name := range compileIgnoredBoolFlags {
+		compileArgs.Var(&boolFlag{}, name, "")
+	}
+	for _, name := range compileIgnoredFlags {
+		compileArgs.String(name, "", "")
+	}
+}
+
 func preCompile(args []string) []string {
 	compileArgs.SetOutput(io.Discard)
-	unparsedArgs := args
-	for compileArgs.Parse(unparsedArgs) != nil {
-		unparsedArgs = compileArgs.Args()[1:]
+	err := compileArgs.Parse(args)
+	if err != nil {
+		die("gcflags:", err)
 	}
 
 	if *compilePrintVersion != "" {
