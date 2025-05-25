@@ -119,11 +119,6 @@ func preLink(args []string) []string {
 		if f.Name == "s" {
 			return
 		}
-		// Remove output format
-		// TODO: forward it to mkrom
-		if f.Name == "H" {
-			return
-		}
 		filteredArgs = append(filteredArgs, "-"+f.Name+"="+f.Value.String())
 	})
 	filteredArgs = append(filteredArgs, "-M=0x00000000:8M")
