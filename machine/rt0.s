@@ -4,7 +4,6 @@
 
 #include "asm_mips64.h"
 
-// TODO Use libdragons opensource bootloader
 TEXT _rt0_mips64_noos(SB),NOSPLIT|NOFRAME,$0
 	// start at a known state
 	MOVW $(SR_CU1|SR_PE|SR_FR), R2
@@ -80,6 +79,7 @@ tlb:
 
 	// Check if PI DMA transfer is required, knowing that IPL3 loads 1 MiB
 	// of ROM to RAM.
+	// TODO Use libdragons ipl3 to do load the rom
 	MOVW $_rt0_mips64_noos(SB), R4
 	MOVW $runtime·edata(SB), R5
 	MOVW $0x100000, R8 // stock IPL3 load size (1 MiB)

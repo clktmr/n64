@@ -59,7 +59,7 @@ func main() {
 	}
 	defer rom.Close()
 
-	err = objcopy(io.NewOffsetWriter(rom, int64(len(n64Header)+len(n64IPL3))), elffile)
+	err = objcopy(io.NewOffsetWriter(rom, int64(len(n64IPL3))), elffile)
 	if err != nil {
 		log.Fatalln("objcopy:", err)
 	}

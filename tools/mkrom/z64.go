@@ -5,8 +5,7 @@
 package main
 
 import (
-	"encoding/binary"
-	"io"
+	"fmt"
 	"os"
 
 	_ "embed"
@@ -28,73 +27,9 @@ var n64Header = [0x40]byte{
 	0x3f: 0,   // ROM Version
 }
 
-const n64ChecksumLen = 1024 * 1024
-
-// n64CRC is a loose translation to Go of the calculate_crc function from
-// the n64chain:
-//
-// https://github.com/tj90241/n64chain
-//
-// The original copyright notes from the tools/checksum.c file:
-//
-// n64chain: A (free) open-source N64 development toolchain.
-// Copyright 2014 Tyler J. Stachecki <tstache1@binghamton.edu>
-//
-// This file is more or less a direct rip of chksum64:
-// Copyright 1997 Andreas Sterbenz <stan@sbox.tu-graz.ac.at>
-func n64CRC(buf []byte) (crc [2]uint32) {
-	const CIC_NUS6102_SEED uint32 = 0xF8CA4DDC
-	t1 := CIC_NUS6102_SEED
-	t2 := CIC_NUS6102_SEED
-	t3 := CIC_NUS6102_SEED
-	t4 := CIC_NUS6102_SEED
-	t5 := CIC_NUS6102_SEED
-	t6 := CIC_NUS6102_SEED
-
-	for i := 0; i < len(buf); i += 4 {
-		c1 := binary.BigEndian.Uint32(buf[i:])
-		k1 := t6 + c1
-		if k1 < t6 {
-			t4++
-		}
-		t6 = k1
-		t3 ^= c1
-		k2 := c1 & 0x1F
-		k1 = c1<<k2 | c1>>(32-k2)
-		t5 += k1
-		if c1 < t2 {
-			t2 ^= k1
-		} else {
-			t2 ^= t6 ^ c1
-		}
-		t1 += c1 ^ t5
-	}
-
-	crc[0] = t6 ^ t4 ^ t3
-	crc[1] = t5 ^ t2 ^ t1
-	return
-}
-
 func n64WriteROMHeader(rom *os.File, gametitle string) error {
-	objOffset := int64(len(n64Header) + len(n64IPL3))
-	size, _ := rom.Seek(0, io.SeekEnd)
-	if size < n64ChecksumLen+objOffset {
-		err := rom.Truncate(n64ChecksumLen + objOffset)
-		if err != nil {
-			return err
-		}
-	}
-	buf := make([]byte, n64ChecksumLen)
-	_, err := rom.ReadAt(buf, objOffset)
-	if err != nil {
-		return err
-	}
-	crc := n64CRC(buf)
-	binary.BigEndian.PutUint32(n64Header[0x10:], crc[0])
-	binary.BigEndian.PutUint32(n64Header[0x14:], crc[1])
-	copy(n64Header[0x20:0x34], gametitle)
-
-	_, err = rom.WriteAt(append(n64Header[:], n64IPL3...), 0)
+	copy(n64IPL3[0x20:0x34], fmt.Sprintf("%-20s", gametitle)) // TODO encode in ascii
+	_, err := rom.WriteAt(n64IPL3, 0)
 	if err != nil {
 		return err
 	}
@@ -102,7 +37,8 @@ func n64WriteROMHeader(rom *os.File, gametitle string) error {
 	return nil
 }
 
-// 6102/7101 MD5=e24dd796b2fa16511521139d28c8356b
+// libdragon IPL3 r8 (compatibility mode)
+// Author: Giovanni Bajo (giovannibajo@gmail.com)
 //
-//go:embed ipl3.bin
+//go:embed ipl3_compat.z64
 var n64IPL3 []byte
