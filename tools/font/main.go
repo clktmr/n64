@@ -196,14 +196,11 @@ func Main(args []string) {
 	err = tmpl.Execute(subfontsFile, struct {
 		Name, Package  string
 		Height, Ascent int
-		First, Last    string
 	}{
 		Name:    fmt.Sprintf("%s %g", f.Name(truetype.NameIDFontFullName), *size),
 		Package: pkgname,
 		Height:  lineHeight,
 		Ascent:  ascent.Ceil(),
-		First:   fmt.Sprintf("%04x", *start),
-		Last:    fmt.Sprintf("%04x", *end),
 	})
 	if err != nil {
 		log.Fatalln(err)
@@ -214,8 +211,9 @@ const subfontsGoTemplate = `// {{ .Name }}
 package {{ .Package }}
 
 import (
-	_ "embed"
+	"embed"
 
+	"github.com/clktmr/n64/drivers/cartfs"
 	"github.com/clktmr/n64/fonts"
 	"github.com/embeddedgo/display/font/subfont"
 )
@@ -225,24 +223,16 @@ const (
 	Ascent = {{ .Ascent }}
 )
 
-//go:embed {{ .First }}_{{ .Last }}.pos
-var X{{ .First }}_pos string
+//go:embed *.png *.pos
+var _fontData embed.FS
+var fontData = cartfs.Embed(_fontData)
 
-//go:embed {{ .First }}_{{ .Last }}.png
-var X{{ .First }}_png string
-
-func NewFace(subfonts ...*subfont.Subfont) *fonts.Face {
+func NewFace() *fonts.Face {
 	return &fonts.Face{
-		subfont.Face{Height: Height, Ascent: Ascent, Subfonts: subfonts},
-	}
-}
-
-func X{{ .First }}_{{ .Last }}() *subfont.Subfont {
-	return &subfont.Subfont{
-		First:  0x{{ .First }},
-		Last:   0x{{ .Last }},
-		Offset: 0,
-		Data:   fonts.NewSubfontData(X{{ .First }}_pos, X{{ .First }}_png, Height, Ascent),
+		subfont.Face{Height: Height,
+			Ascent: Ascent,
+			Loader: fonts.Loader{fontData, Height, Ascent},
+		},
 	}
 }
 `

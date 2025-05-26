@@ -1,12 +1,17 @@
 package fonts
 
 import (
+	"bytes"
 	"image"
 	"image/png"
+	"path"
+	"strconv"
 	"strings"
 
 	"github.com/clktmr/n64/debug"
+	"github.com/clktmr/n64/drivers/cartfs"
 	"github.com/clktmr/n64/rcp/texture"
+	"github.com/embeddedgo/display/font/subfont"
 )
 
 // SubfontData implements [subfont.Data].
@@ -49,15 +54,15 @@ func (p *SubfontData) glyph(i int) (img texture.I8, origin image.Point, advance 
 }
 
 // Returns data for a subfont from an image.
-func NewSubfontData(pos, imgPng string, height, ascent int) *SubfontData {
+func NewSubfontData(pos, imgPng []byte, height, ascent int) *SubfontData {
 	f := &SubfontData{
 		height:    height,
 		ascent:    ascent,
-		positions: []byte(pos),
+		positions: pos,
 	}
 
 	// TODO Store images raw instead of compressed
-	fontMapReader := strings.NewReader(imgPng)
+	fontMapReader := bytes.NewReader(imgPng)
 	fontMap, err := png.Decode(fontMapReader)
 	debug.AssertErrNil(err)
 	imgGray, ok := fontMap.(*image.Gray)
@@ -74,4 +79,52 @@ func NewSubfontData(pos, imgPng string, height, ascent int) *SubfontData {
 	}
 
 	return f
+}
+
+type Loader struct {
+	FS             cartfs.FS
+	Height, Ascent int
+}
+
+func (l Loader) Load(r rune, current []*subfont.Subfont) (containing *subfont.Subfont, updated []*subfont.Subfont) {
+	entries, err := l.FS.ReadDir(".")
+	if err != nil {
+		panic(err)
+	}
+	for _, entry := range entries {
+		if ext := path.Ext(entry.Name()); ext == ".pos" {
+			name := strings.TrimSuffix(entry.Name(), ext)
+			start, err := strconv.ParseUint(name[:4], 16, 0)
+			if err != nil {
+				panic(err)
+			}
+			end, err := strconv.ParseUint(name[5:9], 16, 0)
+			if err != nil {
+				panic(err)
+			}
+			if r >= rune(start) && r <= rune(end) {
+				containing = l.loadSubfont(name, rune(start), rune(end))
+				updated = append(current, containing)
+				return
+			}
+		}
+	}
+	return
+}
+
+func (l Loader) loadSubfont(name string, first, last rune) *subfont.Subfont {
+	sfPos, err := l.FS.ReadFile(name + ".pos")
+	if err != nil {
+		panic(err)
+	}
+	sfPng, err := l.FS.ReadFile(name + ".png")
+	if err != nil {
+		panic(err)
+	}
+	return &subfont.Subfont{
+		First:  first,
+		Last:   last,
+		Offset: 0,
+		Data:   NewSubfontData(sfPos, sfPng, l.Height, l.Ascent),
+	}
 }

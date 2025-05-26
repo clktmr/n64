@@ -1,10 +1,10 @@
 // Go Regular 12
-//go:generate go run github.com/clktmr/n64/tools/n64go font /usr/share/fonts/google-go-fonts/Go-Regular.ttf
 package goregular12
 
 import (
-	_ "embed"
+	"embed"
 
+	"github.com/clktmr/n64/drivers/cartfs"
 	"github.com/clktmr/n64/fonts"
 	"github.com/embeddedgo/display/font/subfont"
 )
@@ -14,23 +14,15 @@ const (
 	Ascent = 12
 )
 
-//go:embed 0000_00ff.pos
-var X0000_pos string
+//go:embed *.png *.pos
+var _fontData embed.FS
+var fontData = cartfs.Embed(_fontData)
 
-//go:embed 0000_00ff.png
-var X0000_png string
-
-func NewFace(subfonts ...*subfont.Subfont) *fonts.Face {
+func NewFace() *fonts.Face {
 	return &fonts.Face{
-		subfont.Face{Height: Height, Ascent: Ascent, Subfonts: subfonts},
-	}
-}
-
-func X0000_00ff() *subfont.Subfont {
-	return &subfont.Subfont{
-		First:  0x0000,
-		Last:   0x00ff,
-		Offset: 0,
-		Data:   fonts.NewSubfontData(X0000_pos, X0000_png, Height, Ascent),
+		subfont.Face{Height: Height,
+			Ascent: Ascent,
+			Loader: fonts.Loader{fontData, Height, Ascent},
+		},
 	}
 }
