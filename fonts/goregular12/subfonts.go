@@ -1,5 +1,6 @@
-// Go Mono 12
-package gomono12
+// Go Regular 12
+//go:generate go run github.com/clktmr/n64/tools/n64go font /usr/share/fonts/google-go-fonts/Go-Regular.ttf
+package goregular12
 
 import (
 	_ "embed"
