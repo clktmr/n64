@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/golang/freetype"
 	"github.com/golang/freetype/truetype"
@@ -28,13 +29,24 @@ var (
 	flags = flag.NewFlagSet("font", flag.ExitOnError)
 
 	dpi      = flags.Float64("dpi", 72, "screen resolution in Dots Per Inch")
-	fontfile = flags.String("fontfile", "", "filename of the ttf font")
 	hinting  = flags.String("hinting", "none", "none | full")
 	size     = flags.Float64("size", 12, "font size in points")
 	spacing  = flags.Float64("spacing", 1.25, "line spacing")
 	start    = flags.Uint("start", 0, "Unicode value of first character")
 	end      = flags.Uint("end", 0xff, "Unicode value of last character")
+	fontfile string
 )
+
+const usageString = `TrueType Font to n64 glyphmap converter.
+
+Usage: %s [flags] <ttffile>
+
+`
+
+func usage() {
+	fmt.Fprintf(flags.Output(), usageString, "font")
+	flags.PrintDefaults()
+}
 
 const (
 	dim = 256
@@ -43,10 +55,18 @@ const (
 var positions []byte
 
 func Main(args []string) {
+	flags.Usage = usage
 	flags.Parse(args[1:])
 
+	if flags.NArg() == 1 {
+		fontfile = flags.Arg(0)
+	} else {
+		flags.Usage()
+		os.Exit(1)
+	}
+
 	// Read the font data.
-	fontBytes, err := os.ReadFile(*fontfile)
+	fontBytes, err := os.ReadFile(fontfile)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -58,7 +78,7 @@ func Main(args []string) {
 	// Initialize the context.
 	fg, bg := image.White, image.Black
 	fontMap := image.NewGray(image.Rect(0, 0, dim, dim))
-	draw.Draw(fontMap, fontMap.Bounds(), bg, image.ZP, draw.Src)
+	draw.Draw(fontMap, fontMap.Bounds(), bg, image.Point{}, draw.Src)
 	c := freetype.NewContext()
 	c.SetDPI(*dpi)
 	c.SetFont(f)
@@ -123,9 +143,11 @@ func Main(args []string) {
 	shrinkedFontMap := fontMap.SubImage(image.Rect(0, 0, dim, lastLine))
 
 	// Save the font map image to disk
-	directory := fmt.Sprintf("fonts/%s%.0f/", f.Name(truetype.NameIDFontFullName), (*size))
-	directory = strings.ReplaceAll(directory, " ", "")
-	directory = strings.ToLower(directory)
+	pkgname := f.Name(truetype.NameIDFontFullName)
+	pkgname = strings.ReplaceAll(pkgname, " ", "")
+	pkgname = fmt.Sprintf("%s%.0f", strings.ToLower(pkgname), (*size))
+
+	directory := filepath.Join("fonts", pkgname)
 	os.MkdirAll(directory, 0775)
 	basename := fmt.Sprintf("%04x_%04x", *start, *end)
 
@@ -151,10 +173,76 @@ func Main(args []string) {
 	defer posFile.Close()
 
 	for _, pos := range positions {
-		// TODO use gob instead of binary encoding?
 		err = binary.Write(posFile, binary.BigEndian, pos)
 		if err != nil {
 			log.Fatalln(err)
 		}
 	}
+
+	// Write package file
+	tmpl, err := template.New("subfontsGoTemplate").Parse(subfontsGoTemplate)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	subfontsFile, err := os.Create(filepath.Join(directory, "subfonts.go"))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer subfontsFile.Close()
+
+	// TODO store ascent per rune
+	ascent := f.VMetric(c.PointToFixed((*size)), f.Index('A')).AdvanceHeight
+
+	err = tmpl.Execute(subfontsFile, struct {
+		Name, Package  string
+		Height, Ascent int
+		First, Last    string
+	}{
+		Name:    fmt.Sprintf("%s %g", f.Name(truetype.NameIDFontFullName), *size),
+		Package: pkgname,
+		Height:  lineHeight,
+		Ascent:  ascent.Ceil(),
+		First:   fmt.Sprintf("%04x", *start),
+		Last:    fmt.Sprintf("%04x", *end),
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
+
+const subfontsGoTemplate = `// {{ .Name }}
+package {{ .Package }}
+
+import (
+	_ "embed"
+
+	"github.com/clktmr/n64/fonts"
+	"github.com/embeddedgo/display/font/subfont"
+)
+
+const (
+	Height = {{ .Height }}
+	Ascent = {{ .Ascent }}
+)
+
+//go:embed {{ .First }}_{{ .Last }}.pos
+var X{{ .First }}_pos string
+
+//go:embed {{ .First }}_{{ .Last }}.png
+var X{{ .First }}_png string
+
+func NewFace(subfonts ...*subfont.Subfont) *fonts.Face {
+	return &fonts.Face{
+		subfont.Face{Height: Height, Ascent: Ascent, Subfonts: subfonts},
+	}
+}
+
+func X{{ .First }}_{{ .Last }}() *subfont.Subfont {
+	return &subfont.Subfont{
+		First:  0x{{ .First }},
+		Last:   0x{{ .Last }},
+		Offset: 0,
+		Data:   fonts.NewSubfontData(X{{ .First }}_pos, X{{ .First }}_png, Height, Ascent),
+	}
+}
+`
