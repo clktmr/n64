@@ -46,7 +46,7 @@ func Main(args []string) {
 		os.Exit(1)
 	}
 
-	sigintr := make(chan os.Signal)
+	sigintr := make(chan os.Signal, 1)
 	signal.Notify(sigintr, os.Interrupt)
 
 	switch flags.Arg(0) {
