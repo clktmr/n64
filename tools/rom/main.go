@@ -2,10 +2,11 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-package main
+package rom
 
 import (
 	"debug/elf"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -13,6 +14,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	_ "embed"
 )
 
 const usageString = `ELF to n64 ROM converter.
@@ -22,25 +25,65 @@ Usage: %s [flags] <elffile>
 `
 
 var (
+	flags = flag.NewFlagSet("rom", flag.ExitOnError)
+
 	infile string
-	format = flag.String("format", "z64", "z64 | uf2")
-	run    = flag.String("run", "", "Run the ROM with this command")
+	format = flags.String("format", "z64", "z64 | uf2")
+	run    = flags.String("run", "", "Run the ROM with command")
 )
 
 func usage() {
-	fmt.Fprintf(flag.CommandLine.Output(), usageString, os.Args[0])
-	flag.PrintDefaults()
+	fmt.Fprintf(flags.Output(), usageString, "rom")
+	flags.PrintDefaults()
 }
 
-func main() {
-	log.Default().SetFlags(log.Lshortfile)
-	flag.Usage = usage
-	flag.Parse()
+func objcopy(dst io.WriterAt, src *elf.File) error {
+	for _, s := range src.Sections {
+		if s.Type != elf.SHT_PROGBITS || s.Flags&elf.SHF_ALLOC == 0 {
+			continue
+		}
+		data, err := s.Data()
+		if err != nil {
+			return err
+		}
 
-	if flag.NArg() == 1 {
-		infile = flag.Arg(0)
+		if s.Addr < src.Entry {
+			return errors.New("data before entry point")
+		}
+
+		_, err = dst.WriteAt(data, int64(s.Addr-src.Entry))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// libdragon IPL3 r8 (compatibility mode)
+// Author: Giovanni Bajo (giovannibajo@gmail.com)
+//
+//go:embed ipl3_compat.z64
+var n64IPL3 []byte
+
+func n64WriteROMHeader(rom *os.File, gametitle string) error {
+	copy(n64IPL3[0x20:0x34], fmt.Sprintf("%-20s", gametitle)) // TODO encode in ascii
+	_, err := rom.WriteAt(n64IPL3, 0)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func Main(args []string) {
+	flags.Usage = usage
+	flags.Parse(args[1:])
+
+	if flags.NArg() == 1 {
+		infile = flags.Arg(0)
 	} else {
-		flag.Usage()
+		flags.Usage()
 		os.Exit(1)
 	}
 
@@ -53,7 +96,7 @@ func main() {
 	}
 	defer elffile.Close()
 
-	rom, err := os.CreateTemp("", "mkrom")
+	rom, err := os.CreateTemp("", "rom")
 	if err != nil {
 		log.Fatalln(err)
 	}

@@ -1,4 +1,4 @@
-package main
+package toolexec
 
 // This file contains code copied from Go's embed implementation.
 

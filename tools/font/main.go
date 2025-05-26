@@ -3,7 +3,7 @@
 // FreeType License or the GNU General Public License version 2 (or
 // any later version), both of which can be found in the LICENSE file.
 
-package main
+package font
 
 import (
 	"bufio"
@@ -25,13 +25,15 @@ import (
 )
 
 var (
-	dpi      = flag.Float64("dpi", 72, "screen resolution in Dots Per Inch")
-	fontfile = flag.String("fontfile", "", "filename of the ttf font")
-	hinting  = flag.String("hinting", "none", "none | full")
-	size     = flag.Float64("size", 12, "font size in points")
-	spacing  = flag.Float64("spacing", 1.25, "line spacing")
-	start    = flag.Uint("start", 0, "Unicode value of first character")
-	end      = flag.Uint("end", 0xff, "Unicode value of last character")
+	flags = flag.NewFlagSet("font", flag.ExitOnError)
+
+	dpi      = flags.Float64("dpi", 72, "screen resolution in Dots Per Inch")
+	fontfile = flags.String("fontfile", "", "filename of the ttf font")
+	hinting  = flags.String("hinting", "none", "none | full")
+	size     = flags.Float64("size", 12, "font size in points")
+	spacing  = flags.Float64("spacing", 1.25, "line spacing")
+	start    = flags.Uint("start", 0, "Unicode value of first character")
+	end      = flags.Uint("end", 0xff, "Unicode value of last character")
 )
 
 const (
@@ -40,8 +42,8 @@ const (
 
 var positions []byte
 
-func main() {
-	flag.Parse()
+func Main(args []string) {
+	flags.Parse(args[1:])
 
 	// Read the font data.
 	fontBytes, err := os.ReadFile(*fontfile)

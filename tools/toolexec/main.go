@@ -1,6 +1,6 @@
-// n64toolexec is invocated with go build's -toolexec flag. It enforces settings
+// toolexec is invocated with go build's -toolexec flag. It enforces settings
 // that are required for n64 build.
-package main
+package toolexec
 
 import (
 	"bufio"
@@ -25,9 +25,12 @@ const (
 	romBase   = 0x1000_0000 + ipl3Size - entryAddr
 )
 
-func main() {
-	cmdname := os.Args[1]
-	cmdargs := os.Args[2:]
+func Main(args []string) {
+	if len(args) < 2 {
+		die("no command")
+	}
+	cmdname := args[1]
+	cmdargs := args[2:]
 
 	tool := filepath.Base(cmdname)
 	switch tool {

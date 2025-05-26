@@ -1,4 +1,4 @@
-package main
+package pakfs
 
 import (
 	"flag"
@@ -30,31 +30,33 @@ The commands are:
 	mount <image> <dir>	serve pakfs image via fuse
 `
 
+var flags = flag.NewFlagSet("pakfs", flag.ExitOnError)
+
 func usage() {
-	fmt.Fprintf(flag.CommandLine.Output(), usageString, os.Args[0])
-	flag.PrintDefaults()
+	fmt.Fprintf(flags.Output(), usageString, "pakfs")
+	flags.PrintDefaults()
 }
 
-func main() {
-	flag.Usage = usage
-	flag.Parse()
+func Main(args []string) {
+	flags.Usage = usage
+	flags.Parse(args[1:])
 
-	if flag.NArg() < 1 {
-		flag.Usage()
+	if flags.NArg() < 1 {
+		flags.Usage()
 		os.Exit(1)
 	}
 
 	sigintr := make(chan os.Signal)
 	signal.Notify(sigintr, os.Interrupt)
 
-	switch flag.Arg(0) {
+	switch flags.Arg(0) {
 	case "mount":
-		if flag.NArg() < 3 {
-			flag.Usage()
+		if flags.NArg() < 3 {
+			flags.Usage()
 			os.Exit(1)
 		}
-		image := flag.Arg(1)
-		dir := flag.Arg(2)
+		image := flags.Arg(1)
+		dir := flags.Arg(2)
 		c := must(fuse.Mount(dir))
 		r := must(os.OpenFile(image, os.O_RDWR, 0))
 		fs := must(pakfs.Read(r))
@@ -65,8 +67,8 @@ func main() {
 		cmd := exec.Command("/bin/umount", dir)
 		must(cmd.CombinedOutput())
 	default:
-		fmt.Fprintf(flag.CommandLine.Output(), "%s: unknown command\n", flag.Arg(0))
-		flag.Usage()
+		fmt.Fprintf(flags.Output(), "unknown command: %s\n", flags.Arg(0))
+		flags.Usage()
 		os.Exit(1)
 	}
 }
