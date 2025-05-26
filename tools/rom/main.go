@@ -135,10 +135,12 @@ func Main(args []string) {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		n64WriteUF2(outfile, rom)
+		err = n64WriteUF2(outfile, rom)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	default:
-		log.Printf("objcopy: %s format not supported", *format)
-		os.Exit(1)
+		log.Fatalf("objcopy: %s format not supported", *format)
 	}
 
 	if *run != "" {

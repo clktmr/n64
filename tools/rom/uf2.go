@@ -105,7 +105,7 @@ func (u *UF2Writer) Flush() (err error) {
 // n64WriteUF2 is a translation to Go of the generateAndSaveUF2 function from
 // https://kbeckmann.github.io/PicoCart64/js/PicoCart64.js
 // Original author: Konrad Beckmann.
-func n64WriteUF2(obj string, rom []byte) {
+func n64WriteUF2(obj string, rom []byte) error {
 	const (
 		chunkSize = 1024
 		header    = "picocartcompress"
@@ -135,44 +135,47 @@ func n64WriteUF2(obj string, rom []byte) {
 			chunkData = append(chunkData, chunk...)
 		}
 		if chunkMapLen >= len(chunkMap) {
-			fmt.Print("n64 uf2: chunk map overflow")
-			os.Exit(1)
+			return fmt.Errorf("n64 uf2: chunk map overflow")
 		}
 		k /= chunkSize // chunk number in chunkData
 		chunkMap[chunkMapLen] = uint16(k)
 		chunkMapLen++
-		//fmt.Printf("%d -> %d\n", i, k)
 	}
 
 	newSize := len(header) + len(chunkMap)*2 + len(chunkData)
 	flashStart := 0x10000000
 	lastAddr := 0x10030000 + newSize
 	flashEnd := flashStart + 2*_1M
-	//fmt.Printf("Full ROM size:   %10d bytes\n", len(rom))
-	//fmt.Printf("Header + Chunks: %10d bytes\n", newSize)
-	//fmt.Printf("Ratio:           %10d %%\n", newSize*100/len(rom))
-	//fmt.Printf("Address of last byte: %#x /  %#x\n", lastAddr, flashEnd)
 	if lastAddr > flashEnd {
-		fmt.Printf(
+		log.Printf(
 			"n64 uf2: the compressed ROM requires %d MiB of Flash (> 2 MiB)\n",
 			(lastAddr-flashStart+_1M-1)/_1M,
 		)
 	}
 
 	// Save compressed ROM
-	f := must(os.Create(obj))
+	f, err := os.Create(obj)
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
 	w := NewUF2Writer(f, 0x10030000, UF2FamilyIDPresent, uf2_rp2040, newSize)
-	must(w.WriteString(header))
-	must(0, binary.Write(w, binary.LittleEndian, chunkMap))
-	must(w.Write(chunkData))
-	must(0, w.Flush())
-}
-
-func must[T any](ret T, err error) T {
+	_, err = w.WriteString(header)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	return ret
+	err = binary.Write(w, binary.LittleEndian, chunkMap)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(chunkData)
+	if err != nil {
+		return err
+	}
+	err = w.Flush()
+	if err != nil {
+		return err
+	}
+	return nil
 }

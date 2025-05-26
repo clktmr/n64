@@ -12,14 +12,6 @@ import (
 	"github.com/clktmr/n64/tools/toolexec"
 )
 
-func must[T any](ret T, err error) T {
-	if err != nil {
-		fmt.Print(err)
-		os.Exit(1)
-	}
-	return ret
-}
-
 const usageString = `n64go is a tool for development of Nintendo64 ROMs.
 
 Usage:
@@ -28,10 +20,10 @@ Usage:
 
 The commands are:
 
-	rom
-	font
-	pakfs
-	toolexec
+	rom      convert and execute elf to n64 ROMs
+	font     generate fonts to be used on the n64
+	pakfs    modify and inspect pakfs images
+	toolexec used as 'go build -toolexec' parameter
 `
 
 func usage() {

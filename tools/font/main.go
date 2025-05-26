@@ -144,7 +144,6 @@ func Main(args []string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	fmt.Printf("Wrote %s\n", mapFile.Name())
 
 	// Save glyph positions to disk
 	filename = fmt.Sprintf("%s.pos", basename)
@@ -158,5 +157,4 @@ func Main(args []string) {
 			log.Fatalln(err)
 		}
 	}
-	fmt.Printf("Wrote %s\n", posFile.Name())
 }

@@ -7,8 +7,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -27,7 +27,7 @@ const (
 
 func Main(args []string) {
 	if len(args) < 2 {
-		die("no command")
+		log.Fatalln("no command")
 	}
 	cmdname := args[1]
 	cmdargs := args[2:]
@@ -50,7 +50,7 @@ func Main(args []string) {
 		os.Exit(err.ExitCode())
 	}
 	if err != nil {
-		die(err)
+		log.Fatalln(err)
 	}
 
 	switch tool {
@@ -105,7 +105,7 @@ func preLink(args []string) []string {
 	linkArgs.SetOutput(io.Discard)
 	err := linkArgs.Parse(args)
 	if err != nil {
-		die("ldflags:", err)
+		log.Fatalln("ldflags:", err)
 	}
 
 	if *linkPrintVersion != "" {
@@ -146,18 +146,18 @@ func postLink() {
 	elfFile, err := os.OpenFile(*linkOutfilePath, os.O_RDWR, 0666)
 	defer elfFile.Close()
 	if err != nil {
-		die("open elf:", err)
+		log.Fatalln("open elf:", err)
 	}
 	elfFile64, err := readElf64(elfFile)
 	if err != nil {
-		die("read elf:", err)
+		log.Fatalln("read elf:", err)
 	}
 
 	// Go through all dependencies in importcfg and collect cartfs images
 	importcfgFile, err := os.Open(*linkImportcfgPath)
 	defer importcfgFile.Close()
 	if err != nil {
-		die("open importcfg:", err)
+		log.Fatalln("open importcfg:", err)
 	}
 
 	cartfses := bytes.NewBuffer(nil)
@@ -171,17 +171,17 @@ func postLink() {
 		}
 		_, pkgfilePath, found := strings.Cut(kvpair, "=")
 		if !found {
-			die("parsing importcfg:", line)
+			log.Fatalln("parsing importcfg:", line)
 		}
 
 		// Open package archive for reading
 		pkgfile, err := os.Open(pkgfilePath)
 		if err != nil {
-			die(err)
+			log.Fatalln(err)
 		}
 		ar, err := ParseArchive(pkgfile)
 		if err != nil {
-			die(err)
+			log.Fatalln(err)
 		}
 
 		// Parse cartfscfg from package archive
@@ -193,37 +193,37 @@ func postLink() {
 		symbolNames := make(map[string]string)
 		err = json.Unmarshal(cartfscfgJSON, &symbolNames)
 		if err != nil {
-			die("parse cartfscfg:", err)
+			log.Fatalln("parse cartfscfg:", err)
 		}
 		for cartfsName, symbol := range symbolNames {
 			_, err = elfFile64.Symbol(symbol)
 			if err == ErrNoSymbol {
 				continue // dead symbol
 			} else if err != nil {
-				die(err)
+				log.Fatalln(err)
 			}
 
 			pad := alignUp(uint64(cartfses.Len()), cartfs.Align) - uint64(cartfses.Len())
 			_, err := cartfses.Write(make([]byte, pad))
 			if err != nil {
-				die(err)
+				log.Fatalln(err)
 			}
 
 			offsets[symbol] = uint32(cartfses.Len())
 
 			cartfsdev := ar.OpenEntry(cartfsName)
 			if cartfsdev == nil {
-				die(err)
+				log.Fatalln(err)
 			}
 			_, err = io.Copy(cartfses, cartfsdev)
 			if err != nil {
-				die(err)
+				log.Fatalln(err)
 			}
 
 			pad = alignUp(uint64(cartfses.Len()), cartfs.Align) - uint64(cartfses.Len())
 			_, err = cartfses.Write(make([]byte, pad))
 			if err != nil {
-				die(err)
+				log.Fatalln(err)
 			}
 		}
 	}
@@ -234,17 +234,17 @@ func postLink() {
 	for symbol, cartfsOffset := range offsets {
 		err = elfFile64.SetSymbol(symbol, cartfsBase+cartfsOffset)
 		if err != nil {
-			die(err)
+			log.Fatalln(err)
 		}
 	}
 
 	err = elfFile.Truncate(0)
 	if err != nil {
-		die(err)
+		log.Fatalln(err)
 	}
 	err = elfFile64.Write(elfFile)
 	if err != nil {
-		die(err)
+		log.Fatalln(err)
 	}
 }
 
@@ -285,7 +285,7 @@ func preCompile(args []string) []string {
 	compileArgs.SetOutput(io.Discard)
 	err := compileArgs.Parse(args)
 	if err != nil {
-		die("gcflags:", err)
+		log.Fatalln("gcflags:", err)
 	}
 
 	if *compilePrintVersion != "" {
@@ -312,18 +312,18 @@ func postCompile() {
 	// Read and parse embedcfg
 	embedcfgJSON, err := os.ReadFile(*compileEmbedcfgPath)
 	if err != nil {
-		die("read embedcfg:", err)
+		log.Fatalln("read embedcfg:", err)
 	}
 	var embedcfg embedConfig
 	err = json.Unmarshal(embedcfgJSON, &embedcfg)
 	if err != nil {
-		die("parse embedcfg:", err)
+		log.Fatalln("parse embedcfg:", err)
 	}
 
 	// Scan package for cartfs declarations
 	cartfsDecls, err := scanCartfsEmbed(*compileImportPath)
 	if err != nil {
-		die("scan declarations:", err)
+		log.Fatalln("scan declarations:", err)
 	}
 
 	if len(cartfsDecls) == 0 {
@@ -333,13 +333,13 @@ func postCompile() {
 	// Open output file
 	file, err := os.OpenFile(*compileOutfilePath, os.O_RDWR, 0666)
 	if err != nil {
-		die("open archive:", err)
+		log.Fatalln("open archive:", err)
 	}
 	defer file.Close()
 
 	ar, err := ParseArchive(file)
 	if err != nil {
-		die("parse archive:", err)
+		log.Fatalln("parse archive:", err)
 	}
 
 	// Generate the cartfs filesystems
@@ -347,12 +347,12 @@ func postCompile() {
 	for i, decl := range cartfsDecls {
 		cartfsFile, err := os.CreateTemp("", "cartfs")
 		if err != nil {
-			die("create tempfile:", err)
+			log.Fatalln("create tempfile:", err)
 		}
 
 		err = cartfsCreate(cartfsFile, embedcfg, decl.Patterns)
 		if err != nil {
-			die("create cartfs:", err)
+			log.Fatalln("create cartfs:", err)
 		}
 
 		cartfsName := "cartfs" + strconv.Itoa(i)
@@ -365,7 +365,7 @@ func postCompile() {
 	// Write a cartfscfg for the linker
 	cartfscfgJSON, err := json.Marshal(symbolNames)
 	if err != nil {
-		die("serialize cartfscfg:", err)
+		log.Fatalln("serialize cartfscfg:", err)
 	}
 	ar.AddEntry("cartfscfg", bytes.NewReader(cartfscfgJSON))
 }
@@ -383,10 +383,4 @@ func cartfsCreate(dev io.WriterAt, embedcfg embedConfig, patterns []string) erro
 		}
 	}
 	return cartfs.Create(dev, files)
-}
-
-func die(msg ...any) {
-	msg = append([]any{"gencartfs:"}, msg...)
-	fmt.Fprintln(os.Stderr, msg...)
-	os.Exit(1)
 }
