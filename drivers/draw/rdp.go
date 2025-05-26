@@ -276,6 +276,9 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 
 	const idx = 1
 	img, _, _, _ := font.GlyphMap(0)
+	if img == nil {
+		return p
+	}
 	tex, ok := img.(texture.Texture)
 	debug.Assert(ok, "fontmap format")
 	ts := rdp.TileDescriptor{
@@ -303,6 +306,9 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 		}
 
 		img, glyphRect, _, adv := font.GlyphMap(rune)
+		if img == nil {
+			continue
+		}
 		glyphRectSS := image.Rectangle{Max: glyphRect.Size()}.Add(pos)
 
 		if glyphRectSS.Overlaps(clip) {
