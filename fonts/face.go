@@ -35,8 +35,8 @@ func (f *Face) GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin i
 			return
 		}
 	}
-	if sf, ok := sf.Data.(*SubfontData); ok {
-		return sf.GlyphMap(int(r))
+	if sfd, ok := sf.Data.(*SubfontData); ok {
+		return sfd.GlyphMap(int(r - sf.First))
 	}
 	img, origin, advance = sf.Data.Glyph(int(r - sf.First))
 	rect = img.Bounds()

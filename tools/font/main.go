@@ -65,6 +65,8 @@ func Main(args []string) {
 		os.Exit(1)
 	}
 
+	// TODO check for overlapping with previously generated subfonts
+
 	// Read the font data.
 	fontBytes, err := os.ReadFile(fontfile)
 	if err != nil {
@@ -113,10 +115,6 @@ func Main(args []string) {
 			log.Fatalln(err)
 		}
 
-		if f.Index(s) == 0 && missing == nil {
-			missing = positions[len(positions)-3:]
-		}
-
 		adv := byte(nextPt.X.Floor() - pt.X.Floor())
 
 		if nextPt.X.Ceil() >= dim {
@@ -130,6 +128,10 @@ func Main(args []string) {
 		positions = append(positions, byte(pt.X.Floor()))
 		positions = append(positions, byte(pt.Y.Floor()))
 		positions = append(positions, adv)
+
+		if f.Index(s) == 0 && missing == nil {
+			missing = positions[len(positions)-3:]
+		}
 
 		// Actual drawing
 		c.SetSrc(fg)
