@@ -14,7 +14,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
 	"time"
 
@@ -157,29 +156,16 @@ func runROM(cmdpath, rompath string) {
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
-	processGroupEnable(cmd)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		log.Fatal("open stdout:", err)
 	}
 
-	sigintr := make(chan os.Signal, 1)
-	signal.Notify(sigintr, os.Interrupt)
-
 	err = cmd.Start()
 	if err != nil {
 		log.Fatal("start command:", err)
 	}
-
-	go func() {
-		<-sigintr
-		stdout.Close()
-		err := processGroupKill(cmd)
-		if err != nil {
-			log.Println(err)
-		}
-	}()
 
 	scanner := bufio.NewScanner(stdout)
 	exiting := false
@@ -202,9 +188,9 @@ func runROM(cmdpath, rompath string) {
 				// give panic() time to print the stacktrace
 				time.Sleep(500 * time.Millisecond)
 				stdout.Close()
-				err := processGroupKill(cmd)
+				err := cmd.Process.Kill()
 				if err != nil {
-					log.Println(err)
+					log.Fatalln(err)
 				}
 			}()
 		}
