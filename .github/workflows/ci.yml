@@ -115,7 +115,7 @@ jobs:
 
       - name: Run testing ROM
         run: |
-          n64go rom -run "unshare -Ufp --kill-child -- xvfb-run ares \
+          n64go rom -run="unshare -Ufp --kill-child -- xvfb-run ares \
                   --setting Input/Driver=None \
                   --setting Video/Driver=None \
                   --setting Audio/Driver=None" \

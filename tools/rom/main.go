@@ -32,9 +32,26 @@ var (
 	flags = flag.NewFlagSet("rom", flag.ExitOnError)
 
 	infile string
-	format = flags.String("format", "z64", "z64 | uf2")
-	run    = flags.String("run", "", "Run the ROM with command")
+	format = flags.String("format", "z64", "output format, z64 or uf2")
+	run    = optString{s: "ares"}
 )
+
+type optString struct {
+	set bool
+	s   string
+}
+
+func (p *optString) IsBoolFlag() bool { return true }
+func (p *optString) IsSet() bool      { return p.set }
+func (p *optString) String() string   { return p.s }
+func (p *optString) Set(s string) error {
+	p.set = true
+	if s == "true" {
+		return nil
+	}
+	p.s = s
+	return nil
+}
 
 func usage() {
 	fmt.Fprintf(flags.Output(), usageString, "rom")
@@ -81,6 +98,7 @@ func n64WriteROMHeader(rom *os.File, gametitle string) error {
 }
 
 func Main(args []string) {
+	flags.Var(&run, "run", "Run the ROM with command")
 	flags.Usage = usage
 	flags.Parse(args[1:])
 
@@ -142,8 +160,8 @@ func Main(args []string) {
 		log.Fatalf("objcopy: %s format not supported", *format)
 	}
 
-	if *run != "" {
-		runROM(*run, outfile)
+	if run.IsSet() {
+		runROM(run.String(), outfile)
 	}
 }
 
