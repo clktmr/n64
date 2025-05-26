@@ -1,4 +1,4 @@
-# Go on Nintendo64
+# Go on Nintendo 64
 
 Develop applications for the Nintendo64 in pure Go. Builds upon embeddedgo,
 which adds a minimal rtos to the runtime via GOOS=noos.
@@ -39,7 +39,18 @@ which adds a minimal rtos to the runtime via GOOS=noos.
    Alternatively you can of course use your preferred way of managing
    environment variables.
 
-You can now use `go build` and `go run` as usual!
+You can now use `go build` and `go run` as usual! Try it with the minimal hello
+world example:
+
+```go
+package main
+
+import _ "github.com/clktmr/n64/machine"
+
+func main() {
+	println("hello world!")
+}
+```
 
 ## Differences from mainline Go
 
@@ -60,7 +71,7 @@ set after boot. Use `embedded/rtos.Mount()` and
 Having no operating system has obvious consequences for the os package. There
 are neither processes nor any network stack in the kernel. While `os/exec` is
 not supported, networking applications can run if an implementation of the Conn
-or Listener interface is passed to it.
+or Listener interface is passed to them.
 
 ### embed
 
