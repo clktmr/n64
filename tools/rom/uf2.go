@@ -15,11 +15,11 @@ import (
 )
 
 const (
-	UF2NotMainFlash         = 0x00000001
-	UF2FileContainer        = 0x00001000
-	UF2FamilyIDPresent      = 0x00002000
-	UF2MD5ChecksumPresent   = 0x00004000
-	UF2ExtensionTagsPresent = 0x00008000
+	uf2NotMainFlash         = 0x00000001
+	uf2FileContainer        = 0x00001000
+	uf2FamilyIDPresent      = 0x00002000
+	uf2MD5ChecksumPresent   = 0x00004000
+	uf2ExtensionTagsPresent = 0x00008000
 )
 
 // UF2 families
@@ -46,13 +46,13 @@ type uf2block struct {
 	Magic2 uint32
 }
 
-type UF2Writer struct {
+type uf2Writer struct {
 	w io.Writer
 	b uf2block
 }
 
-func NewUF2Writer(w io.Writer, addr, flags, family uint32, size int) *UF2Writer {
-	u := new(UF2Writer)
+func newUF2Writer(w io.Writer, addr, flags, family uint32, size int) *uf2Writer {
+	u := new(uf2Writer)
 	u.w = w
 	u.b.Magic0 = 0x0a324655
 	u.b.Magic1 = 0x9e5d5157
@@ -64,7 +64,7 @@ func NewUF2Writer(w io.Writer, addr, flags, family uint32, size int) *UF2Writer 
 	return u
 }
 
-func (u *UF2Writer) WriteString(s string) (n int, err error) {
+func (u *uf2Writer) WriteString(s string) (n int, err error) {
 	b := &u.b
 	for len(s) != 0 {
 		m := copy(b.Data[b.Len:], s)
@@ -84,11 +84,11 @@ func (u *UF2Writer) WriteString(s string) (n int, err error) {
 	return
 }
 
-func (u *UF2Writer) Write(p []byte) (n int, err error) {
+func (u *uf2Writer) Write(p []byte) (n int, err error) {
 	return u.WriteString(*(*string)(unsafe.Pointer(&p)))
 }
 
-func (u *UF2Writer) Flush() (err error) {
+func (u *uf2Writer) Flush() (err error) {
 	b := &u.b
 	if b.Len == 0 {
 		return
@@ -160,7 +160,7 @@ func n64WriteUF2(obj string, rom []byte) error {
 	}
 	defer f.Close()
 
-	w := NewUF2Writer(f, 0x10030000, UF2FamilyIDPresent, uf2_rp2040, newSize)
+	w := newUF2Writer(f, 0x10030000, uf2FamilyIDPresent, uf2_rp2040, newSize)
 	_, err = w.WriteString(header)
 	if err != nil {
 		return err

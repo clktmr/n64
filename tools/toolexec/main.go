@@ -179,7 +179,7 @@ func postLink() {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		ar, err := ParseArchive(pkgfile)
+		ar, err := parseArchive(pkgfile)
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -197,7 +197,7 @@ func postLink() {
 		}
 		for cartfsName, symbol := range symbolNames {
 			_, err = elfFile64.Symbol(symbol)
-			if err == ErrNoSymbol {
+			if err == errNoSymbol {
 				continue // dead symbol
 			} else if err != nil {
 				log.Fatalln(err)
@@ -337,7 +337,7 @@ func postCompile() {
 	}
 	defer file.Close()
 
-	ar, err := ParseArchive(file)
+	ar, err := parseArchive(file)
 	if err != nil {
 		log.Fatalln("parse archive:", err)
 	}

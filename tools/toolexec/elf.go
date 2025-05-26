@@ -174,14 +174,14 @@ func (p *elfFile64) AddProgSection(name string, align uint64, data []byte) (addr
 	return
 }
 
-var ErrNoSymbol = errors.New("no such symbol")
+var errNoSymbol = errors.New("no such symbol")
 
 func (p *elfFile64) Symbol(name string) (*elf.Symbol, error) {
 	idx := slices.IndexFunc(p.Symbols, func(s elf.Symbol) bool {
 		return s.Name == name
 	})
 	if idx == -1 {
-		return nil, ErrNoSymbol
+		return nil, errNoSymbol
 	}
 	return &p.Symbols[idx], nil
 }

@@ -7,6 +7,6 @@ import (
 	"runtime"
 )
 
-func Mount(image, dir string) error {
+func mount(image, dir string) error {
 	return fmt.Errorf("not supported on %s", runtime.GOOS)
 }

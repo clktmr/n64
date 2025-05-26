@@ -47,7 +47,7 @@ func Main(args []string) {
 		}
 		image := flags.Arg(1)
 		dir := flags.Arg(2)
-		err := Mount(image, dir)
+		err := mount(image, dir)
 		if err != nil {
 			log.Fatalln("mount:", err)
 		}

@@ -15,7 +15,7 @@ import (
 	"rsc.io/rsc/fuse"
 )
 
-func Mount(image, dir string) error {
+func mount(image, dir string) error {
 	c, err := fuse.Mount(dir)
 	if err != nil {
 		return err
@@ -29,7 +29,7 @@ func Mount(image, dir string) error {
 		return err
 	}
 
-	go c.Serve(&FS{fs})
+	go c.Serve(&fusefs{fs})
 	<-sigintr
 
 	cmd := exec.Command("/bin/umount", dir)
@@ -37,16 +37,16 @@ func Mount(image, dir string) error {
 	return err
 }
 
-// FS implements the file system and the root dir Node.
-type FS struct {
+// fusefs implements the file system and the root dir Node.
+type fusefs struct {
 	pakfs *pakfs.FS
 }
 
-func (p *FS) Root() (fuse.Node, fuse.Error) {
+func (p *fusefs) Root() (fuse.Node, fuse.Error) {
 	return p, nil
 }
 
-func (p *FS) Attr() fuse.Attr {
+func (p *fusefs) Attr() fuse.Attr {
 	dir := p.pakfs.Root()
 	stat, err := dir.Stat()
 	if err != nil {
@@ -59,7 +59,7 @@ func (p *FS) Attr() fuse.Attr {
 	}
 }
 
-func (p *FS) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
+func (p *fusefs) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	f, err := p.pakfs.Open(name)
 	if err != nil {
 		return nil, errno(err)
@@ -68,10 +68,10 @@ func (p *FS) Lookup(name string, intr fuse.Intr) (fuse.Node, fuse.Error) {
 	if !ok {
 		return p, nil // must be root dir
 	}
-	return &File{pakfile, p.pakfs}, nil
+	return &fusefile{pakfile, p.pakfs}, nil
 }
 
-func (p *FS) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
+func (p *fusefs) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	entries := p.pakfs.ReadDirRoot()
 	fuseEntries := make([]fuse.Dirent, len(entries))
 	for i, v := range entries {
@@ -83,17 +83,17 @@ func (p *FS) ReadDir(intr fuse.Intr) ([]fuse.Dirent, fuse.Error) {
 	return fuseEntries, nil
 }
 
-func (p *FS) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fuse.Intr) (fuse.Node, fuse.Handle, fuse.Error) {
+func (p *fusefs) Create(req *fuse.CreateRequest, res *fuse.CreateResponse, intr fuse.Intr) (fuse.Node, fuse.Handle, fuse.Error) {
 	f, err := p.pakfs.Create(req.Name)
 	if err != nil {
 		return nil, nil, errno(err)
 	}
 
-	file := &File{f, p.pakfs}
+	file := &fusefile{f, p.pakfs}
 	return file, file, nil
 }
 
-func (p *FS) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
+func (p *fusefs) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	err := p.pakfs.Remove(req.Name)
 	if err != nil {
 		return errno(err)
@@ -101,7 +101,7 @@ func (p *FS) Remove(req *fuse.RemoveRequest, intr fuse.Intr) fuse.Error {
 	return nil
 }
 
-func (p *FS) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
+func (p *fusefs) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) fuse.Error {
 	err := p.pakfs.Rename(req.OldName, req.NewName)
 	if err != nil {
 		return errno(err)
@@ -109,14 +109,14 @@ func (p *FS) Rename(req *fuse.RenameRequest, newDir fuse.Node, intr fuse.Intr) f
 	return nil
 }
 
-// File implements both Node and Handle.
-type File struct {
+// fusefile implements both Node and Handle.
+type fusefile struct {
 	*pakfs.File
 
 	pakfs *pakfs.FS
 }
 
-func (p *File) Attr() fuse.Attr {
+func (p *fusefile) Attr() fuse.Attr {
 	return fuse.Attr{
 		Mode:  p.Mode(),
 		Mtime: p.ModTime(),
@@ -124,7 +124,7 @@ func (p *File) Attr() fuse.Attr {
 	}
 }
 
-func (p *File) ReadAll(intr fuse.Intr) ([]byte, fuse.Error) {
+func (p *fusefile) ReadAll(intr fuse.Intr) ([]byte, fuse.Error) {
 	b := make([]byte, p.Size())
 	_, err := p.ReadAt(b, 0)
 	if err != io.EOF && err != nil {
@@ -136,7 +136,7 @@ func (p *File) ReadAll(intr fuse.Intr) ([]byte, fuse.Error) {
 // Only WriteAll is supported. Write is not implemented on purpose because it
 // might cause unexpected behaviour when appending to a file, since filesize is
 // always rounded up to the next page boundary.
-func (p *File) WriteAll(data []byte, intr fuse.Intr) fuse.Error {
+func (p *fusefile) WriteAll(data []byte, intr fuse.Intr) fuse.Error {
 	err := p.pakfs.Truncate(p.File.Name(), int64(len(data)))
 	if err != nil {
 		return errno(err)
@@ -150,7 +150,7 @@ func (p *File) WriteAll(data []byte, intr fuse.Intr) fuse.Error {
 	return nil
 }
 
-func (p *File) Fsync(req *fuse.FsyncRequest, intr fuse.Intr) fuse.Error {
+func (p *fusefile) Fsync(req *fuse.FsyncRequest, intr fuse.Intr) fuse.Error {
 	return nil
 }
 

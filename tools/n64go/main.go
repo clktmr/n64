@@ -1,3 +1,14 @@
+// n64go bundles all commands into a single executable. Run available commands
+// with:
+//
+//	n64go <command> [arguments]
+//
+// The commands are:
+//
+//   - [github.com/clktmr/n64/tools/rom]      convert and execute elf to n64 ROMs
+//   - [github.com/clktmr/n64/tools/font]     generate fonts to be used on the n64
+//   - [github.com/clktmr/n64/tools/pakfs]    modify and inspect pakfs images
+//   - [github.com/clktmr/n64/tools/toolexec] used as 'go build -toolexec' parameter
 package main
 
 import (
@@ -12,7 +23,7 @@ import (
 	"github.com/clktmr/n64/tools/toolexec"
 )
 
-const usageString = `n64go is a tool for development of Nintendo64 ROMs.
+const usageString = `n64go is a tool for development of Nintendo 64 ROMs.
 
 Usage:
 
