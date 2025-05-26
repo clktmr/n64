@@ -3,88 +3,60 @@ package toolexec
 import (
 	"fmt"
 	"go/ast"
-	"go/build"
 	"go/parser"
 	"go/token"
-	"io/fs"
-	"slices"
 	"strings"
 )
 
 type cartfsEmbed struct {
-	Pkgname  string
-	Dir      string
-	Path     string
 	Name     string
 	Patterns []string
 }
 
-func (p *cartfsEmbed) SymbolName() string {
-	if p.Pkgname == "main" {
-		return strings.Join([]string{p.Pkgname, p.Name}, ".")
-	} else {
-		return strings.Join([]string{p.Path, p.Name}, ".")
-	}
-}
-
 // scanCartfsEmbed searches the package at path for global cartfs.FS variable
 // declarations initialized with cartfs.Embed.
-func scanCartfsEmbed(path string) (decls []cartfsEmbed, err error) {
-	pkg, err := build.Default.Import(path, ".", 0)
-	if err != nil {
-		return
-	}
-
-	for _, importPath := range pkg.Imports {
-		if importPath == "github.com/clktmr/n64/drivers/cartfs" {
-			goto found
+func scanCartfsEmbed(files []string, pkgname string) (decls []cartfsEmbed, err error) {
+	importsCartfs := false
+	fset := token.NewFileSet()
+	pkgast := make(map[string]*ast.File)
+	for _, file := range files {
+		pkgast[file], err = parser.ParseFile(fset, file, nil, parser.ParseComments)
+		if err != nil {
+			return
+		}
+		for _, importSpec := range pkgast[file].Imports {
+			if importSpec.Path.Value == `"github.com/clktmr/n64/drivers/cartfs"` {
+				importsCartfs = true
+			}
 		}
 	}
-	return
-found:
 
-	filter := func(finfo fs.FileInfo) bool {
-		return slices.Contains(pkg.GoFiles, finfo.Name())
-	}
-
-	fset := token.NewFileSet()
-	pkgast, err := parser.ParseDir(fset, pkg.Dir, filter, parser.ParseComments)
-	if err != nil {
+	if !importsCartfs {
 		return
 	}
 
 	// Inspect all global variable declarations
 	mappings := make(map[string]cartfsEmbed)
 	for _, file := range pkgast {
-		ast.Inspect(file, func(n ast.Node) bool {
-			switch c := n.(type) {
-			case *ast.File:
-				return true
-			case *ast.Package:
-				return true
-			case *ast.GenDecl:
-				if c.Tok != token.VAR {
-					return false
+		for _, decl := range file.Decls {
+			if decl, ok := decl.(*ast.GenDecl); ok {
+				if decl.Tok != token.VAR {
+					continue
 				}
 
-				err1 := inspectVarDecl(c, mappings)
-				if err1 != nil {
-					err = fmt.Errorf("%v: %v", pkg.ImportPath, err1)
-					return false
+				err = inspectVarDecl(decl, mappings)
+				if err != nil {
+					return nil, fmt.Errorf("%v: %v", file.Name.Name, err)
 				}
 			}
-			return false
-		})
+		}
 	}
 
 	decls = make([]cartfsEmbed, 0)
 	for _, v := range mappings {
 		decls = append(decls, cartfsEmbed{
-			Pkgname:  pkg.Name,
-			Path:     pkg.ImportPath,
-			Dir:      pkg.Dir,
 			Patterns: v.Patterns,
-			Name:     v.Name,
+			Name:     pkgname + "." + v.Name,
 		})
 	}
 	return

@@ -321,7 +321,7 @@ func postCompile() {
 	}
 
 	// Scan package for cartfs declarations
-	cartfsDecls, err := scanCartfsEmbed(*compileImportPath)
+	cartfsDecls, err := scanCartfsEmbed(compileArgs.Args(), *compileImportPath)
 	if err != nil {
 		log.Fatalln("scan declarations:", err)
 	}
@@ -357,7 +357,7 @@ func postCompile() {
 
 		cartfsName := "cartfs" + strconv.Itoa(i)
 		ar.AddEntry(cartfsName, cartfsFile)
-		symbolNames[cartfsName] = decl.SymbolName()
+		symbolNames[cartfsName] = decl.Name
 
 		cartfsFile.Close()
 	}
