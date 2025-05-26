@@ -24,11 +24,16 @@ var embed3 cartfs.FS = cartfs.Embed(_embed3)
 var _nocomment embed.FS
 var nocomment cartfs.FS = cartfs.Embed(_nocomment)
 
+//go:embed testdata/hello.txt
+var _notype embed.FS
+var notype = cartfs.Embed(_notype)
+
 // TestMkrom checks if the different declaration styles for variables are
 // correctly parsed by the mkrom tool.
 func TestEmbed(t *testing.T) {
 	testFiles(t, embed1, "concurrency.txt", "Concurrency is not parallelism.\n")
 	testFiles(t, embed3, "testdata/hello.txt", "hello, world\n")
 	testFiles(t, embed2, "testdata/ken.txt", "If a program is too slow, it must have a loop.\n")
+	testFiles(t, notype, "testdata/hello.txt", "hello, world\n")
 	testDir(t, nocomment, ".")
 }

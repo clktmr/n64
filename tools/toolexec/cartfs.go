@@ -68,49 +68,50 @@ func scanCartfsEmbed(files []string, pkgname string) (decls []cartfsEmbed, err e
 //
 // FIXME package cartfs or embed might be imported under a different name
 func inspectVarDecl(decl *ast.GenDecl, mapping map[string]cartfsEmbed) error {
-	var embedfsSpecs, cartfsSpecs []*ast.ValueSpec
+	var embedfsSpecs []*ast.ValueSpec
 	for _, spec := range decl.Specs {
 		if spec, ok := spec.(*ast.ValueSpec); ok {
+			// search for initializations by cartfs.Embed()
+			for i := range spec.Values {
+				var initcall *ast.CallExpr
+				var initfun *ast.SelectorExpr
+				if initcall, ok = spec.Values[i].(*ast.CallExpr); !ok {
+					continue
+				}
+				if initfun, ok = initcall.Fun.(*ast.SelectorExpr); !ok {
+					continue
+				}
+				if initfun.Sel.Name != "Embed" {
+					continue
+				}
+				if pkgident, ok := initfun.X.(*ast.Ident); ok {
+					if pkgident.String() != "cartfs" {
+						continue
+					}
+					if embedfsRef, ok := initcall.Args[0].(*ast.Ident); ok {
+						m := mapping[embedfsRef.Name]
+						if m.Name != "" {
+							return fmt.Errorf("Multiple cartfs.FS embed the same embed.FS")
+						}
+						m.Name = spec.Names[i].Name
+						mapping[embedfsRef.Name] = m
+					}
+				}
+			}
+
+			// search for embed.FS types
 			if stype, ok := spec.Type.(*ast.SelectorExpr); ok {
 				if stype.Sel.String() != "FS" {
 					continue
 				}
 				if ident, ok := stype.X.(*ast.Ident); ok {
-					if ident.String() == "cartfs" {
-						cartfsSpecs = append(cartfsSpecs, spec)
-					} else if ident.String() == "embed" {
-						if spec.Doc == nil && decl.Lparen == 0 {
-							spec.Doc = decl.Doc // TODO hackish
-						}
-						embedfsSpecs = append(embedfsSpecs, spec)
+					if ident.String() != "embed" {
+						continue
 					}
-				}
-			}
-		}
-	}
-
-	// Check for cartfs.FS initializations
-	for _, spec := range cartfsSpecs {
-		for i := range spec.Values {
-			if initcall, ok := spec.Values[i].(*ast.CallExpr); ok {
-				if len(initcall.Args) == 1 {
-					if initfun, ok := initcall.Fun.(*ast.SelectorExpr); ok {
-						if initfun.Sel.Name == "Embed" {
-							if pkgident, ok := initfun.X.(*ast.Ident); ok {
-								if pkgident.String() == "cartfs" {
-									if embedfsRef, ok := initcall.Args[0].(*ast.Ident); ok {
-										m := mapping[embedfsRef.Name]
-										if m.Name != "" {
-											return fmt.Errorf("Multiple cartfs.FS embed the same embed.FS")
-										}
-										m.Name = spec.Names[i].Name
-										mapping[embedfsRef.Name] = m
-										continue
-									}
-								}
-							}
-						}
+					if spec.Doc == nil && decl.Lparen == 0 {
+						spec.Doc = decl.Doc // TODO hackish
 					}
+					embedfsSpecs = append(embedfsSpecs, spec)
 				}
 			}
 		}
