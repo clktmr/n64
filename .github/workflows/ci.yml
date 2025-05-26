@@ -3,7 +3,7 @@ name: CI
 env:
   go-version: stable
   ares-version: v144
-  embeddedgo-version: gotip-embedded
+  embeddedgo-version: go1.24.0-n64
 
 on:
   push:
@@ -42,17 +42,15 @@ jobs:
         run: |
           go install -v github.com/clktmr/dl/${{ env.embeddedgo-version }}@latest
           ${{ env.embeddedgo-version }} version || ${{ env.embeddedgo-version }} download
-          ln -s ${{ env.embeddedgo-version }} ~/go/bin/go1.22
 
-      - name: Install N64 tools
+      - name: Install n64go tool
         run: |
-          go install ./tools/mkrom
-          go install ./tools/n64toolexec
+          go install ./tools/n64go
 
       - name: Build testing ROM
         run: |
           go build -o test.elf ./test
-          mkrom test.elf
+          n64go rom test.elf
         env:
           GOENV: go.env
 
@@ -60,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: testing-ROM-${{ github.sha }}
-          path: test.z64
+          path: test.*
 
   run:
     needs: build
@@ -107,8 +105,8 @@ jobs:
           go-version: ${{ env.go-version }}
           cache: true
 
-      - name: Install test-runner
-        run: go install ./.github/workflows/test-runner
+      - name: Install n64go tool
+        run: go install ./tools/n64go
 
       - name: Download testing ROM
         uses: actions/download-artifact@v4
@@ -117,8 +115,8 @@ jobs:
 
       - name: Run testing ROM
         run: |
-          test-runner xvfb-run ares \
+          n64go rom -run "xvfb-run ares \
                   --setting Input/Driver=None \
                   --setting Video/Driver=None \
-                  --setting Audio/Driver=None \
-                  test.z64
+                  --setting Audio/Driver=None" \
+                  test.elf

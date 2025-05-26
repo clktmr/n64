@@ -5,6 +5,7 @@
 package rom
 
 import (
+	"bufio"
 	"debug/elf"
 	"errors"
 	"flag"
@@ -13,9 +14,14 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
 
 	_ "embed"
+
+	"github.com/kballard/go-shellquote"
 )
 
 const usageString = `ELF to n64 ROM converter.
@@ -132,22 +138,75 @@ func Main(args []string) {
 		}
 		n64WriteUF2(outfile, rom)
 	default:
-		fmt.Printf("objcopy: %s format not supported", *format)
+		log.Printf("objcopy: %s format not supported", *format)
 		os.Exit(1)
 	}
 
 	if *run != "" {
-		cmd := exec.Command(*run, outfile)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
-		if err, ok := err.(*exec.ExitError); ok {
-			os.Exit(err.ExitCode())
-		}
+		runROM(*run, outfile)
+	}
+}
+
+func runROM(cmdpath, rompath string) {
+	args, err := shellquote.Split(cmdpath)
+	if err != nil {
+		log.Fatal("run:", err)
+	}
+	args = append(args, rompath)
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Stdin = os.Stdin
+	cmd.Stderr = os.Stderr
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("open stdout:", err)
+	}
+
+	sigintr := make(chan os.Signal, 1)
+	signal.Notify(sigintr, os.Interrupt)
+
+	err = cmd.Start()
+	if err != nil {
+		log.Fatal("start command:", err)
+	}
+
+	go func() {
+		<-sigintr
+		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
 		if err != nil {
-			fmt.Println("run:", err)
-			os.Exit(1)
+			log.Println(err)
+		}
+	}()
+
+	scanner := bufio.NewScanner(stdout)
+	exiting := false
+	code := 0
+	for scanner.Scan() {
+		log.Println(scanner.Text())
+		if exiting {
+			continue
+		}
+		line := scanner.Text()
+		switch {
+		case strings.HasPrefix(line, "fatal error:"), strings.HasPrefix(line, "panic:"):
+			fallthrough
+		case line == "FAIL":
+			code = 1
+			fallthrough
+		case line == "PASS":
+			exiting = true
+			go func() {
+				// give panic() time to print the stacktrace
+				time.Sleep(500 * time.Millisecond)
+				stdout.Close()
+				err := syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+				if err != nil {
+					log.Println(err)
+				}
+			}()
 		}
 	}
+	cmd.Wait()
+	os.Exit(code)
 }
