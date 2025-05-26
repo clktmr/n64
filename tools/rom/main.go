@@ -16,7 +16,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	_ "embed"
@@ -154,9 +153,9 @@ func runROM(cmdpath, rompath string) {
 	}
 	args = append(args, rompath)
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
+	processGroupEnable(cmd)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -173,7 +172,8 @@ func runROM(cmdpath, rompath string) {
 
 	go func() {
 		<-sigintr
-		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+		stdout.Close()
+		err := processGroupKill(cmd)
 		if err != nil {
 			log.Println(err)
 		}
@@ -200,7 +200,7 @@ func runROM(cmdpath, rompath string) {
 				// give panic() time to print the stacktrace
 				time.Sleep(500 * time.Millisecond)
 				stdout.Close()
-				err := syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+				err := processGroupKill(cmd)
 				if err != nil {
 					log.Println(err)
 				}

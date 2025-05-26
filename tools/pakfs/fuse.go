@@ -1,14 +1,41 @@
+//go:build linux || darwin
+
 package pakfs
 
 import (
 	"errors"
 	"io"
 	"io/fs"
+	"log"
+	"os"
+	"os/exec"
 	"syscall"
 
 	"github.com/clktmr/n64/drivers/controller/pakfs"
 	"rsc.io/rsc/fuse"
 )
+
+func Mount(image, dir string) error {
+	c, err := fuse.Mount(dir)
+	if err != nil {
+		return err
+	}
+	r, err := os.OpenFile(image, os.O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+	fs, err := pakfs.Read(r)
+	if err != nil {
+		return err
+	}
+
+	go c.Serve(&FS{fs})
+	<-sigintr
+
+	cmd := exec.Command("/bin/umount", dir)
+	_, err = cmd.CombinedOutput()
+	return err
+}
 
 // FS implements the file system and the root dir Node.
 type FS struct {
@@ -21,7 +48,11 @@ func (p *FS) Root() (fuse.Node, fuse.Error) {
 
 func (p *FS) Attr() fuse.Attr {
 	dir := p.pakfs.Root()
-	stat := must(dir.Stat())
+	stat, err := dir.Stat()
+	if err != nil {
+		log.Println("stat:", err)
+		return fuse.Attr{}
+	}
 	return fuse.Attr{
 		Mode:  stat.Mode(),
 		Mtime: stat.ModTime(),

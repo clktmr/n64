@@ -3,21 +3,10 @@ package pakfs
 import (
 	"flag"
 	"fmt"
+	"log"
 	"os"
-	"os/exec"
 	"os/signal"
-
-	"github.com/clktmr/n64/drivers/controller/pakfs"
-	"rsc.io/rsc/fuse"
 )
-
-func must[T any](ret T, err error) T {
-	if err != nil {
-		fmt.Print(err)
-		os.Exit(1)
-	}
-	return ret
-}
 
 const usageString = `Controller Pak File System Utility.
 
@@ -37,6 +26,8 @@ func usage() {
 	flags.PrintDefaults()
 }
 
+var sigintr = make(chan os.Signal, 1)
+
 func Main(args []string) {
 	flags.Usage = usage
 	flags.Parse(args[1:])
@@ -46,7 +37,6 @@ func Main(args []string) {
 		os.Exit(1)
 	}
 
-	sigintr := make(chan os.Signal, 1)
 	signal.Notify(sigintr, os.Interrupt)
 
 	switch flags.Arg(0) {
@@ -57,15 +47,10 @@ func Main(args []string) {
 		}
 		image := flags.Arg(1)
 		dir := flags.Arg(2)
-		c := must(fuse.Mount(dir))
-		r := must(os.OpenFile(image, os.O_RDWR, 0))
-		fs := must(pakfs.Read(r))
-
-		go c.Serve(&FS{fs})
-		<-sigintr
-
-		cmd := exec.Command("/bin/umount", dir)
-		must(cmd.CombinedOutput())
+		err := Mount(image, dir)
+		if err != nil {
+			log.Fatalln("mount:", err)
+		}
 	default:
 		fmt.Fprintf(flags.Output(), "unknown command: %s\n", flags.Arg(0))
 		flags.Usage()
