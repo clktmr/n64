@@ -16,9 +16,9 @@ type ImageFormat uint64
 const (
 	RGBA ImageFormat = iota << 53
 	YUV
-	ColorIdx // Color Palette
-	IA       // Intensity with alpha
-	I        // Intensity
+	CI // Color Palette
+	IA // Intensity with alpha
+	I  // Intensity
 )
 
 type BitDepth uint64

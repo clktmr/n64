@@ -154,7 +154,7 @@ func supportedFormat(fmt texture.ImageFormat, bpp texture.BitDepth) bool {
 		return bpp == texture.BPP4 || bpp == texture.BPP8 || bpp == texture.BPP16
 	case texture.I:
 		fallthrough
-	case texture.ColorIdx:
+	case texture.CI:
 		return bpp == texture.BPP4 || bpp == texture.BPP8
 	}
 	return false
