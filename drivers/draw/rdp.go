@@ -20,7 +20,7 @@ import (
 // Besides implementing [draw.Drawer], it provides additional functions for
 // drawing text efficiently.
 type Rdp struct {
-	target texture.Texture
+	target *texture.Texture
 	dlist  *rdp.DisplayList
 }
 
@@ -32,7 +32,7 @@ func NewRdp() *Rdp {
 	return r
 }
 
-func (fb *Rdp) SetFramebuffer(tex texture.Texture) {
+func (fb *Rdp) SetFramebuffer(tex *texture.Texture) {
 	fb.target = tex
 	fb.dlist.SetColorImage(fb.target)
 	fb.dlist.SetScissor(image.Rectangle{Max: fb.target.Bounds().Size()}, rdp.InterlaceNone)
@@ -51,7 +51,7 @@ func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask
 	}
 
 	switch srcImg := src.(type) {
-	case texture.Texture:
+	case *texture.Texture:
 		switch mask.(type) {
 		case nil:
 			fb.drawColorImage(r, srcImg, sp, image.Point{1, 1}, nil, op)
@@ -78,11 +78,11 @@ func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask
 				fb.drawUniformOver(r, srcImg.C, maskImg.C)
 				return
 			}
-		case *texture.I8:
+		case *texture.Texture:
 			fb.drawColorImage(r, maskImg, mp, image.Point{1, 1}, srcImg.C, op)
 			return
 		case *images.Magnifier:
-			maskAlpha, ok := maskImg.Image.(*texture.I8)
+			maskAlpha, ok := maskImg.Image.(*texture.Texture)
 			debug.Assert(ok, "rdp unsupported magnifier format")
 			fb.drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, srcImg.C, op)
 			return
@@ -173,7 +173,7 @@ var (
 	}
 )
 
-func (fb *Rdp) drawColorImage(r image.Rectangle, src texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
+func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
 	colorSource := rdp.CombineTex0
 
 	if fill != nil {
@@ -279,7 +279,7 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 	if img == nil {
 		return p
 	}
-	tex, ok := img.(texture.Texture)
+	tex, ok := img.(*texture.Texture)
 	debug.Assert(ok, "fontmap format")
 	ts := rdp.TileDescriptor{
 		Format: tex.Format(),
@@ -295,7 +295,7 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 	pos := p
 	clip := r.Intersect(fb.target.Bounds())
 
-	var oldtex texture.Texture
+	var oldtex *texture.Texture
 	for len(str) > 0 {
 		rune, size := utf8.DecodeRune(str)
 		str = str[size:]
@@ -312,7 +312,7 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 		glyphRectSS := image.Rectangle{Max: glyphRect.Size()}.Add(pos)
 
 		if glyphRectSS.Overlaps(clip) {
-			tex, ok := img.(texture.Texture)
+			tex, ok := img.(*texture.Texture)
 			debug.Assert(ok, "fontmap format")
 			if tex != oldtex {
 				fb.dlist.SetTextureImage(tex)

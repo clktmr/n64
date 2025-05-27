@@ -14,7 +14,7 @@ import (
 
 // Display implements a vsynced, double buffered framebuffer.
 type Display struct {
-	read, write texture.Texture
+	read, write *texture.Texture
 	start       time.Time
 
 	rendertime, frametime time.Duration
@@ -43,7 +43,7 @@ func NewDisplay(resolution image.Point, bpp video.ColorDepth) *Display {
 // Swap returns the next framebuffer for rendering. The framebuffer returned by
 // the last call becomes invalid. Blocks until a framebuffer is available for
 // rendering.
-func (p *Display) Swap() texture.Texture {
+func (p *Display) Swap() *texture.Texture {
 	p.rendertime = time.Since(p.start)
 	p.cmd, p.pipe, p.tmem = rdp.Busy()
 

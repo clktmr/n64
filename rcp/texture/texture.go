@@ -1,3 +1,5 @@
+// Package texture provides image types used by the rcp, e.g. textures and
+// framebuffers.
 package texture
 
 import (
@@ -6,6 +8,8 @@ import (
 
 	"github.com/clktmr/n64/rcp/cpu"
 )
+
+// TODO ensure alignment in New*FromImage() and *.SubImage()
 
 type ImageFormat uint64
 
@@ -35,31 +39,95 @@ func (bpp BitDepth) Bytes(pixels int) int {
 	return pixels << shift
 }
 
-type Texture interface {
-	image.Image
+const (
+	alignFramebuffer = 64
+	alignTexture     = 8
+)
 
-	// Addr returns the base address of the images pixel data.
-	Addr() cpu.Addr
+type Texture struct {
+	draw.Image
 
-	// Stride returns the stride (in pixels) between vertically adjacent
-	// pixels.
-	Stride() int
-
-	// Format returns the pixel's color format.
-	Format() ImageFormat
-
-	// BPP returns the pixel's bit depth.
-	BPP() BitDepth
-
-	// Premult returns whether the image's color channels are premultiplied
-	// with it's alpha channels.
-	Premult() bool
+	pix     []byte
+	stride  int
+	format  ImageFormat
+	bpp     BitDepth
+	premult bool
 }
 
-// ImageTexture is a texture that provides a draw.Image implementation. This is
-// useful to get the underlying image type when passing to the stdlib, e.g.
-// draw.DrawMask(). The image/draw will use optimized implementations via type
-// assertions, so it's important to pass an image type image/draw knows.
-type ImageTexture interface {
-	Image() draw.Image
+// Addr returns the base address of the images pixel data.
+func (p *Texture) Addr() cpu.Addr { return cpu.PhysicalAddressSlice(p.pix) }
+
+// Stride returns the stride (in pixels) between vertically adjacent
+// pixels.
+func (p *Texture) Stride() int { return p.stride }
+
+// Format returns the pixel's color format.
+func (p *Texture) Format() ImageFormat { return p.format }
+
+// BPP returns the pixel's bit depth.
+func (p *Texture) BPP() BitDepth { return p.bpp }
+
+// Premult returns whether the image's color channels are premultiplied
+// with it's alpha channels.
+func (p *Texture) Premult() bool { return p.premult }
+func (p *Texture) Writeback()    { cpu.WritebackSlice(p.pix) }
+func (p *Texture) Invalidate()   { cpu.InvalidateSlice(p.pix) }
+func (p *Texture) SubImage(r image.Rectangle) *Texture {
+	sub, _ := p.Image.(interface {
+		SubImage(r image.Rectangle) image.Image
+	})
+	return NewTextureFromImage(sub.SubImage(r))
+}
+
+func NewTextureFromImage(img image.Image) (tex *Texture) {
+	switch img := img.(type) {
+	case *image.RGBA:
+		tex = &Texture{img, img.Pix, img.Stride >> 2, RGBA, BPP32, true}
+	case *image.NRGBA:
+		tex = &Texture{img, img.Pix, img.Stride >> 2, RGBA, BPP32, false}
+	case *imageRGBA16:
+		tex = &Texture{img, img.Pix, img.Stride >> 1, RGBA, BPP16, true}
+	case *image.Alpha: // TODO should be *image.Gray?
+		tex = &Texture{img, img.Pix, img.Stride, I, BPP8, false}
+	}
+	tex.Writeback()
+	return
+}
+
+// Stores pixels in RGBA with 32bit (8:8:8:8)
+func NewRGBA32(r image.Rectangle) *Texture {
+	return NewTextureFromImage(&image.RGBA{
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, alignFramebuffer),
+		Stride: 4 * r.Dx(),
+		Rect:   r,
+	})
+}
+
+// Stores pixels in RGBA with 32bit (8:8:8:8)
+//
+// Same as RGBA32, but not premultiplied-alpha.
+func NewNRGBA32(r image.Rectangle) *Texture {
+	return NewTextureFromImage(&image.NRGBA{
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, alignFramebuffer),
+		Stride: 4 * r.Dx(),
+		Rect:   r,
+	})
+}
+
+// Stores pixels in RGBA with 16bit (5:5:5:1)
+func NewRGBA16(r image.Rectangle) *Texture {
+	return NewTextureFromImage(&imageRGBA16{
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*2, alignFramebuffer),
+		Stride: 2 * r.Dx(),
+		Rect:   r,
+	})
+}
+
+// Stores pixels intensity with 8bit
+func NewI8(r image.Rectangle) *Texture {
+	return NewTextureFromImage(&image.Alpha{
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy(), alignFramebuffer),
+		Stride: r.Dx(),
+		Rect:   r,
+	})
 }

@@ -211,7 +211,7 @@ var VSync bool = true
 //
 // If [VSync] is set, the SetFramebuffer returns immediately but the last
 // framebuffer will still be in use until next vblank.
-func SetFramebuffer(fb texture.Texture) {
+func SetFramebuffer(fb *texture.Texture) {
 	currentFb, _ := framebuffer.Read()
 	if fb == nil {
 		regs.control.Store(0)
@@ -245,7 +245,7 @@ func SetFramebuffer(fb texture.Texture) {
 }
 
 // Returns the currently displayed framebuffer.
-func Framebuffer() texture.Texture {
+func Framebuffer() *texture.Texture {
 	f, _ := framebuffer.Read()
 	return f
 }

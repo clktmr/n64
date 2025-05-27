@@ -102,7 +102,7 @@ func (dl *DisplayList) Push(cmd command) { // TODO unexport
 }
 
 // Sets the framebuffer to render the final image into.
-func (dl *DisplayList) SetColorImage(img texture.Texture) {
+func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 	debug.Assert(img.Addr()%64 == 0, "rdp framebuffer alignment")
 	debug.Assert(img.Stride() < 1<<10, "rdp framebuffer width too big")
 	debug.Assert(img.Format() == texture.RGBA && img.BPP() == texture.BPP16 ||
@@ -126,7 +126,7 @@ func (dl *DisplayList) SetDepthImage(addr uintptr) {
 }
 
 // Sets the image where LoadTile and LoadBlock will copy their data from.
-func (dl *DisplayList) SetTextureImage(img texture.Texture) {
+func (dl *DisplayList) SetTextureImage(img *texture.Texture) {
 	debug.Assert(img.Addr()%8 == 0, "rdp texture must be 8 byte aligned")
 	debug.Assert(img.Stride() <= 1<<9, "rdp texture width too big")
 

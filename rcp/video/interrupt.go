@@ -14,7 +14,7 @@ var VBlank rtos.Cond
 
 // Consumed by interrupt handler
 var (
-	framebuffer rcp.IntrInput[texture.Texture]
+	framebuffer rcp.IntrInput[*texture.Texture]
 	scale       rcp.IntrInput[image.Rectangle]
 )
 
@@ -53,7 +53,7 @@ func handler() {
 // Updates the framebuffer based on currently configured framebuffer and field.
 //
 //go:nosplit
-func updateFramebuffer(fb texture.Texture) {
+func updateFramebuffer(fb *texture.Texture) {
 	addr := fb.Addr()
 	if regs.control.Load()&uint32(controlSerrate) != 0 {
 		// Shift the framebuffer vertically based on current field.

@@ -18,9 +18,9 @@ import (
 type SubfontData struct {
 	height, ascent int
 	positions      []byte
-	fontMap        *texture.I8
+	fontMap        *texture.Texture
 	glyphs         [256]struct { // TODO constant
-		img     texture.I8
+		img     *texture.Texture
 		origin  image.Point
 		advance int
 	}
@@ -32,24 +32,24 @@ func (p *SubfontData) Advance(i int) int {
 
 func (p *SubfontData) Glyph(i int) (img image.Image, origin image.Point, advance int) {
 	g := &p.glyphs[i]
-	img, origin, advance = &g.img, g.origin, g.advance
+	img, origin, advance = g.img, g.origin, g.advance
 	return
 }
 
 func (p *SubfontData) GlyphMap(i int) (img image.Image, r image.Rectangle, origin image.Point, advance int) {
 	g := &p.glyphs[i]
-	img, r, origin, advance = p.fontMap, g.img.Rect, g.origin, g.advance
+	img, r, origin, advance = p.fontMap, g.img.Bounds(), g.origin, g.advance
 	return
 }
 
-func (p *SubfontData) glyph(i int) (img texture.I8, origin image.Point, advance int) {
+func (p *SubfontData) glyph(i int) (img *texture.Texture, origin image.Point, advance int) {
 	base := 3 * i
 	advance = int(p.positions[base+2])
 	origin = image.Point{
 		int(p.positions[base]), int(p.positions[base+1]),
 	}
 	rect := image.Rect(origin.X, origin.Y-p.ascent, origin.X+advance, origin.Y+p.height-p.ascent)
-	img = *p.fontMap.SubImage(rect)
+	img = p.fontMap.SubImage(rect)
 	return
 }
 
@@ -67,7 +67,7 @@ func NewSubfontData(pos, imgPng []byte, height, ascent int) *SubfontData {
 	debug.AssertErrNil(err)
 	imgGray, ok := fontMap.(*image.Gray)
 	debug.Assert(ok, "fontmap format")
-	f.fontMap = texture.NewI8FromImage(&image.Alpha{
+	f.fontMap = texture.NewTextureFromImage(&image.Alpha{
 		Pix:    imgGray.Pix,
 		Stride: imgGray.Stride,
 		Rect:   imgGray.Rect,
