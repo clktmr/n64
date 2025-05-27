@@ -62,15 +62,13 @@ func TestDrawMask(t *testing.T) {
 	quarter := image.Rectangle{Max: fb.Bounds().Max.Div(2)}
 	bounds := quarter.Inset(16)
 	expected := fb.SubImage(bounds)
+	expected.SetOrigin(bounds.Min)
 	result := fb.SubImage(bounds.Add(image.Pt(quarter.Max.X, 0)))
-	r, _ := result.Image.(*image.RGBA)
-	r.Rect = bounds
+	result.SetOrigin(bounds.Min)
 	diff := fb.SubImage(bounds.Add(image.Pt(0, quarter.Max.Y)))
-	r, _ = diff.Image.(*image.RGBA)
-	r.Rect = bounds
+	diff.SetOrigin(bounds.Min)
 	err := fb.SubImage(bounds.Add(quarter.Max))
-	r, _ = err.Image.(*image.RGBA)
-	r.Rect = bounds
+	err.SetOrigin(bounds.Min)
 
 	video.SetupPAL(false, false)
 	video.SetFramebuffer(fb)

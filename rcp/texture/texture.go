@@ -47,8 +47,10 @@ const (
 type Texture struct {
 	draw.Image
 
-	pix     []byte
-	stride  int
+	pix    []byte
+	stride int
+	rect   *image.Rectangle
+
 	format  ImageFormat
 	bpp     BitDepth
 	premult bool
@@ -67,6 +69,10 @@ func (p *Texture) Format() ImageFormat { return p.format }
 // BPP returns the pixel's bit depth.
 func (p *Texture) BPP() BitDepth { return p.bpp }
 
+// SetOrigin moves the coordinate system of the texture to origin. Useful if
+// subimages are used as viewports and should have their origin in (0, 0).
+func (p *Texture) SetOrigin(origin image.Point) { *p.rect = p.rect.Sub(p.rect.Min.Sub(origin)) }
+
 // Premult returns whether the image's color channels are premultiplied
 // with it's alpha channels.
 func (p *Texture) Premult() bool { return p.premult }
@@ -82,13 +88,13 @@ func (p *Texture) SubImage(r image.Rectangle) *Texture {
 func NewTextureFromImage(img image.Image) (tex *Texture) {
 	switch img := img.(type) {
 	case *image.RGBA:
-		tex = &Texture{img, img.Pix, img.Stride >> 2, RGBA, BPP32, true}
+		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, true}
 	case *image.NRGBA:
-		tex = &Texture{img, img.Pix, img.Stride >> 2, RGBA, BPP32, false}
+		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, false}
 	case *imageRGBA16:
-		tex = &Texture{img, img.Pix, img.Stride >> 1, RGBA, BPP16, true}
+		tex = &Texture{img, img.Pix, img.Stride >> 1, &img.Rect, RGBA, BPP16, true}
 	case *image.Alpha: // TODO should be *image.Gray?
-		tex = &Texture{img, img.Pix, img.Stride, I, BPP8, false}
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, false}
 	}
 	tex.Writeback()
 	return
