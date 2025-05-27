@@ -226,6 +226,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 
 		MaskS: 5, MaskT: 5, // ignore fractional part
 	}
+	fb.dlist.SetTile(ts)
 
 	bounds := src.Bounds().Intersect(r.Sub(r.Min.Sub(p)))
 	bounds = bounds.Sub(src.Bounds().Min)        // draw area in src image space
@@ -239,7 +240,6 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 
 			debug.Assert(!tile.Empty(), "drawing empty tile")
 
-			fb.dlist.SetTile(ts)
 			fb.dlist.LoadTile(idx, tile)
 			fb.dlist.TextureRectangle(tile.Add(origin), tile.Min, scale, idx)
 		}
