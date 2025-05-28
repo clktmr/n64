@@ -130,8 +130,10 @@ func (dl *DisplayList) SetTextureImage(img *texture.Texture) {
 	debug.Assert(img.Addr()%8 == 0, "rdp texture must be 8 byte aligned")
 	debug.Assert(img.Stride() <= 1<<9, "rdp texture width too big")
 
+	bpp := max(img.BPP(), texture.BPP8) // BPP4 crashes the RDP
+
 	// according to wiki, format[23:21] has no effect
-	dl.Push((0xfd << 56) | command(img.BPP()) | command(img.Stride()-1)<<32 |
+	dl.Push((0xfd << 56) | command(bpp) | command(img.Stride()-1)<<32 |
 		command(img.Addr()))
 }
 

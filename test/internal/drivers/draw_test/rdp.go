@@ -97,6 +97,10 @@ func TestDrawMask(t *testing.T) {
 	draw.Src.Draw(imgAlpha, imgAlpha.Bounds(), imgN64LogoSmall, image.Point{})
 	imgAlpha.Writeback()
 
+	imgI4 := texture.NewI4(imgN64LogoSmall.Bounds())
+	draw.Src.Draw(imgI4, imgI4.Bounds(), imgN64LogoSmall, image.Point{})
+	imgI4.Writeback()
+
 	// Define testcases
 	tests := map[string]struct {
 		r    image.Rectangle
@@ -124,6 +128,7 @@ func TestDrawMask(t *testing.T) {
 		"drawShift":            {bounds.Inset(24), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawSrcI4":            {bounds.Inset(24), imgI4, image.Point{}, nil, image.Point{}, draw.Src},
 		// TODO "drawSrcI8":            {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Over, 0},
 	}
 

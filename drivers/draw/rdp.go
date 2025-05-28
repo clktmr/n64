@@ -215,18 +215,29 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 	})
 	fb.dlist.SetTextureImage(src)
 
-	step := rdp.MaxTileSize(src.BPP())
-	const idx = 0
+	// Loading BPP4 crashes the RDP. As a workaround create two tiles with
+	// different BPP, one for loading and one for drawing.
+	var loadIdx, drawIdx uint8 = 0, 1
+	bpp := max(src.BPP(), texture.BPP8)
+
+	step := rdp.MaxTileSize(bpp)
 	ts := rdp.TileDescriptor{
 		Format: src.Format(),
-		Size:   src.BPP(),
+		Size:   bpp,
 		Addr:   0x0,
-		Line:   uint16(src.BPP().Bytes(step.Dx()/scale.X) >> 3),
-		Idx:    idx,
+		Line:   uint16(bpp.Bytes(step.Dx()/scale.X) >> 3),
+		Idx:    loadIdx,
 
 		MaskS: 5, MaskT: 5, // ignore fractional part
 	}
 	fb.dlist.SetTile(ts)
+	if bpp != src.BPP() {
+		ts.Size = src.BPP()
+		ts.Idx = drawIdx
+		fb.dlist.SetTile(ts)
+	} else {
+		drawIdx = loadIdx
+	}
 
 	bounds := src.Bounds().Intersect(r.Sub(r.Min.Sub(p)))
 	bounds = bounds.Sub(src.Bounds().Min)        // draw area in src image space
@@ -240,8 +251,11 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 
 			debug.Assert(!tile.Empty(), "drawing empty tile")
 
-			fb.dlist.LoadTile(idx, tile)
-			fb.dlist.TextureRectangle(tile.Add(origin), tile.Min, scale, idx)
+			fb.dlist.LoadTile(loadIdx, tile)
+			if loadIdx != drawIdx {
+				fb.dlist.SetTileSize(drawIdx, tile)
+			}
+			fb.dlist.TextureRectangle(tile.Add(origin), tile.Min, scale, drawIdx)
 		}
 	}
 
