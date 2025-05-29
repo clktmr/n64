@@ -93,6 +93,18 @@ func TestDrawMask(t *testing.T) {
 	draw.Src.Draw(imgLarge.Image, imgLarge.Bounds(), imgN64LogoLarge, image.Point{})
 	imgLarge.Writeback()
 
+	imgLarge16 := texture.NewRGBA16(imgN64LogoLarge.Bounds())
+	draw.Src.Draw(imgLarge16.Image, imgLarge16.Bounds(), imgN64LogoLarge, image.Point{})
+	imgLarge16.Writeback()
+
+	imgLarge8 := texture.NewI8(imgN64LogoLarge.Bounds())
+	draw.Src.Draw(imgLarge8.Image, imgLarge8.Bounds(), imgN64LogoLarge, image.Point{})
+	imgLarge8.Writeback()
+
+	imgLarge4 := texture.NewI4(imgN64LogoLarge.Bounds())
+	draw.Src.Draw(imgLarge4.Image, imgLarge4.Bounds(), imgN64LogoLarge, image.Point{})
+	imgLarge4.Writeback()
+
 	imgAlpha := texture.NewI8(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(imgAlpha, imgAlpha.Bounds(), imgN64LogoSmall, image.Point{})
 	imgAlpha.Writeback()
@@ -125,6 +137,9 @@ func TestDrawMask(t *testing.T) {
 		"drawSrcSubimageShift": {bounds.Inset(24), imgNRGBA.SubImage(imgNRGBA.Bounds().Inset(4)), image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawScissored":        {imgNRGBA.Bounds().Add(image.Pt(24, 24)).Inset(2), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawLarge":            {bounds.Inset(24), imgLarge, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawLarge16":          {bounds.Inset(24), imgLarge16, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawLarge8":           {bounds.Inset(24), imgLarge8, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawLarge4":           {bounds.Inset(0), imgLarge4, image.Point{4, 4}, nil, image.Point{}, draw.Src},
 		"drawShift":            {bounds.Inset(24), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},

@@ -30,12 +30,17 @@ const (
 	BPP32
 )
 
+func (bpp BitDepth) TMEMWords(pixels int) int {
+	return (bpp.Bits(pixels) + 63) >> 6
+}
+
 // For a number of pixels returns their size in bytes.
 func (bpp BitDepth) Bytes(pixels int) int {
-	shift := int(bpp)>>51 - 1
-	if shift < 0 {
-		return pixels >> -shift
-	}
+	return (bpp.Bits(pixels) + 7) >> 3
+}
+
+func (bpp BitDepth) Bits(pixels int) int {
+	shift := int(bpp)>>51 + 2
 	return pixels << shift
 }
 

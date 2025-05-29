@@ -220,15 +220,13 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 	var loadIdx, drawIdx uint8 = 0, 1
 	bpp := max(src.BPP(), texture.BPP8)
 
-	step := rdp.MaxTileSize(bpp)
+	step := rdp.MaxTileSize(src.BPP())
 	ts := rdp.TileDescriptor{
 		Format: src.Format(),
 		Size:   bpp,
 		Addr:   0x0,
-		Line:   uint16((bpp.Bytes(step.Dx()/scale.X) + 7) >> 3),
+		Line:   uint16(src.BPP().TMEMWords(step.Dx() / scale.X)),
 		Idx:    loadIdx,
-
-		MaskS: 5, MaskT: 5, // ignore fractional part
 	}
 	fb.dlist.SetTile(ts)
 	if bpp != src.BPP() {
@@ -251,9 +249,14 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 
 			debug.Assert(!tile.Empty(), "drawing empty tile")
 
-			fb.dlist.LoadTile(loadIdx, tile)
-			if loadIdx != drawIdx {
+			if loadIdx != drawIdx { // load 4bpp texture
+				ltile := tile
+				ltile.Min.X >>= 1
+				ltile.Max.X >>= 1
+				fb.dlist.LoadTile(loadIdx, ltile)
 				fb.dlist.SetTileSize(drawIdx, tile)
+			} else {
+				fb.dlist.LoadTile(loadIdx, tile)
 			}
 			fb.dlist.TextureRectangle(tile.Add(origin), tile.Min, scale, drawIdx)
 		}

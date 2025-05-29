@@ -519,8 +519,20 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 // MaxTileSize returns the largest tile that fits into TMEM for the given
 // bitdepth.
 func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
-	size := 256 >> uint(bpp>>51)
-	return image.Rect(0, 0, size, size)
+	var x, y int
+	switch bpp {
+	case texture.BPP4:
+		x, y = 64, 128
+	case texture.BPP8:
+		x, y = 64, 64
+	case texture.BPP16:
+		x, y = 32, 64
+	case texture.BPP32:
+		x, y = 32, 32
+	default:
+		panic("invalid bpp")
+	}
+	return image.Rect(0, 0, x, y)
 }
 
 // Little unsafe helper to avoid heap allocation from calls to RGBA().
