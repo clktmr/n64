@@ -225,7 +225,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 		Format: src.Format(),
 		Size:   bpp,
 		Addr:   0x0,
-		Line:   uint16(bpp.Bytes(step.Dx()/scale.X) >> 3),
+		Line:   uint16((bpp.Bytes(step.Dx()/scale.X) + 7) >> 3),
 		Idx:    loadIdx,
 
 		MaskS: 5, MaskT: 5, // ignore fractional part
