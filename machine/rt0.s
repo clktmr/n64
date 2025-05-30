@@ -4,6 +4,7 @@
 
 #include "asm_mips64.h"
 
+// _rt0_mips64_noos is the entry point called by IPL3.
 TEXT _rt0_mips64_noos(SB),NOSPLIT|NOFRAME,$0
 	// start at a known state
 	MOVW $(SR_CU1|SR_PE|SR_FR), R2
@@ -21,54 +22,25 @@ TEXT _rt0_mips64_noos(SB),NOSPLIT|NOFRAME,$0
 	// code there generally works, but we get in trouble as soon es we read pointers
 	// from external sources, e.g. when doing symbol lookup. These addresses won't
 	// get sign-extended correctly, but always padded with zeroes instead.
-	// To solve this we map KSEG0, KSEG1 to the beginning of the virtual address
-	// space and continue execution there. This saves us from sign-extending
-	// pointers correctly, as we avoid pointers with bit 31 set, leaving us
-	// effectively with an 31-bit wide address space.
+	// To solve this we map the RDRAM to the beginning of the virtual
+	// address space and continue execution there. This saves us from
+	// sign-extending pointers correctly, as we avoid pointers with bit 31
+	// set, leaving us effectively with an 31-bit wide address space.
 	//
 	// Possibly another way of solving this would be running the n64 in actual
 	// 64-bit mode, but I'm not sure what other problems might occur when accessing
 	// the 32-bit wide system bus.
-	//
-	// TODO currently only 16 MiB of cartridge is mapped
 	MOVV $0, R8
 	MOVV R8, M(C0_INDEX)
-	MOVV $0xfff << 13, R8
+	MOVV $0x3ff << 13, R8 // pagesize = 4 MB
 	MOVV R8, M(C0_PAGEMASK)
-	MOVV $(0x00000000 >> 6) | 0x7, R8
+	MOVV $(0x00000000 >> 6) | 0x7, R8 // first page
 	MOVV R8, M(C0_ENTRYLO0)
-	MOVV $(0x01000000 >> 6) | 0x7, R8
+	MOVV $(0x00400000 >> 6) | 0x7, R8 // second page
 	MOVV R8, M(C0_ENTRYLO1)
-	MOVV $0x00000000, R8
+	MOVV $0x00000000, R8 // vaddr = 0x0
 	MOVV R8, M(C0_ENTRYHI)
 	TLBWI
-
-	MOVV $1, R8
-	MOVV R8, M(C0_INDEX)
-	MOVV $0xfff << 13, R8
-	MOVV R8, M(C0_PAGEMASK)
-	MOVV $(0x10000000 >> 6) | (2<<3) |  0x3, R8
-	MOVV R8, M(C0_ENTRYLO0)
-	MOVV $(0x11000000 >> 6) | (2<<3) |  0x3, R8
-	MOVV R8, M(C0_ENTRYLO1)
-	MOVV $0x10000000, R8
-	MOVV R8, M(C0_ENTRYHI)
-	TLBWI
-
-	MOVV $2, R8
-	MOVV R8, M(C0_INDEX)
-	MOVV $0xfff << 13, R8
-	MOVV R8, M(C0_PAGEMASK)
-	MOVV $(0x00000000 >> 6) | (2<<3) | 0x7, R8
-	MOVV R8, M(C0_ENTRYLO0)
-	MOVV $(0x01000000 >> 6) | (2<<3) | 0x7, R8
-	MOVV R8, M(C0_ENTRYLO1)
-	MOVV $0x20000000, R8
-	MOVV R8, M(C0_ENTRYHI)
-	TLBWI
-
-	JMP tlb // jumps to the tlb mapped memory
-tlb:
 
 	MOVW (0x80000318), R16 // memory size
 	MOVV $0x10, R9
