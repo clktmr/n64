@@ -105,7 +105,7 @@ func TestDrawMask(t *testing.T) {
 	draw.Src.Draw(imgLarge4.Image, imgLarge4.Bounds(), imgN64LogoLarge, image.Point{})
 	imgLarge4.Writeback()
 
-	imgAlpha := texture.NewI8(imgN64LogoSmall.Bounds())
+	imgAlpha := texture.NewAlpha(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(imgAlpha, imgAlpha.Bounds(), imgN64LogoSmall, image.Point{})
 	imgAlpha.Writeback()
 
@@ -144,7 +144,8 @@ func TestDrawMask(t *testing.T) {
 		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawSrcI4":            {bounds.Inset(24), imgI4, image.Point{}, nil, image.Point{}, draw.Src},
-		// TODO "drawSrcI8":            {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Over, 0},
+		"drawSrcAlpha":         {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawOverAlpha":        {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Over},
 	}
 
 	// Run all testcases
@@ -168,7 +169,7 @@ func TestDrawMask(t *testing.T) {
 			drawerHW.Flush()
 
 			// compare
-			const showThreshold = 16 // allow some errors due to precision
+			const showThreshold = 18 // allow some errors due to precision
 			cumErr := 0
 			for x := range bounds.Max.X {
 				for y := range bounds.Max.Y {

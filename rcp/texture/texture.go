@@ -98,8 +98,10 @@ func NewTextureFromImage(img image.Image) (tex *Texture) {
 		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, false}
 	case *imageRGBA16:
 		tex = &Texture{img, img.Pix, img.Stride >> 1, &img.Rect, RGBA, BPP16, true}
-	case *image.Alpha: // TODO should be *image.Gray?
+	case *image.Alpha:
 		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, false}
+	case *image.Gray:
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, true}
 	case *imageI4:
 		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP4, true}
 	}
@@ -138,7 +140,16 @@ func NewRGBA16(r image.Rectangle) *Texture {
 
 // Stores pixels intensity with 8bit
 func NewI8(r image.Rectangle) *Texture {
-	return NewTextureFromImage(&image.Alpha{ // TODO should be *image.Gray?
+	return NewTextureFromImage(&image.Gray{
+		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy(), alignFramebuffer),
+		Stride: r.Dx(),
+		Rect:   r,
+	})
+}
+
+// Stores pixels alpha with 8bit
+func NewAlpha(r image.Rectangle) *Texture {
+	return NewTextureFromImage(&image.Alpha{
 		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy(), alignFramebuffer),
 		Stride: r.Dx(),
 		Rect:   r,

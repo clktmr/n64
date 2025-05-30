@@ -54,7 +54,12 @@ func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask
 	case *texture.Texture:
 		switch mask.(type) {
 		case nil:
-			fb.drawColorImage(r, srcImg, sp, image.Point{1, 1}, nil, op)
+			_, isAlpha := srcImg.Image.(*image.Alpha)
+			if isAlpha {
+				fb.drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.RGBA{0xff, 0xff, 0xff, 0xff}, op)
+			} else {
+				fb.drawColorImage(r, srcImg, sp, image.Point{1, 1}, nil, op)
+			}
 			return
 		}
 	case *image.Uniform:
