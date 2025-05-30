@@ -84,6 +84,7 @@ jobs:
       - name: Build ares
         working-directory: ares
         run: |
+          sudo apt update -y
           sudo apt install -y cmake g++ libgtk-3-dev xvfb mesa-vulkan-drivers
           cmake -B build \
                   -DARES_CORES=n64 \
