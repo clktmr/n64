@@ -213,6 +213,14 @@ func runROM(cmdpath, rompath string) {
 			}()
 		}
 	}
-	cmd.Wait()
+	err = cmd.Wait()
+	if !exiting { // ignore error if we killed cmd ourself
+		if err, ok := err.(*exec.ExitError); ok {
+			os.Exit(err.ExitCode())
+		}
+		if err != nil {
+			log.Fatal("finish command:", err)
+		}
+	}
 	os.Exit(code)
 }
