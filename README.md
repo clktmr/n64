@@ -1,6 +1,6 @@
 # Go on Nintendo 64
 
-Develop applications for the Nintendo64 in pure Go. Builds upon embeddedgo,
+Develop applications for the Nintendo 64 in pure Go. Builds upon embeddedgo,
 which adds a minimal rtos to the runtime via GOOS=noos.
 
 ## Prerequisites
@@ -20,14 +20,15 @@ which adds a minimal rtos to the runtime via GOOS=noos.
 
    The next release of embeddedgo will have these changes included.
 
-2. Install n64toolexec:
+2. Install n64go:
 
 ```sh
-    go install github.com/clktmr/n64/tools/n64toolexec@latest
+    go install github.com/clktmr/n64/tools/n64go@latest
 ```
 
-   This tool is hooked into the go command via the -toolexec flag to provide
-   generation of z64 and uf2 ROM files.
+   This tool helps managing n64 file formats. It's also hooked into the go
+   command via the -toolexec flag to provide generation of z64 and uf2 ROM
+   files.
 
 3. Setup your build environment. Copy `go.env` from this repository to your
    desired location and make use of it:
@@ -76,8 +77,8 @@ or Listener interface is passed to them.
 ### embed
 
 While embed can be used, it will load all embedded files into RAM at boot. As an
-alternative `drivers/cartfs` provides an alternative fs.FS implementation to
-read embedded files from the cartridge via DMA instead.
+alternative `github.com/clktmr/n64/drivers/cartfs` provides a fs.FS
+implementation to read embedded files from the cartridge via DMA instead.
 
 ### testing
 
