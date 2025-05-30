@@ -105,6 +105,7 @@ func Main(args []string) {
 	if flags.NArg() == 1 {
 		infile = flags.Arg(0)
 	} else {
+		log.Println("too many arguments")
 		flags.Usage()
 		os.Exit(1)
 	}

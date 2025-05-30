@@ -6,6 +6,7 @@
 // The commands are:
 //
 //   - [github.com/clktmr/n64/tools/rom]      convert and execute elf to n64 ROMs
+//   - [github.com/clktmr/n64/tools/texture]  generate textures to be used on the n64
 //   - [github.com/clktmr/n64/tools/font]     generate fonts to be used on the n64
 //   - [github.com/clktmr/n64/tools/pakfs]    modify and inspect pakfs images
 //   - [github.com/clktmr/n64/tools/toolexec] used as 'go build -toolexec' parameter
@@ -20,6 +21,7 @@ import (
 	"github.com/clktmr/n64/tools/font"
 	"github.com/clktmr/n64/tools/pakfs"
 	"github.com/clktmr/n64/tools/rom"
+	"github.com/clktmr/n64/tools/texture"
 	"github.com/clktmr/n64/tools/toolexec"
 )
 
@@ -32,6 +34,7 @@ Usage:
 The commands are:
 
 	rom      convert and execute elf to n64 ROMs
+	texture  convert images to n64 textures
 	font     generate fonts to be used on the n64
 	pakfs    modify and inspect pakfs images
 	toolexec used as 'go build -toolexec' parameter
@@ -61,6 +64,8 @@ func main() {
 		toolexec.Main(flag.Args())
 	case "font":
 		font.Main(flag.Args())
+	case "texture":
+		texture.Main(flag.Args())
 	default:
 		fmt.Fprintf(flag.CommandLine.Output(), "unknown command: %s\n", flag.Arg(0))
 		flag.Usage()
