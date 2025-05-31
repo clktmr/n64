@@ -76,6 +76,10 @@ func Load(r io.Reader) (tex *Texture, err error) {
 }
 
 func (p *Texture) Store(w io.Writer) error {
+	if p.stride != p.Bounds().Dx() {
+		return errors.New("is subimage")
+	}
+
 	var hdr = header{
 		Format:  Format(p.BPP()) | Format(p.Format()),
 		Premult: p.Premult(),

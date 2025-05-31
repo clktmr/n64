@@ -103,7 +103,7 @@ func NewTextureFromImage(img image.Image) (tex *Texture) {
 	case *image.Gray:
 		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, true}
 	case *imageI4:
-		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP4, true}
+		tex = &Texture{img, img.Pix, img.Stride << 1, &img.Rect, I, BPP4, true}
 	}
 	tex.Writeback()
 	return
