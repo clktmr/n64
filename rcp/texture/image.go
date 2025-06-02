@@ -21,7 +21,7 @@ func (p *imageRGBA16) Bounds() image.Rectangle {
 
 func (p *imageRGBA16) At(x, y int) color.Color {
 	if !(image.Point{x, y}.In(p.Rect)) {
-		return color.RGBA{}
+		return colorRGBA16(0)
 	}
 	offset := p.PixOffset(x, y)
 	return colorRGBA16(uint16(p.Pix[offset])<<8 | uint16(p.Pix[offset+1]))
@@ -55,7 +55,7 @@ func rgba16Model(c color.Color) color.Color {
 		return c
 	}
 	r, g, b, a := c.RGBA()
-	return colorRGBA16((r & 0xf800) | (g&0xf800)>>5 | (b&0xf800)>>10 | a>>15) // FIXME alpha
+	return colorRGBA16((r & 0xf800) | (g&0xf800)>>5 | (b&0xf800)>>10 | a>>15)
 }
 
 type imageI4 struct {
