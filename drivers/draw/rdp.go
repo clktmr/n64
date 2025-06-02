@@ -179,11 +179,27 @@ var (
 )
 
 func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
+	var modeflags rdp.ModeFlags
 	colorSource := rdp.CombineTex0
 
 	if fill != nil {
 		fb.dlist.SetPrimitiveColor(fill)
 		colorSource = rdp.CombinePrimitive
+	}
+
+	if src.Palette() != nil {
+		modeflags |= rdp.TLUT
+		const tlutIdx = 7
+		fb.dlist.SetTextureImage(src.Palette())
+		ts := rdp.TileDescriptor{
+			Format: texture.CI,
+			Size:   texture.BPP4,
+			Addr:   0x100,
+			Line:   uint16(src.BPP().TMEMWords(src.Palette().Bounds().Dx())),
+			Idx:    tlutIdx,
+		}
+		fb.dlist.SetTile(ts)
+		fb.dlist.LoadTLUT(tlutIdx, src.Palette().Bounds())
 	}
 
 	var blendmode *rdp.BlendMode
@@ -194,7 +210,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 			blendmode = &blendOver
 		}
 		fb.dlist.SetOtherModes(
-			rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
+			rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0|modeflags,
 			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
 		)
 	} else {
@@ -205,7 +221,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 			fb.dlist.SetBlendColor(color.RGBA{A: 0xff})
 		}
 		fb.dlist.SetOtherModes(
-			rdp.ForceBlend|rdp.BiLerp0,
+			rdp.ForceBlend|rdp.BiLerp0|modeflags,
 			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
 		)
 	}
@@ -225,7 +241,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 	var loadIdx, drawIdx uint8 = 0, 1
 	bpp := max(src.BPP(), texture.BPP8)
 
-	step := rdp.MaxTileSize(src.BPP())
+	step := rdp.MaxTileSize(src.BPP(), src.Format())
 	ts := rdp.TileDescriptor{
 		Format: src.Format(),
 		Size:   bpp,

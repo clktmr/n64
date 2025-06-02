@@ -59,6 +59,7 @@ type Texture struct {
 	format  ImageFormat
 	bpp     BitDepth
 	premult bool
+	palette *Texture
 }
 
 // Addr returns the base address of the images pixel data.
@@ -73,6 +74,9 @@ func (p *Texture) Format() ImageFormat { return p.format }
 
 // BPP returns the pixel's bit depth.
 func (p *Texture) BPP() BitDepth { return p.bpp }
+
+// Palette returns the color palette texture for formats CI4 and CI8.
+func (p *Texture) Palette() *Texture { return p.palette }
 
 // SetOrigin moves the coordinate system of the texture to origin. Useful if
 // subimages are used as viewports and should have their origin in (0, 0).
@@ -93,17 +97,21 @@ func (p *Texture) SubImage(r image.Rectangle) *Texture {
 func NewTextureFromImage(img image.Image) (tex *Texture) {
 	switch img := img.(type) {
 	case *image.RGBA:
-		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, true}
+		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, true, nil}
 	case *image.NRGBA:
-		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, false}
+		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, false, nil}
 	case *imageRGBA16:
-		tex = &Texture{img, img.Pix, img.Stride >> 1, &img.Rect, RGBA, BPP16, true}
+		tex = &Texture{img, img.Pix, img.Stride >> 1, &img.Rect, RGBA, BPP16, true, nil}
 	case *image.Alpha:
-		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, false}
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, false, nil}
 	case *image.Gray:
-		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, true}
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, true, nil}
 	case *imageI4:
-		tex = &Texture{img, img.Pix, img.Stride << 1, &img.Rect, I, BPP4, true}
+		tex = &Texture{img, img.Pix, img.Stride << 1, &img.Rect, I, BPP4, true, nil}
+	case *imageCI8:
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, CI, BPP8, true, NewTextureFromImage(img.Palette)}
+	default:
+		panic("unsupported image format")
 	}
 	tex.Writeback()
 	return
@@ -163,5 +171,15 @@ func NewI4(r image.Rectangle) *Texture {
 		Pix:    cpu.MakePaddedSliceAligned[byte](dx*r.Dy()/2, alignFramebuffer),
 		Stride: dx / 2,
 		Rect:   r,
+	})
+}
+
+// Stores pixels color index in a RGBA16 palette
+func NewCI8(r image.Rectangle, palette *ColorPalette) *Texture {
+	return NewTextureFromImage(&imageCI8{
+		Pix:     cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy(), alignFramebuffer),
+		Stride:  r.Dx(),
+		Rect:    r,
+		Palette: palette,
 	})
 }

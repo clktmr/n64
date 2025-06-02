@@ -1,8 +1,11 @@
 package texture
 
 import (
+	"errors"
 	"image"
 	"image/color"
+
+	"github.com/clktmr/n64/rcp/cpu"
 )
 
 // FIXME these need SubImage implementations
@@ -121,4 +124,105 @@ func i4Model(c color.Color) color.Color {
 	y := (19595*r + 38470*g + 7471*b + 1<<15) >> 28
 
 	return colorI4(y)
+}
+
+type imageCI8 struct {
+	Pix     []uint8
+	Stride  int
+	Rect    image.Rectangle
+	Palette *ColorPalette
+}
+
+func (p *imageCI8) ColorModel() color.Model { return p.Palette }
+
+func (p *imageCI8) Bounds() image.Rectangle { return p.Rect }
+
+func (p *imageCI8) At(x, y int) color.Color {
+	if !(image.Point{x, y}.In(p.Rect)) {
+		return colorRGBA16(0)
+	}
+	i := p.PixOffset(x, y)
+	return p.Palette.At(int(p.Pix[i]), 0)
+}
+
+func (p *imageCI8) PixOffset(x, y int) int {
+	return (y-p.Rect.Min.Y)*p.Stride + (x - p.Rect.Min.X)
+}
+
+func (p *imageCI8) Set(x, y int, c color.Color) {
+	if !(image.Point{x, y}.In(p.Rect)) {
+		return
+	}
+	i := p.PixOffset(x, y)
+	p.Pix[i] = uint8(p.Palette.Index(c))
+}
+
+func (p *imageCI8) SubImage(r image.Rectangle) image.Image {
+	r = r.Intersect(p.Rect)
+	if r.Empty() {
+		return &imageCI8{
+			Palette: p.Palette,
+		}
+	}
+	i := p.PixOffset(r.Min.X, r.Min.Y)
+	return &imageCI8{
+		Pix:     p.Pix[i:],
+		Stride:  p.Stride,
+		Rect:    p.Rect.Intersect(r),
+		Palette: p.Palette,
+	}
+}
+
+// ColorPalette is a palette of RGBA16 colors.
+type ColorPalette = imageRGBA16
+
+func CopyColorPalette(src color.Palette) (*ColorPalette, error) {
+	if len(src) > 256 {
+		return nil, errors.New("palette to large (>256)")
+	}
+	p := NewColorPalette(uint8(len(src)))
+
+	for i, c := range src {
+		p.Set(i, 0, c)
+	}
+	return p, nil
+}
+
+func NewColorPalette(size uint8) *ColorPalette {
+	p := &imageRGBA16{
+		Pix:    cpu.MakePaddedSliceAligned[byte](int(size)*2, alignFramebuffer),
+		Stride: 2 * int(size),
+		Rect:   image.Rect(0, 0, int(size), 1),
+	}
+
+	return (*ColorPalette)(p)
+}
+
+// Convert returns the palette color closest to c in Euclidean R,G,B space.
+func (p *ColorPalette) Convert(c color.Color) color.Color {
+	return p.At(p.Index(c), 0)
+}
+
+// Index returns the index of the palette color closest to c in Euclidean
+// R,G,B,A space.
+func (p *ColorPalette) Index(c color.Color) int {
+	cr, cg, cb, ca := c.RGBA()
+	ret, bestSum := 0, uint32(1<<32-1)
+	for i := range p.Rect.Dx() {
+		v := p.At(i, 0)
+		vr, vg, vb, va := v.RGBA()
+		sum := sqDiff(cr, vr) + sqDiff(cg, vg) + sqDiff(cb, vb) + sqDiff(ca, va)
+		if sum < bestSum {
+			if sum == 0 {
+				return i
+			}
+			ret, bestSum = i, sum
+		}
+	}
+	return ret
+}
+
+func sqDiff(x, y uint32) uint32 {
+	d := x - y
+	return (d * d) >> 2
 }

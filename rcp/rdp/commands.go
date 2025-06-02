@@ -220,6 +220,15 @@ func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
 	dl.Push(cmd)
 }
 
+// Copies a color palette into TMEM. The palette is copied from the texture image, which
+// must be set prior via SetTextureImage().
+func (dl *DisplayList) LoadTLUT(idx uint8, r image.Rectangle) {
+	cmd := 0xf0<<56 | command(r.Min.X)<<46 | command(r.Min.Y)<<34
+	cmd |= command(idx)<<24 | command(r.Max.X-1)<<14 | command(r.Max.Y-1)<<2
+
+	dl.Push(cmd)
+}
+
 // Tile size is automatically set on LoadTile(), but can be overidden with
 // SetTileSize().
 func (dl *DisplayList) SetTileSize(idx uint8, r image.Rectangle) {
@@ -523,7 +532,7 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 
 // MaxTileSize returns the largest tile that fits into TMEM for the given
 // bitdepth.
-func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
+func MaxTileSize(bpp texture.BitDepth, format texture.ImageFormat) image.Rectangle {
 	var x, y int
 	switch bpp {
 	case texture.BPP4:
@@ -537,6 +546,11 @@ func MaxTileSize(bpp texture.BitDepth) image.Rectangle {
 	default:
 		panic("invalid bpp")
 	}
+
+	if format == texture.CI {
+		y >>= 1
+	}
+
 	return image.Rect(0, 0, x, y)
 }
 

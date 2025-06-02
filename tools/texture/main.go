@@ -9,19 +9,22 @@ import (
 	"path/filepath"
 	"strings"
 
+	"image/color"
 	"image/draw"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 
 	"github.com/clktmr/n64/rcp/texture"
+	"github.com/ericpauley/go-quantize/quantize"
 )
 
 var (
 	flags = flag.NewFlagSet("texture", flag.ExitOnError)
 
-	format = flags.String("format", "RGBA32", "image format and bit depth")
-	dither = flags.Bool("dither", false, "enable Floyd-Steinberg error diffusion")
+	format  = flags.String("format", "RGBA32", "image format and bit depth")
+	dither  = flags.Bool("dither", false, "enable Floyd-Steinberg error diffusion")
+	palette = flags.Int("palette", 256, "number of colors in CI4 and CI8 format")
 
 	imagefile string
 )
@@ -74,7 +77,14 @@ func Main(args []string) {
 		dst = texture.NewI8(src.Bounds())
 	case "I4":
 		dst = texture.NewI4(src.Bounds())
-	// case "CI8":
+	case "CI8":
+		q := quantize.MedianCutQuantizer{}
+		p := q.Quantize(make([]color.Color, 0, *palette), src)
+		cp, err := texture.CopyColorPalette(p)
+		if err != nil {
+			log.Fatal(err)
+		}
+		dst = texture.NewCI8(src.Bounds(), cp)
 	// case "CI4":
 	default:
 		log.Fatal("unsupported format:", *format)
