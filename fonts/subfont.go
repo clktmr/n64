@@ -75,11 +75,11 @@ func NewSubfontData(pos, tex []byte, height, ascent int) *SubfontData {
 }
 
 type Loader struct {
-	FS             cartfs.FS
+	FS             *cartfs.FS
 	Height, Ascent int
 }
 
-func (l Loader) Load(r rune, current []*subfont.Subfont) (containing *subfont.Subfont, updated []*subfont.Subfont) {
+func (l *Loader) Load(r rune, current []*subfont.Subfont) (containing *subfont.Subfont, updated []*subfont.Subfont) {
 	entries, err := l.FS.ReadDir(".")
 	if err != nil {
 		panic(err)
@@ -105,7 +105,7 @@ func (l Loader) Load(r rune, current []*subfont.Subfont) (containing *subfont.Su
 	return
 }
 
-func (l Loader) loadSubfont(name string, first, last rune) *subfont.Subfont {
+func (l *Loader) loadSubfont(name string, first, last rune) *subfont.Subfont {
 	sfPos, err := l.FS.ReadFile(name + ".pos")
 	if err != nil {
 		panic(err)

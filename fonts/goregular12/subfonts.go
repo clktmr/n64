@@ -22,7 +22,7 @@ func NewFace() *fonts.Face {
 	return &fonts.Face{
 		subfont.Face{Height: Height,
 			Ascent: Ascent,
-			Loader: fonts.Loader{fontData, Height, Ascent},
+			Loader: &fonts.Loader{&fontData, Height, Ascent},
 		},
 	}
 }
