@@ -8,8 +8,6 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-// FIXME these need SubImage implementations
-
 type imageRGBA16 struct {
 	Pix    []uint8
 	Stride int
@@ -42,6 +40,19 @@ func (p *imageRGBA16) Set(x, y int, c color.Color) {
 
 func (p *imageRGBA16) PixOffset(x, y int) int {
 	return (y-p.Rect.Min.Y)*p.Stride + (x-p.Rect.Min.X)*2
+}
+
+func (p *imageRGBA16) SubImage(r image.Rectangle) image.Image {
+	r = r.Intersect(p.Rect)
+	if r.Empty() {
+		return &imageRGBA16{}
+	}
+	i := p.PixOffset(r.Min.X, r.Min.Y)
+	return &imageRGBA16{
+		Pix:    p.Pix[i:],
+		Stride: p.Stride,
+		Rect:   p.Rect.Intersect(r),
+	}
 }
 
 type colorRGBA16 uint16
@@ -102,6 +113,19 @@ func (p *imageI4) Set(x, y int, c color.Color) {
 
 func (p *imageI4) PixOffset(x, y int) int {
 	return (y-p.Rect.Min.Y)*p.Stride + (x-p.Rect.Min.X)/2
+}
+
+func (p *imageI4) SubImage(r image.Rectangle) image.Image {
+	r = r.Intersect(p.Rect)
+	if r.Empty() {
+		return &imageI4{}
+	}
+	i := p.PixOffset(r.Min.X, r.Min.Y)
+	return &imageI4{
+		Pix:    p.Pix[i:],
+		Stride: p.Stride,
+		Rect:   p.Rect.Intersect(r),
+	}
 }
 
 type colorI4 uint8
