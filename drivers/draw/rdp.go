@@ -192,10 +192,9 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 		const tlutIdx = 7
 		fb.dlist.SetTextureImage(src.Palette())
 		ts := rdp.TileDescriptor{
-			Format: texture.CI,
-			Size:   texture.BPP4,
+			Format: texture.CI4,
 			Addr:   0x100,
-			Line:   uint16(src.BPP().TMEMWords(src.Palette().Bounds().Dx())),
+			Line:   uint16(src.Format().TMEMWords(src.Palette().Bounds().Dx())),
 			Idx:    tlutIdx,
 		}
 		fb.dlist.SetTile(ts)
@@ -239,19 +238,18 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 	// Loading BPP4 crashes the RDP. As a workaround create two tiles with
 	// different BPP, one for loading and one for drawing.
 	var loadIdx, drawIdx uint8 = 0, 1
-	bpp := max(src.BPP(), texture.BPP8)
+	loadFormat := src.Format().SetDepth(max(src.Format().Depth(), texture.BPP8))
 
-	step := rdp.MaxTileSize(src.BPP(), src.Format())
+	step := rdp.MaxTileSize(src.Format())
 	ts := rdp.TileDescriptor{
-		Format: src.Format(),
-		Size:   bpp,
+		Format: loadFormat,
 		Addr:   0x0,
-		Line:   uint16(src.BPP().TMEMWords(step.Dx() / scale.X)),
+		Line:   uint16(src.Format().TMEMWords(step.Dx() / scale.X)),
 		Idx:    loadIdx,
 	}
 	fb.dlist.SetTile(ts)
-	if bpp != src.BPP() {
-		ts.Size = src.BPP()
+	if loadFormat != src.Format() {
+		ts.Format = src.Format()
 		ts.Idx = drawIdx
 		fb.dlist.SetTile(ts)
 	} else {
@@ -321,9 +319,8 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 	debug.Assert(ok, "fontmap format")
 	ts := rdp.TileDescriptor{
 		Format: tex.Format(),
-		Size:   tex.BPP(),
 		Addr:   0x0,
-		Line:   uint16(tex.BPP().Bytes(tex.Bounds().Dx()+1) >> 3),
+		Line:   uint16(tex.Format().TMEMWords(tex.Bounds().Dx())),
 		Idx:    idx,
 
 		MaskS: 5, MaskT: 5, // ignore fractional part

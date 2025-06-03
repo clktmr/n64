@@ -64,7 +64,7 @@ func updateFramebuffer(fb *texture.Texture) {
 			// more than a pixel.
 			for yOffset >= 1024 {
 				yOffset -= 1024
-				addr += cpu.Addr(fb.BPP().Bytes(fb.Stride()))
+				addr += cpu.Addr(fb.Format().Bytes(fb.Stride()))
 			}
 			yScale = (uint32(yOffset)<<16 | 0xffff&regs.yScale.Load())
 		} else { // even field

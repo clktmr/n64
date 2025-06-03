@@ -11,38 +11,67 @@ import (
 
 // TODO ensure alignment in New*FromImage() and *.SubImage()
 
-type ImageFormat uint64
+type Format uint64
 
 const (
-	RGBA ImageFormat = iota << 53
+	RGBA32 = Format(RGBA) | Format(BPP32)
+	RGBA16 = Format(RGBA) | Format(BPP16)
+	YUV16  = Format(YUV) | Format(BPP16)
+	IA16   = Format(IA) | Format(BPP16)
+	IA8    = Format(IA) | Format(BPP8)
+	IA4    = Format(IA) | Format(BPP4)
+	I8     = Format(I) | Format(BPP8)
+	I4     = Format(I) | Format(BPP4)
+	CI8    = Format(CI) | Format(BPP8)
+	CI4    = Format(CI) | Format(BPP4)
+)
+
+func (c Format) Components() Components {
+	return Components(c & (0x7 << 53))
+}
+
+func (c Format) Depth() Depth {
+	return Depth(c & (0x3 << 51))
+}
+
+func (c Format) SetDepth(bpp Depth) Format {
+	return Format(c.Components()) | Format(bpp)
+}
+
+// TMEMWords returns the size in TMEM words (8 byte) for a number of pixels.
+func (c Format) TMEMWords(pixels int) int {
+	return (c.Bits(pixels) + 63) >> 6
+}
+
+// Bytes returns the size in bytes for a number of pixels.
+func (c Format) Bytes(pixels int) int {
+	return (c.Bits(pixels) + 7) >> 3
+}
+
+// Bits returns the size in bits for a number of pixels.
+func (c Format) Bits(pixels int) int {
+	shift := int(c.Depth())>>51 + 2
+	return pixels << shift
+}
+
+type Components uint64
+
+const (
+	RGBA Components = iota << 53
 	YUV
 	CI // Color Palette
 	IA // Intensity with alpha
 	I  // Intensity
 )
 
-type BitDepth uint64
+type Depth uint64
 
 const (
-	BPP4 BitDepth = iota << 51
+	BPP4 Depth = iota << 51
 	BPP8
 	BPP16
 	BPP32
 )
-
-func (bpp BitDepth) TMEMWords(pixels int) int {
-	return (bpp.Bits(pixels) + 63) >> 6
-}
-
-// For a number of pixels returns their size in bytes.
-func (bpp BitDepth) Bytes(pixels int) int {
-	return (bpp.Bits(pixels) + 7) >> 3
-}
-
-func (bpp BitDepth) Bits(pixels int) int {
-	shift := int(bpp)>>51 + 2
-	return pixels << shift
-}
 
 const (
 	alignFramebuffer = 64
@@ -56,8 +85,7 @@ type Texture struct {
 	stride int
 	rect   *image.Rectangle
 
-	format  ImageFormat
-	bpp     BitDepth
+	format  Format
 	premult bool
 	palette *Texture
 }
@@ -70,10 +98,7 @@ func (p *Texture) Addr() cpu.Addr { return cpu.PhysicalAddressSlice(p.pix) }
 func (p *Texture) Stride() int { return p.stride }
 
 // Format returns the pixel's color format.
-func (p *Texture) Format() ImageFormat { return p.format }
-
-// BPP returns the pixel's bit depth.
-func (p *Texture) BPP() BitDepth { return p.bpp }
+func (p *Texture) Format() Format { return p.format }
 
 // Palette returns the color palette texture for formats CI4 and CI8.
 func (p *Texture) Palette() *Texture { return p.palette }
@@ -97,19 +122,19 @@ func (p *Texture) SubImage(r image.Rectangle) *Texture {
 func NewTextureFromImage(img image.Image) (tex *Texture) {
 	switch img := img.(type) {
 	case *image.RGBA:
-		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, true, nil}
+		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA32, true, nil}
 	case *image.NRGBA:
-		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA, BPP32, false, nil}
+		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA32, false, nil}
 	case *imageRGBA16:
-		tex = &Texture{img, img.Pix, img.Stride >> 1, &img.Rect, RGBA, BPP16, true, nil}
+		tex = &Texture{img, img.Pix, img.Stride >> 1, &img.Rect, RGBA16, true, nil}
 	case *image.Alpha:
-		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, false, nil}
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I8, false, nil}
 	case *image.Gray:
-		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I, BPP8, true, nil}
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I8, true, nil}
 	case *imageI4:
-		tex = &Texture{img, img.Pix, img.Stride << 1, &img.Rect, I, BPP4, true, nil}
+		tex = &Texture{img, img.Pix, img.Stride << 1, &img.Rect, I4, true, nil}
 	case *imageCI8:
-		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, CI, BPP8, true, NewTextureFromImage(img.Palette)}
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, CI8, true, NewTextureFromImage(img.Palette)}
 	default:
 		panic("unsupported image format")
 	}

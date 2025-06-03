@@ -8,21 +8,6 @@ import (
 	"io"
 )
 
-type Format uint64
-
-const (
-	fmtRGBA32 = Format(RGBA) | Format(BPP32)
-	fmtRGBA16 = Format(RGBA) | Format(BPP16)
-	fmtYUV16  = Format(YUV) | Format(BPP16)
-	fmtIA16   = Format(IA) | Format(BPP16)
-	fmtIA8    = Format(IA) | Format(BPP8)
-	fmtIA4    = Format(IA) | Format(BPP4)
-	fmtI8     = Format(I) | Format(BPP8)
-	fmtI4     = Format(I) | Format(BPP4)
-	fmtCI8    = Format(CI) | Format(BPP8)
-	fmtCI4    = Format(CI) | Format(BPP4)
-)
-
 type header struct {
 	Format        Format
 	Premult       bool
@@ -44,23 +29,23 @@ func Load(r io.Reader) (tex *Texture, err error) {
 	}
 	rect := image.Rect(0, 0, int(hdr.Width), int(hdr.Height))
 	switch hdr.Format {
-	case fmtRGBA32:
+	case RGBA32:
 		if hdr.Premult {
 			tex = NewRGBA32(rect)
 		} else {
 			tex = NewNRGBA32(rect)
 		}
-	case fmtRGBA16:
+	case RGBA16:
 		tex = NewRGBA16(rect)
 	// case fmtYUV16:
 	// case fmtIA16:
 	// case fmtIA8:
 	// case fmtIA4:
-	case fmtI8:
+	case I8:
 		tex = NewI8(rect)
-	case fmtI4:
+	case I4:
 		tex = NewI4(rect)
-	case fmtCI8:
+	case CI8:
 		tex = NewCI8(rect, NewColorPalette(hdr.PaletteSize))
 	// case fmtCI4:
 	default:
@@ -90,7 +75,7 @@ func (p *Texture) Store(w io.Writer) error {
 	}
 
 	var hdr = header{
-		Format:  Format(p.BPP()) | Format(p.Format()),
+		Format:  p.Format(),
 		Premult: p.Premult(),
 		Width:   uint16(p.Bounds().Dx()),
 		Height:  uint16(p.Bounds().Dy()),

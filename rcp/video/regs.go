@@ -217,10 +217,10 @@ func SetFramebuffer(fb *texture.Texture) {
 		regs.control.Store(0)
 		framebuffer.Put(nil)
 	} else if currentFb == nil ||
-		currentFb.BPP() != fb.BPP() ||
+		currentFb.Format() != fb.Format() ||
 		currentFb.Bounds().Size() != fb.Bounds().Size() {
 
-		control := uint32(bpp(fb.BPP())) | uint32(aaResampling)
+		control := uint32(bpp(fb.Format().Depth())) | uint32(aaResampling)
 		if interlaced {
 			control |= uint32(controlSerrate)
 		}
@@ -264,7 +264,7 @@ func NativeResolution() image.Point {
 	return resolution
 }
 
-func bpp(bpp texture.BitDepth) ColorDepth {
+func bpp(bpp texture.Depth) ColorDepth {
 	switch bpp {
 	case texture.BPP16:
 		return BPP16

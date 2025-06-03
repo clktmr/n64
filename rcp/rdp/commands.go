@@ -54,7 +54,7 @@ type state struct {
 	interlace               InterlaceFrame
 
 	size image.Point
-	bpp  texture.BitDepth
+	bpp  texture.Depth
 }
 
 var RDP DisplayList
@@ -105,17 +105,17 @@ func (dl *DisplayList) Push(cmd command) { // TODO unexport
 func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 	debug.Assert(img.Addr()%64 == 0, "rdp framebuffer alignment")
 	debug.Assert(img.Stride() < 1<<10, "rdp framebuffer width too big")
-	debug.Assert(img.Format() == texture.RGBA && img.BPP() == texture.BPP16 ||
-		img.Format() == texture.RGBA && img.BPP() == texture.BPP32 ||
-		img.Format() == texture.I && img.BPP() == texture.BPP8, "rdp unsupported format")
+	debug.Assert(img.Format() == texture.RGBA16 ||
+		img.Format() == texture.RGBA32 ||
+		img.Format() == texture.I8, "rdp unsupported format")
 
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
-	dl.Push(((0xff << 56) | command(img.Format()) | command(img.BPP()) | command(img.Stride()-1)<<32) |
+	dl.Push(((0xff << 56) | command(img.Format()) | command(img.Stride()-1)<<32) |
 		command(img.Addr()))
 
 	dl.size = img.Bounds().Size()
-	dl.bpp = img.BPP()
+	dl.bpp = img.Format().Depth()
 }
 
 // Sets the zbuffer. Width is taken from SetColorImage, bpp is always 18.
@@ -130,15 +130,15 @@ func (dl *DisplayList) SetTextureImage(img *texture.Texture) {
 	debug.Assert(img.Addr()%8 == 0, "rdp texture must be 8 byte aligned")
 	debug.Assert(img.Stride() <= 1<<9, "rdp texture width too big")
 
-	bpp := img.BPP()
+	format := img.Format()
 	stride := img.Stride()
-	if img.BPP() == texture.BPP4 { // loading BPP4 crashes the RDP
-		bpp = texture.BPP8
+	if format.Depth() == texture.BPP4 { // loading BPP4 crashes the RDP
+		format = texture.Format(format.Components()) | texture.Format(texture.BPP8)
 		stride >>= 1
 	}
 
 	// according to wiki, format[23:21] has no effect
-	dl.Push((0xfd << 56) | command(bpp) | command(stride-1)<<32 |
+	dl.Push((0xfd << 56) | command(format) | command(stride-1)<<32 |
 		command(img.Addr()))
 }
 
@@ -151,8 +151,9 @@ const (
 	ClampT  TileDescFlags = 1 << 19
 )
 
-func supportedFormat(fmt texture.ImageFormat, bpp texture.BitDepth) bool {
-	switch fmt {
+func supportedFormat(fmt texture.Format) bool {
+	bpp := fmt.Depth()
+	switch fmt.Components() {
 	case texture.RGBA:
 		return bpp == texture.BPP16 || bpp == texture.BPP32
 	case texture.YUV:
@@ -168,8 +169,7 @@ func supportedFormat(fmt texture.ImageFormat, bpp texture.BitDepth) bool {
 }
 
 type TileDescriptor struct {
-	Format         texture.ImageFormat
-	Size           texture.BitDepth
+	Format         texture.Format
 	Line           uint16 // 9 bit; line length in qwords
 	Addr           uint16 // 9 bit; TMEM address in qwords
 	Idx            uint8  // 3 bit; Tile index
@@ -191,14 +191,14 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 	debug.Assert(ts.MaskS < 1<<4, "tile mask out of bounds")
 	debug.Assert(ts.ShiftT < 1<<4, "tile shift out of bounds")
 	debug.Assert(ts.ShiftS < 1<<4, "tile shift out of bounds")
-	debug.Assert(supportedFormat(ts.Format, ts.Size), "tile unsupported format")
+	debug.Assert(supportedFormat(ts.Format), "tile unsupported format")
 
 	// some formats must indicate 16 byte instead of 8 byte texels
-	if ts.Size == texture.BPP32 && (ts.Format == texture.RGBA || ts.Format == texture.YUV) {
+	if ts.Format.Depth() == texture.BPP32 {
 		ts.Line = ts.Line >> 1
 	}
 
-	cmd := command(0xf5<<56) | command(ts.Format) | command(ts.Size)
+	cmd := command(0xf5<<56) | command(ts.Format)
 	cmd |= command(ts.Line)<<41 | command(ts.Addr)<<32
 	cmd |= command(ts.Idx)<<24 | command(ts.Palette)<<20
 	cmd |= command(ts.MaskT)<<14 | command(ts.ShiftT)<<10
@@ -532,9 +532,9 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 
 // MaxTileSize returns the largest tile that fits into TMEM for the given
 // bitdepth.
-func MaxTileSize(bpp texture.BitDepth, format texture.ImageFormat) image.Rectangle {
+func MaxTileSize(format texture.Format) image.Rectangle {
 	var x, y int
-	switch bpp {
+	switch format.Depth() {
 	case texture.BPP4:
 		x, y = 64, 128
 	case texture.BPP8:
@@ -547,7 +547,7 @@ func MaxTileSize(bpp texture.BitDepth, format texture.ImageFormat) image.Rectang
 		panic("invalid bpp")
 	}
 
-	if format == texture.CI {
+	if format.Components() == texture.CI {
 		y >>= 1
 	}
 
