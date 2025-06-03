@@ -177,10 +177,10 @@ func (p *imageCI8) SubImage(r image.Rectangle) image.Image {
 type ColorPalette = imageRGBA16
 
 func CopyColorPalette(src color.Palette) (*ColorPalette, error) {
-	if len(src) > 256 {
-		return nil, errors.New("palette to large (>256)")
+	p, err := NewColorPalette(len(src))
+	if err != nil {
+		return nil, err
 	}
-	p := NewColorPalette(uint8(len(src)))
 
 	for i, c := range src {
 		p.Set(i, 0, c)
@@ -188,14 +188,17 @@ func CopyColorPalette(src color.Palette) (*ColorPalette, error) {
 	return p, nil
 }
 
-func NewColorPalette(size uint8) *ColorPalette {
+func NewColorPalette(size int) (*ColorPalette, error) {
+	if size > 256 {
+		return nil, errors.New("palette to large (>256)")
+	}
 	p := &imageRGBA16{
 		Pix:    cpu.MakePaddedSliceAligned[byte](int(size)*2, alignFramebuffer),
 		Stride: 2 * int(size),
 		Rect:   image.Rect(0, 0, int(size), 1),
 	}
 
-	return (*ColorPalette)(p)
+	return (*ColorPalette)(p), nil
 }
 
 // Convert returns the palette color closest to c in Euclidean R,G,B space.

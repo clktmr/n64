@@ -12,7 +12,7 @@ type header struct {
 	Format        Format
 	Premult       bool
 	Width, Height uint16
-	PaletteSize   uint8
+	PaletteSize   uint16
 }
 
 func Load(r io.Reader) (tex *Texture, err error) {
@@ -46,7 +46,11 @@ func Load(r io.Reader) (tex *Texture, err error) {
 	case I4:
 		tex = NewI4(rect)
 	case CI8:
-		tex = NewCI8(rect, NewColorPalette(hdr.PaletteSize))
+		palette, err := NewColorPalette(int(hdr.PaletteSize))
+		if err != nil {
+			return nil, err
+		}
+		tex = NewCI8(rect, palette)
 	// case fmtCI4:
 	default:
 		return nil, errors.New("unsupported format")
@@ -82,7 +86,8 @@ func (p *Texture) Store(w io.Writer) error {
 	}
 
 	if p.palette != nil {
-		hdr.PaletteSize = uint8(p.palette.Bounds().Dx() * p.palette.Bounds().Dy())
+		r := p.palette.Bounds()
+		hdr.PaletteSize = uint16(r.Dx() * r.Dy())
 	}
 
 	zw := zlib.NewWriter(w)
