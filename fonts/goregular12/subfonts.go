@@ -14,7 +14,7 @@ const (
 	Ascent = 12
 )
 
-//go:embed *.png *.pos
+//go:embed *.tex *.pos
 var _fontData embed.FS
 var fontData = cartfs.Embed(_fontData)
 

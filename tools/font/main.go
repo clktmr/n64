@@ -6,19 +6,18 @@
 package font
 
 import (
-	"bufio"
 	"encoding/binary"
 	"flag"
 	"fmt"
 	"image"
 	"image/draw"
-	"image/png"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
+	"github.com/clktmr/n64/rcp/texture"
 	"github.com/golang/freetype"
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
@@ -79,7 +78,7 @@ func Main(args []string) {
 
 	// Initialize the context.
 	fg, bg := image.White, image.Black
-	fontMap := image.NewGray(image.Rect(0, 0, dim, dim))
+	fontMap := texture.NewI4(image.Rect(0, 0, dim, dim))
 	draw.Draw(fontMap, fontMap.Bounds(), bg, image.Point{}, draw.Src)
 	c := freetype.NewContext()
 	c.SetDPI(*dpi)
@@ -153,18 +152,13 @@ func Main(args []string) {
 	os.MkdirAll(directory, 0775)
 	basename := fmt.Sprintf("%04x_%04x", *start, *end)
 
-	filename := fmt.Sprintf("%s.png", basename)
+	filename := fmt.Sprintf("%s.tex", basename)
 	mapFile, err := os.Create(filepath.Join(directory, filename))
 	if err != nil {
 		log.Fatalln(err)
 	}
 	defer mapFile.Close()
-	b := bufio.NewWriter(mapFile)
-	err = png.Encode(b, shrinkedFontMap)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	err = b.Flush()
+	err = shrinkedFontMap.Store(mapFile)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -225,7 +219,7 @@ const (
 	Ascent = {{ .Ascent }}
 )
 
-//go:embed *.png *.pos
+//go:embed *.tex *.pos
 var _fontData embed.FS
 var fontData = cartfs.Embed(_fontData)
 

@@ -3,12 +3,10 @@ package fonts
 import (
 	"bytes"
 	"image"
-	"image/png"
 	"path"
 	"strconv"
 	"strings"
 
-	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/drivers/cartfs"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/embeddedgo/display/font/subfont"
@@ -54,24 +52,19 @@ func (p *SubfontData) glyph(i int) (img *texture.Texture, origin image.Point, ad
 }
 
 // Returns data for a subfont from an image.
-func NewSubfontData(pos, imgPng []byte, height, ascent int) *SubfontData {
+func NewSubfontData(pos, tex []byte, height, ascent int) *SubfontData {
 	f := &SubfontData{
 		height:    height,
 		ascent:    ascent,
 		positions: pos,
 	}
 
-	// TODO Store images raw instead of compressed
-	fontMapReader := bytes.NewReader(imgPng)
-	fontMap, err := png.Decode(fontMapReader)
-	debug.AssertErrNil(err)
-	imgGray, ok := fontMap.(*image.Gray)
-	debug.Assert(ok, "fontmap format")
-	f.fontMap = texture.NewTextureFromImage(&image.Alpha{
-		Pix:    imgGray.Pix,
-		Stride: imgGray.Stride,
-		Rect:   imgGray.Rect,
-	})
+	fontMapReader := bytes.NewReader(tex)
+	fontMap, err := texture.Load(fontMapReader)
+	if err != nil {
+		panic(err)
+	}
+	f.fontMap = fontMap
 
 	for i := range f.glyphs {
 		g := &f.glyphs[i]
@@ -117,7 +110,7 @@ func (l Loader) loadSubfont(name string, first, last rune) *subfont.Subfont {
 	if err != nil {
 		panic(err)
 	}
-	sfPng, err := l.FS.ReadFile(name + ".png")
+	sfTex, err := l.FS.ReadFile(name + ".tex")
 	if err != nil {
 		panic(err)
 	}
@@ -125,6 +118,6 @@ func (l Loader) loadSubfont(name string, first, last rune) *subfont.Subfont {
 		First:  first,
 		Last:   last,
 		Offset: 0,
-		Data:   NewSubfontData(sfPos, sfPng, l.Height, l.Ascent),
+		Data:   NewSubfontData(sfPos, sfTex, l.Height, l.Ascent),
 	}
 }
