@@ -168,11 +168,15 @@ func supportedFormat(fmt texture.Format) bool {
 	return false
 }
 
+const (
+	tile4bpp = 1
+)
+
 type TileDescriptor struct {
 	Format         texture.Format
 	Line           uint16 // 9 bit; line length in qwords
 	Addr           uint16 // 9 bit; TMEM address in qwords
-	Idx            uint8  // 3 bit; Tile index
+	idx            uint8  // 3 bit; Tile index
 	Palette        uint8  // 4 bit; Palette index
 	MaskT, MaskS   uint8  // 4 bit
 	ShiftT, ShiftS uint8  // 4 bit
@@ -182,10 +186,10 @@ type TileDescriptor struct {
 // Sets a tile's properties. There are a total of eight tiles, identified by
 // the Idx field, which can later be referenced in other commands, e.g.
 // LoadTile().
-func (dl *DisplayList) SetTile(ts TileDescriptor) {
+func (dl *DisplayList) SetTile(ts TileDescriptor) (loadIdx, drawIdx uint8) {
 	debug.Assert(ts.Line < 1<<9, "tile line length out of bounds")
 	debug.Assert(ts.Addr < 1<<9, "tile addr out of bounds")
-	debug.Assert(ts.Idx < 1<<3, "tile index out of bounds")
+	debug.Assert(ts.idx < 1<<3, "tile index out of bounds")
 	debug.Assert(ts.Palette < 1<<4, "tile palette index out of bounds")
 	debug.Assert(ts.MaskT < 1<<4, "tile mask out of bounds")
 	debug.Assert(ts.MaskS < 1<<4, "tile mask out of bounds")
@@ -198,21 +202,39 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) {
 		ts.Line = ts.Line >> 1
 	}
 
+	if ts.Format.Depth() == texture.BPP4 {
+		// Loading BPP4 crashes the RDP. As a workaround create two tiles with
+		// different BPP, one for loading and one for drawing.
+		loadIdx = tile4bpp
+		tsload := ts
+		tsload.idx = loadIdx
+		tsload.Format = tsload.Format.SetDepth(texture.BPP8)
+		dl.SetTile(tsload)
+	}
+
 	cmd := command(0xf5<<56) | command(ts.Format)
 	cmd |= command(ts.Line)<<41 | command(ts.Addr)<<32
-	cmd |= command(ts.Idx)<<24 | command(ts.Palette)<<20
+	cmd |= command(ts.idx)<<24 | command(ts.Palette)<<20
 	cmd |= command(ts.MaskT)<<14 | command(ts.ShiftT)<<10
 	cmd |= command(ts.MaskS)<<4 | command(ts.ShiftS)
 	cmd |= command(ts.Flags)
 
 	dl.Push(SyncTile)
 	dl.Push(cmd)
+
+	return
 }
 
 // Copies a tile into TMEM. The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
 	dl.Push(SyncTile)
+
+	if idx == tile4bpp {
+		dl.SetTileSize(0, r)
+		r.Min.X >>= 1
+		r.Max.X >>= 1
+	}
 
 	cmd := 0xf4<<56 | command(r.Min.X)<<46 | command(r.Min.Y)<<34
 	cmd |= command(idx)<<24 | command(r.Max.X-1)<<14 | command(r.Max.Y-1)<<2

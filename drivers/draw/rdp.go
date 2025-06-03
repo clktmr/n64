@@ -189,16 +189,13 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 
 	if src.Palette() != nil {
 		modeflags |= rdp.TLUT
-		const tlutIdx = 7
 		fb.dlist.SetTextureImage(src.Palette())
-		ts := rdp.TileDescriptor{
-			Format: texture.CI4,
+		_, idx := fb.dlist.SetTile(rdp.TileDescriptor{
+			Format: texture.CI4, // tlut must always use 4bpp
 			Addr:   0x100,
 			Line:   uint16(src.Format().TMEMWords(src.Palette().Bounds().Dx())),
-			Idx:    tlutIdx,
-		}
-		fb.dlist.SetTile(ts)
-		fb.dlist.LoadTLUT(tlutIdx, src.Palette().Bounds())
+		})
+		fb.dlist.LoadTLUT(idx, src.Palette().Bounds())
 	}
 
 	var blendmode *rdp.BlendMode
@@ -235,26 +232,12 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 	})
 	fb.dlist.SetTextureImage(src)
 
-	// Loading BPP4 crashes the RDP. As a workaround create two tiles with
-	// different BPP, one for loading and one for drawing.
-	var loadIdx, drawIdx uint8 = 0, 1
-	loadFormat := src.Format().SetDepth(max(src.Format().Depth(), texture.BPP8))
-
 	step := rdp.MaxTileSize(src.Format())
-	ts := rdp.TileDescriptor{
-		Format: loadFormat,
+	loadIdx, drawIdx := fb.dlist.SetTile(rdp.TileDescriptor{
+		Format: src.Format(),
 		Addr:   0x0,
 		Line:   uint16(src.Format().TMEMWords(step.Dx() / scale.X)),
-		Idx:    loadIdx,
-	}
-	fb.dlist.SetTile(ts)
-	if loadFormat != src.Format() {
-		ts.Format = src.Format()
-		ts.Idx = drawIdx
-		fb.dlist.SetTile(ts)
-	} else {
-		drawIdx = loadIdx
-	}
+	})
 
 	bounds := src.Bounds().Intersect(r.Sub(r.Min.Sub(p)))
 	bounds = bounds.Sub(src.Bounds().Min)        // draw area in src image space
@@ -268,15 +251,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 
 			debug.Assert(!tile.Empty(), "drawing empty tile")
 
-			if loadIdx != drawIdx { // load 4bpp texture
-				ltile := tile
-				ltile.Min.X >>= 1
-				ltile.Max.X >>= 1
-				fb.dlist.LoadTile(loadIdx, ltile)
-				fb.dlist.SetTileSize(drawIdx, tile)
-			} else {
-				fb.dlist.LoadTile(loadIdx, tile)
-			}
+			fb.dlist.LoadTile(loadIdx, tile)
 			fb.dlist.TextureRectangle(tile.Add(origin), tile.Min, scale, drawIdx)
 		}
 	}
@@ -310,22 +285,17 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 			}},
 	})
 
-	const idx = 1
 	img, _, _, _ := font.GlyphMap(0)
 	if img == nil {
 		return p
 	}
 	tex, ok := img.(*texture.Texture)
 	debug.Assert(ok, "fontmap format")
-	ts := rdp.TileDescriptor{
+	loadIdx, drawIdx := fb.dlist.SetTile(rdp.TileDescriptor{
 		Format: tex.Format(),
 		Addr:   0x0,
 		Line:   uint16(tex.Format().TMEMWords(tex.Bounds().Dx())),
-		Idx:    idx,
-
-		MaskS: 5, MaskT: 5, // ignore fractional part
-	}
-	fb.dlist.SetTile(ts)
+	})
 
 	pos := p
 	clip := r.Intersect(fb.target.Bounds())
@@ -354,8 +324,8 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 				oldtex = tex
 			}
 
-			fb.dlist.LoadTile(idx, glyphRect)
-			fb.dlist.TextureRectangle(glyphRectSS, glyphRect.Min, image.Point{1, 1}, idx)
+			fb.dlist.LoadTile(loadIdx, glyphRect)
+			fb.dlist.TextureRectangle(glyphRectSS, glyphRect.Min, image.Point{1, 1}, drawIdx)
 		}
 
 		pos.X += adv
