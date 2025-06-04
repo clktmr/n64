@@ -58,7 +58,7 @@ func TestRun(t *testing.T) {
 		0xde, 0xad, 0xbe, 0xef,
 		0xbe, 0xef, 0xf0, 0x0d,
 	}
-	ucode := rsp.NewUCode("testcode", uint32(rsp.IMEM&0xffffffff), code, data)
+	ucode := rsp.NewUCode("testcode", cpu.Addr(rsp.IMEM&0xffffffff), code, data)
 	ucode.Load()
 
 	var results = cpu.MakePaddedSlice[uint32](2)
@@ -94,7 +94,7 @@ func TestInterrupt(t *testing.T) {
 		0x00, 0x00, 0x00, 0x0d, //break
 	}
 	data := []byte{}
-	ucode := rsp.NewUCode("testcode", uint32(rsp.IMEM&0xffffffff), code, data)
+	ucode := rsp.NewUCode("testcode", cpu.Addr(rsp.IMEM&0xffffffff), code, data)
 	ucode.Load()
 
 	ucode.Run()

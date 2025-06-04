@@ -9,6 +9,7 @@
 //   - [github.com/clktmr/n64/tools/texture]  generate textures to be used on the n64
 //   - [github.com/clktmr/n64/tools/font]     generate fonts to be used on the n64
 //   - [github.com/clktmr/n64/tools/pakfs]    modify and inspect pakfs images
+//   - [github.com/clktmr/n64/tools/ucode]    dump rsp microcode elf to binary
 //   - [github.com/clktmr/n64/tools/toolexec] used as 'go build -toolexec' parameter
 package main
 
@@ -23,6 +24,7 @@ import (
 	"github.com/clktmr/n64/tools/rom"
 	"github.com/clktmr/n64/tools/texture"
 	"github.com/clktmr/n64/tools/toolexec"
+	"github.com/clktmr/n64/tools/ucode"
 )
 
 const usageString = `n64go is a tool for development of Nintendo 64 ROMs.
@@ -37,6 +39,7 @@ The commands are:
 	texture  convert images to n64 textures
 	font     generate fonts to be used on the n64
 	pakfs    modify and inspect pakfs images
+	ucode    dump rsp microcode elf to binary
 	toolexec used as 'go build -toolexec' parameter
 `
 
@@ -66,6 +69,8 @@ func main() {
 		font.Main(flag.Args())
 	case "texture":
 		texture.Main(flag.Args())
+	case "ucode":
+		ucode.Main(flag.Args())
 	default:
 		fmt.Fprintf(flag.CommandLine.Output(), "unknown command: %s\n", flag.Arg(0))
 		flag.Usage()

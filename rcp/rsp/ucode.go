@@ -11,12 +11,12 @@ var currentUCode *UCode
 type UCode struct {
 	name string
 
-	entry uint32 // initial value of RSP PC register
-	code  []byte // instructions copied to IMEM
-	data  []byte // data copied to DMEM
+	entry cpu.Addr // initial value of RSP PC register
+	code  []byte   // instructions copied to IMEM
+	data  []byte   // data copied to DMEM
 }
 
-func NewUCode(name string, entry uint32, code []byte, data []byte) *UCode {
+func NewUCode(name string, entry cpu.Addr, code []byte, data []byte) *UCode {
 	paddedCode := cpu.CopyPaddedSlice(code)
 	paddedData := cpu.CopyPaddedSlice(data)
 
