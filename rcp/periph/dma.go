@@ -33,8 +33,8 @@ func (job *dmaJob) initiate() bool {
 
 	n := uint32(len(dmaBuf) - 1)
 	if job.dir == dmaStore {
-		WriteIO(job.cart, headBuf)
-		WriteIO(job.cart+cpu.Addr(tail), tailBuf)
+		rcp.WriteIO[*u32](job.cart, headBuf)
+		rcp.WriteIO[*u32](job.cart+cpu.Addr(tail), tailBuf)
 		if head == tail {
 			return false
 		}
@@ -64,8 +64,8 @@ func (job *dmaJob) finish() {
 		if job.dir == dmaLoad {
 			// Do the IO after the DMA because it might invalidate parts of
 			// head and tail.
-			ReadIO(job.cart, job.buf[:head])
-			ReadIO(job.cart+cpu.Addr(tail), job.buf[tail:])
+			rcp.ReadIO[*u32](job.cart, job.buf[:head])
+			rcp.ReadIO[*u32](job.cart+cpu.Addr(tail), job.buf[tail:])
 		}
 	}
 

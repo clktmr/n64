@@ -15,15 +15,15 @@ import (
 	"github.com/clktmr/n64/drivers/controller"
 	_ "github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp/serial/joybus"
-
 	"github.com/clktmr/n64/test/internal/drivers/cartfs_test"
 	"github.com/clktmr/n64/test/internal/drivers/carts/summercart64_test"
 	"github.com/clktmr/n64/test/internal/drivers/controller_test"
 	"github.com/clktmr/n64/test/internal/drivers/draw_test"
-	"github.com/clktmr/n64/test/internal/rcp/cpu_test"
-	"github.com/clktmr/n64/test/internal/rcp/periph_test"
-	"github.com/clktmr/n64/test/internal/rcp/rdp_test"
-	"github.com/clktmr/n64/test/internal/rcp/rsp_test"
+	"github.com/clktmr/n64/test/internal/rcp_test"
+	"github.com/clktmr/n64/test/internal/rcp_test/cpu_test"
+	"github.com/clktmr/n64/test/internal/rcp_test/periph_test"
+	"github.com/clktmr/n64/test/internal/rcp_test/rdp_test"
+	"github.com/clktmr/n64/test/internal/rcp_test/rsp_test"
 	"github.com/clktmr/n64/test/internal/runtime_test"
 
 	"github.com/embeddedgo/fs/termfs"
@@ -75,6 +75,7 @@ func main() {
 			newInternalTest(cartfs_test.TestOffset),
 			newInternalTest(runtime_test.TestFPUPreemption),
 			newInternalTest(runtime_test.TestInterruptPrio),
+			newInternalTest(rcp_test.TestReadWriteIO),
 			newInternalTest(cpu_test.TestMakePaddedSlice),
 			newInternalTest(cpu_test.TestPadSlice),
 			newInternalTest(cpu_test.TestMakePaddedSliceAligned),
@@ -84,7 +85,6 @@ func main() {
 			newInternalTest(rdp_test.TestFillRect),
 			newInternalTest(draw_test.TestDrawMask),
 			newInternalTest(periph_test.TestReaderWriterAt),
-			newInternalTest(periph_test.TestReadWriteIO),
 			newInternalTest(periph_test.TestConcurrent),
 			newInternalTest(summercart64_test.TestUSBRead),
 			newInternalTest(summercart64_test.TestSaveStorage),
