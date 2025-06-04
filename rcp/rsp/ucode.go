@@ -29,8 +29,14 @@ func NewUCode(name string, entry uint32, code []byte, data []byte) *UCode {
 }
 
 func (ucode *UCode) Load() {
-	DMAStore(0x0, ucode.code, IMEM)
-	DMAStore(0x0, ucode.data, DMEM)
+	_, err := IMEM.WriteAt(ucode.code, 0x0)
+	if err != nil {
+		panic(err)
+	}
+	_, err = DMEM.WriteAt(ucode.data, 0x0)
+	if err != nil {
+		panic(err)
+	}
 
 	currentUCode = ucode
 }

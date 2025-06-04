@@ -2,9 +2,10 @@ package rsp_test
 
 import (
 	"bytes"
+	"encoding/binary"
+	"io"
 	"testing"
 	"time"
-	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
@@ -16,16 +17,26 @@ func TestDMA(t *testing.T) {
 	for i := range len(testdata) {
 		testdata[i] = byte(i)
 	}
-	rsp.DMAStore(0x100, testdata, rsp.DMEM)
+	_, err := rsp.DMEM.WriteAt(testdata, 0x100)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	result := rsp.DMALoad(0x100, len(testdata), rsp.DMEM)
+	result := cpu.MakePaddedSlice[byte](len(testdata))
+	_, err = rsp.DMEM.ReadAt(result, 0x100)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !bytes.Equal(testdata, result) {
 		t.Error("exptected to read same data back that was written")
 	}
 
-	shift := 0x20
-	result = rsp.DMALoad(0x100+cpu.Addr(shift), len(testdata)-shift, rsp.DMEM)
-	if !bytes.Equal(testdata[shift:], result) {
+	shift := int64(0x20)
+	_, err = rsp.DMEM.ReadAt(result, 0x100+shift)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(testdata[shift:], result[:len(result)-int(shift)]) {
 		t.Error("exptected to read part of same data back that was written")
 	}
 }
@@ -50,17 +61,25 @@ func TestRun(t *testing.T) {
 	ucode := rsp.NewUCode("testcode", uint32(rsp.IMEM&0xffffffff), code, data)
 	ucode.Load()
 
-	result0 := (*uint32)(unsafe.Pointer(rsp.DMEM))
-	result1 := (*uint32)(unsafe.Pointer(rsp.DMEM + 4))
-
-	if *result0 != 0xdeadbeef || *result1 != 0xbeeff00d {
+	var results = cpu.MakePaddedSlice[uint32](2)
+	sr := io.NewSectionReader(rsp.DMEM, 0, 8)
+	err := binary.Read(sr, binary.BigEndian, &results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0] != 0xdeadbeef || results[1] != 0xbeeff00d {
 		t.Fatal("failed to load ucode data")
 	}
 
 	ucode.Run()
 
-	if *result0 != 0xbeeff00d || *result1 != 0xdeadbeef {
-		t.Fatalf("unexpected result after ucode execution: 0x%x 0x%x", *result0, *result1)
+	sr.Seek(0, io.SeekStart)
+	err = binary.Read(sr, binary.BigEndian, &results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0] != 0xbeeff00d || results[1] != 0xdeadbeef {
+		t.Fatalf("unexpected result after ucode execution: %x", results)
 	}
 }
 

@@ -81,9 +81,7 @@ type registers struct {
 	semaphore mmio.U32
 }
 
-type memoryBank uintptr
-
 const (
-	DMEM = memoryBank(cpu.KSEG1 | 0x0400_0000)
-	IMEM = memoryBank(cpu.KSEG1 | 0x0400_1000)
+	DMEM = Memory(0x0400_0000)
+	IMEM = Memory(0x0400_1000)
 )
