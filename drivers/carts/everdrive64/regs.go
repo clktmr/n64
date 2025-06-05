@@ -4,8 +4,6 @@
 package everdrive64
 
 import (
-	"unsafe"
-
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/periph"
 )
@@ -36,9 +34,9 @@ var regs = struct {
 	sysCfg  *periph.U32
 	key     *periph.U32
 }{
-	(*periph.R32[usbStatus])(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0004)),
-	(*periph.R32[usbMode])(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0004)),
-	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_0014)),
-	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_8000)),
-	(*periph.U32)(unsafe.Pointer(cpu.KSEG1 | 0x1f80_8004)),
+	cpu.MMIO[periph.R32[usbStatus]](0x1f80_0004),
+	cpu.MMIO[periph.R32[usbMode]](0x1f80_0004),
+	cpu.MMIO[periph.U32](0x1f80_0014),
+	cpu.MMIO[periph.U32](0x1f80_8000),
+	cpu.MMIO[periph.U32](0x1f80_8004),
 }

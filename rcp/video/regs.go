@@ -8,7 +8,6 @@ package video
 import (
 	"embedded/mmio"
 	"image"
-	"unsafe"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/machine"
@@ -16,9 +15,7 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
-
-const baseAddr uintptr = cpu.KSEG1 | 0x0440_0000
+var regs = cpu.MMIO[registers](0x0440_0000)
 
 type registers struct {
 	control   mmio.U32

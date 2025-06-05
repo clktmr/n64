@@ -4,13 +4,10 @@
 package summercart64
 
 import (
-	"unsafe"
-
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/periph"
 )
 
-const baseAddr uintptr = cpu.KSEG1 | 0x1fff_0000
 const bufferSize = 512
 
 // It's up to us to choose a location in the ROM. This puts it at the end of a
@@ -25,7 +22,7 @@ type registers struct {
 	key        periph.U32
 }
 
-var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
+var regs = cpu.MMIO[registers](0x1fff_0000)
 
 type status uint32
 

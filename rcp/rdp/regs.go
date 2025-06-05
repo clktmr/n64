@@ -12,15 +12,12 @@ package rdp
 import (
 	"embedded/mmio"
 	"embedded/rtos"
-	"unsafe"
 
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
-
-const baseAddr uintptr = cpu.KSEG1 | 0x0410_0000
+var regs = cpu.MMIO[registers](0x0410_0000)
 
 type statusFlags uint32
 

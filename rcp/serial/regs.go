@@ -10,14 +10,11 @@ package serial
 
 import (
 	"embedded/mmio"
-	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
-
-const baseAddr uintptr = cpu.KSEG1 | 0x0480_0000
+var regs = cpu.MMIO[registers](0x0480_0000)
 
 const (
 	pifRamAddr cpu.Addr = 0x1fc0_07c0

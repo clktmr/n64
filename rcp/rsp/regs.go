@@ -8,17 +8,13 @@ package rsp
 
 import (
 	"embedded/mmio"
-	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
 // RSP program counter. Access only allowed when RSP is halted.
-var pc *mmio.U32 = (*mmio.U32)(unsafe.Pointer(cpu.KSEG1 | 0x0408_0000))
-
-var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
-
-const baseAddr uintptr = cpu.KSEG1 | 0x0404_0000
+var pc = cpu.MMIO[mmio.R32[cpu.Addr]](0x0408_0000)
+var regs = cpu.MMIO[registers](0x0404_0000)
 
 type statusFlags uint32
 

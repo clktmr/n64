@@ -148,6 +148,14 @@ func Uncached[T any](p *T) *T {
 	return (*T)(unsafe.Pointer(ptr))
 }
 
+// MMIO returns a pointer to an object that is memory mapped.
+func MMIO[T any](ptr Addr) *T {
+	if ptr < 0x3f00000 {
+		panic("mmio in ram")
+	}
+	return (*T)(unsafe.Pointer(uintptr(ptr) | KSEG1))
+}
+
 // UncachedSlice returns a new slice with the same underlying data as s, with
 // caching disabled. The returned slice is only valid as long as s exists, as it
 // doesn't prevent the underlying array from being garbage collected.

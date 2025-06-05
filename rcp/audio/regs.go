@@ -13,16 +13,13 @@ import (
 	"embedded/rtos"
 	"io"
 	"time"
-	"unsafe"
 
 	"github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
-
-const baseAddr uintptr = cpu.KSEG1 | 0x0450_0000
+var regs = cpu.MMIO[registers](0x0450_0000)
 
 type registers struct {
 	dramAddr mmio.R32[cpu.Addr] // dma address

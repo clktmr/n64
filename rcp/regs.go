@@ -2,7 +2,6 @@ package rcp
 
 import (
 	"embedded/mmio"
-	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
 )
@@ -10,9 +9,7 @@ import (
 // The RCP's clock speed
 const ClockSpeed = 62.5e6
 
-var regs *registers = (*registers)(unsafe.Pointer(baseAddr))
-
-const baseAddr uintptr = cpu.KSEG1 | 0x0430_0000
+var regs *registers = cpu.MMIO[registers](0x0430_0000)
 
 // The RCP has multiple interrupts, which are all routed to the same external
 // interrupt line on the CPU. So all of these must be handled in the
