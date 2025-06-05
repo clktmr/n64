@@ -1,7 +1,7 @@
 // The CPU accesses RAM through a cache and in general assumes that there are no
 // other readers or writers. Since the stored value in the cache can divert
 // from the stored value in RAM for a limited amount of time, we need to sync
-// both before other comoponents are involved.
+// both before other components are involved.
 //
 // All operations in this package refer to the data cache. Instruction cache
 // won't be affected.
@@ -138,4 +138,36 @@ func InvalidateSlice[T Paddable](buf []T) {
 	var t T
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
 	Invalidate(addr, len(buf)*int(unsafe.Sizeof(t)))
+}
+
+// Uncached returns a pointer to p with caching disabled. The returned pointer
+// is only valid as long as p exists, as it doesn't prevent the object from
+// being garbage collected.
+func Uncached[T any](p *T) *T {
+	ptr := uintptr(unsafe.Pointer(p)) | KSEG1
+	return (*T)(unsafe.Pointer(ptr))
+}
+
+// UncachedSlice returns a new slice with the same underlying data as s, with
+// caching disabled. The returned slice is only valid as long as s exists, as it
+// doesn't prevent the underlying array from being garbage collected.
+func UncachedSlice[T any](s []T) []T {
+	ptr := uintptr(unsafe.Pointer(unsafe.SliceData(s))) | KSEG1
+	return unsafe.Slice((*T)(unsafe.Pointer(ptr)), len(s))
+}
+
+// PaddedStruct embeds T with cachelinepads around it to make it safe for cache
+// operations.
+type PaddedStruct[T any] struct {
+	_    CacheLinePad
+	Data T
+	_    CacheLinePad
+}
+
+func (p PaddedStruct[T]) Writeback() {
+	Writeback(uintptr(unsafe.Pointer(&p.Data)), int(unsafe.Sizeof(p.Data)))
+}
+
+func (p PaddedStruct[T]) Invalidate() {
+	Invalidate(uintptr(unsafe.Pointer(&p.Data)), int(unsafe.Sizeof(p.Data)))
 }
