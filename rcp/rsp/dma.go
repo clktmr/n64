@@ -45,11 +45,18 @@ func (m Memory) dma(p []byte, off int64, read bool) (n int, err error) {
 	}
 
 	head, tail := cpu.Pads(p)
+	if (tail-head)&0x7 != 0 {
+		tail &^= 0x7 // make sure length is 8 byte multiple
+	}
+	if (addr+cpu.Addr(head))%8 != 0 {
+		// pp and addr have different alignment, fallback to mmio
+		head = 0
+		tail = 0
+	}
 	pp := p[head:tail]
 	addr += cpu.Addr(head)
 
-	debug.Assert(addr%8 == 0, "rsp: unaligned dma")
-	debug.Assert(regs.status.Load()&(halted) != 0, "rsp: dma during run")
+	debug.Assert(regs.status.LoadBits(halted|dmaBusy) != 0, "rsp: dma busy")
 
 	dmaMtx.Lock()
 	defer dmaMtx.Unlock()
