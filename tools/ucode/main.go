@@ -4,10 +4,14 @@ import (
 	"debug/elf"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
+
+	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/rsp/ucode"
 )
 
 const usageString = `RSP microcode converter.
@@ -40,6 +44,7 @@ func Main(args []string) {
 	}
 
 	outfile, _ := strings.CutSuffix(infile, ".elf")
+	outfile += ".ucode"
 
 	elffile, err := elf.Open(infile)
 	if err != nil {
@@ -47,18 +52,49 @@ func Main(args []string) {
 	}
 	defer elffile.Close()
 
-	for _, s := range elffile.Sections {
-		if s.Type != elf.SHT_PROGBITS || s.Flags&elf.SHF_ALLOC == 0 {
-			continue
-		}
-
-		f, err := os.Create(outfile + s.Name)
-		if err != nil {
-			log.Fatal(err)
-		}
-		_, err = io.Copy(f, io.NewSectionReader(s, 0x0, 0x1000))
-		if err != nil {
-			log.Fatal(err)
-		}
+	var ucode = &ucode.UCode{
+		Name:  filepath.Base(infile),
+		Entry: cpu.Addr(elffile.Entry),
+		Text:  sectionData(elffile, ".text"),
+		Data:  sectionData(elffile, ".data"),
 	}
+
+	fmt.Printf("_ovl_data_start: 0x%08x\n", uintptr(symbolValue(elffile, "_ovl_data_start"))) // TODO store somewhere
+
+	w, err := os.Create(outfile)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer w.Close()
+
+	err = ucode.Store(w)
+	if err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func sectionData(elffile *elf.File, section string) []byte {
+	s := elffile.Section(section)
+	if s == nil {
+		log.Fatalln("missing section:", section)
+	}
+	data, err := s.Data()
+	if err != nil {
+		log.Fatalln("reading section:", err)
+	}
+	return data
+}
+
+func symbolValue(elffile *elf.File, name string) uint64 {
+	syms, err := elffile.Symbols()
+	if err != nil {
+		log.Fatalln("read symbols:", err)
+	}
+	idx := slices.IndexFunc(syms, func(sym elf.Symbol) bool {
+		return sym.Name == name
+	})
+	if idx == -1 {
+		log.Fatalln("read symbol:", err)
+	}
+	return syms[idx].Value
 }

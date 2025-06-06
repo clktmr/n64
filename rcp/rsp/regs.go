@@ -81,3 +81,47 @@ const (
 	DMEM = Memory(0x0400_0000)
 	IMEM = Memory(0x0400_1000)
 )
+
+func SetInterrupt(en bool) {
+	if en {
+		regs.status.Store(setIntbreak)
+	} else {
+		regs.status.Store(clrIntbreak)
+	}
+}
+
+func Halted() bool { return regs.status.LoadBits(halted) != 0 }
+func Broke() bool  { return regs.status.LoadBits(broke) != 0 }
+func Resume()      { regs.status.Store(clrBroke | clrHalt) }
+func Step() {
+	regs.status.Store(setSingleStep)
+	Resume()
+	for !Halted() {
+		// wait
+	}
+}
+
+func Signals() uint8       { return uint8(regs.status.Load() >> 7) }
+func SetSignals(s uint8)   { regs.status.Store(statusFlags(interleave(s)) << 10) }
+func ClearSignals(s uint8) { regs.status.Store(statusFlags(interleave(s)) << 9) }
+
+func SetSignalsMask(s uint8) uint32   { return uint32(interleave(s)) << 10 }
+func ClearSignalsMask(s uint8) uint32 { return uint32(interleave(s)) << 9 }
+
+// interleave puts a zero bit before every bit in mask.
+func interleave(mask uint8) (r uint16) {
+	r = uint16(mask)
+	r = (r ^ (r << 4)) & 0x0f0f
+	r = (r ^ (r << 2)) & 0x3333
+	r = (r ^ (r << 1)) & 0x5555
+	return
+}
+
+// PC returns the RSP's current program counter value. Can only be read while
+// halted, otherwise returns 0.
+func PC() cpu.Addr {
+	if Halted() {
+		return pc.Load()
+	}
+	return 0xffff_ffff
+}

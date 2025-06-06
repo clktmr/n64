@@ -9,10 +9,10 @@ import (
 
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
+	"github.com/clktmr/n64/rcp/rsp/ucode"
 )
 
 func TestDMA(t *testing.T) {
-	rsp.Init()
 	testdata := cpu.MakePaddedSlice[byte](80)
 	for i := range len(testdata) {
 		testdata[i] = byte(i)
@@ -58,8 +58,8 @@ func TestRun(t *testing.T) {
 		0xde, 0xad, 0xbe, 0xef,
 		0xbe, 0xef, 0xf0, 0x0d,
 	}
-	ucode := rsp.NewUCode("testcode", cpu.Addr(rsp.IMEM&0xffffffff), code, data)
-	ucode.Load()
+	uc := ucode.NewUCode("testcode", cpu.Addr(rsp.IMEM&0xffffffff), code, data)
+	rsp.Load(uc)
 
 	var results = cpu.MakePaddedSlice[uint32](2)
 	sr := io.NewSectionReader(rsp.DMEM, 0, 8)
@@ -71,7 +71,7 @@ func TestRun(t *testing.T) {
 		t.Fatal("failed to load ucode data")
 	}
 
-	ucode.Run()
+	rsp.Resume()
 
 	sr.Seek(0, io.SeekStart)
 	err = binary.Read(sr, binary.BigEndian, &results)
@@ -85,19 +85,19 @@ func TestRun(t *testing.T) {
 
 func TestInterrupt(t *testing.T) {
 	t.Cleanup(func() {
-		rsp.InterruptOnBreak(false)
+		rsp.SetInterrupt(false)
 	})
 
-	rsp.InterruptOnBreak(true)
+	rsp.SetInterrupt(true)
 
 	code := []byte{
 		0x00, 0x00, 0x00, 0x0d, //break
 	}
 	data := []byte{}
-	ucode := rsp.NewUCode("testcode", cpu.Addr(rsp.IMEM&0xffffffff), code, data)
-	ucode.Load()
+	uc := ucode.NewUCode("testcode", cpu.Addr(rsp.IMEM&0xffffffff), code, data)
+	rsp.Load(uc)
 
-	ucode.Run()
+	rsp.Resume()
 
 	if triggered := rsp.IntBreak.Wait(10 * time.Millisecond); !triggered {
 		t.Fatal("timeout")
