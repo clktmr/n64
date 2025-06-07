@@ -101,12 +101,14 @@ func Step() {
 	}
 }
 
-func Signals() uint8       { return uint8(regs.status.Load() >> 7) }
-func SetSignals(s uint8)   { regs.status.Store(statusFlags(interleave(s)) << 10) }
-func ClearSignals(s uint8) { regs.status.Store(statusFlags(interleave(s)) << 9) }
+type Signal uint8
 
-func SetSignalsMask(s uint8) uint32   { return uint32(interleave(s)) << 10 }
-func ClearSignalsMask(s uint8) uint32 { return uint32(interleave(s)) << 9 }
+func Signals() Signal       { return Signal(regs.status.Load() >> 7) }
+func SetSignals(s Signal)   { regs.status.Store(s.SetMask()) }
+func ClearSignals(s Signal) { regs.status.Store(s.ClearMask()) }
+
+func (s Signal) SetMask() statusFlags   { return statusFlags(interleave(uint8(s))) << 10 }
+func (s Signal) ClearMask() statusFlags { return statusFlags(interleave(uint8(s))) << 9 }
 
 // interleave puts a zero bit before every bit in mask.
 func interleave(mask uint8) (r uint16) {

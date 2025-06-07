@@ -28,23 +28,6 @@ const (
 	overlayDataAddress = 0x260 // TODO generated at link time
 )
 
-type Command byte
-
-const (
-	CmdWaitNewInput    Command = 0x00
-	CmdNoop            Command = 0x01
-	CmdJump            Command = 0x02
-	CmdCall            Command = 0x03
-	CmdRet             Command = 0x04
-	CmdDma             Command = 0x05
-	CmdWriteStatus     Command = 0x06
-	CmdSwapBuffers     Command = 0x07
-	CmdTestWriteStatus Command = 0x08
-	CmdRdpWaitIdle     Command = 0x09
-	CmdRdpSetBuffer    Command = 0x0A
-	CmdRdpAppendBuffer Command = 0x0B
-)
-
 const (
 	_                   = 1 << iota
 	sigRdpsyncfull      // Signal used by RDP SYNC_FULL command to notify that an interrupt is pending
@@ -166,7 +149,7 @@ func nextBuffer() {
 
 	ctx.ClearBuffer(ctx.bufIdx)
 
-	ctx.Append(1-ctx.bufIdx, CmdWriteStatus, rsp.SetSignalsMask(ctx.bufdoneSig))
+	ctx.Append(1-ctx.bufIdx, CmdWriteStatus, uint32(ctx.bufdoneSig.SetMask()))
 	ctx.Append(1-ctx.bufIdx, CmdJump, uint32(cpu.PhysicalAddressSlice(ctx.buffers[ctx.bufIdx])))
 
 	rsp.Resume()

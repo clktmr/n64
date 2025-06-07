@@ -1,6 +1,9 @@
 package rspq
 
-import "github.com/clktmr/n64/rcp/cpu"
+import (
+	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/rsp"
+)
 
 const (
 	MaxCommandSize      = 62
@@ -15,7 +18,7 @@ var (
 	dummyOverlayState = cpu.MakePaddedSlice[uint64](2)
 )
 
-func newContext(bufsize int, signal uint8) *context {
+func newContext(bufsize int, signal rsp.Signal) *context {
 	ctx := &context{bufdoneSig: signal}
 	for i := range ctx.buffers {
 		ctx.buffers[i] = cpu.MakePaddedSlice[uint32](bufsize)
@@ -28,7 +31,7 @@ func newContext(bufsize int, signal uint8) *context {
 type context struct {
 	buffers    [2][]uint32
 	bufIdx     int
-	bufdoneSig uint8
+	bufdoneSig rsp.Signal
 	cur        int
 }
 

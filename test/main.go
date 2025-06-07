@@ -92,6 +92,7 @@ func main() {
 			newInternalTest(controller_test.TestControllerState),
 			newInternalTest(rspq_test.TestCrash),
 			newInternalTest(rspq_test.TestWrite),
+			newInternalTest(rspq_test.TestDMA),
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(runtime_test.BenchmarkSchedule),
