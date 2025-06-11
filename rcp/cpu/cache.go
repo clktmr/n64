@@ -1,13 +1,23 @@
-// The CPU accesses RAM through a cache and in general assumes that there are no
-// other readers or writers. Since the stored value in the cache can divert
-// from the stored value in RAM for a limited amount of time, we need to sync
-// both before other components are involved.
+// Package cpu provides helpers to share memory between the CPU and other
+// hardware components.
 //
-// All operations in this package refer to the data cache. Instruction cache
-// won't be affected.
+// To share memory managed by the Go runtime, the following requirements must be
+// met:
+//   - Cache: Cached values must be written or invalidated before memory is
+//     handed over to another component.
+//   - Alignment: Most components require stricter memory alignment than Go has.
+//   - Memory Location: The shared memory must be allocated on the heap, since
+//     the stack might move if it has to grow.
+//   - Memory Layout: If sharing a pointer to a struct, include structs.HostLayout
+//     in the type definition. Go itself makes no guarantees regarding a structs
+//     memory layout.
+//
+// All cache operations in this package refer to the data cache. Instruction
+// cache won't be affected.
 package cpu
 
 import (
+	"structs"
 	"unsafe"
 
 	"github.com/clktmr/n64/debug"
@@ -164,18 +174,43 @@ func UncachedSlice[T any](s []T) []T {
 	return unsafe.Slice((*T)(unsafe.Pointer(ptr)), len(s))
 }
 
-// PaddedStruct embeds T with cachelinepads around it to make it safe for cache
-// operations.
-type PaddedStruct[T any] struct {
-	_    CacheLinePad
-	Data T
-	_    CacheLinePad
+type Alignment interface {
+	Align16 | Align64
+}
+type Align16 = [16]byte
+type Align64 = [64]byte
+
+// Padded embeds T with cacheline pads around it to make it safe for cache
+// operations. It also guarantees the specified memory alignment for T.
+//
+// T must not hold any heap pointers.
+type Padded[T any, A Alignment] struct {
+	_   structs.HostLayout
+	pad A
+	val T
+	_   CacheLinePad
 }
 
-func (p PaddedStruct[T]) Writeback() {
-	Writeback(uintptr(unsafe.Pointer(&p.Data)), int(unsafe.Sizeof(p.Data)))
+func NewPadded[T any, A Alignment]() *Padded[T, A] {
+	a := &Padded[T, A]{}
+	escape(&a)
+	return a
 }
 
-func (p PaddedStruct[T]) Invalidate() {
-	Invalidate(uintptr(unsafe.Pointer(&p.Data)), int(unsafe.Sizeof(p.Data)))
+func (p *Padded[T, A]) Value() *T {
+	size := unsafe.Sizeof(p.pad)
+	align := size - uintptr(unsafe.Pointer(&p.pad[0]))&(size-1)
+	return (*T)(unsafe.Pointer(&p.pad[align&(size-1)]))
 }
+
+func (p *Padded[T, A]) Writeback() {
+	Writeback(uintptr(unsafe.Pointer(p.Value())), int(unsafe.Sizeof(p.val)))
+}
+
+func (p *Padded[T, A]) Invalidate() {
+	Invalidate(uintptr(unsafe.Pointer(p.Value())), int(unsafe.Sizeof(p.val)))
+}
+
+// escape ensures that v escapes to heap. This is used to avoid	allocation on
+// stack, because the stack might be moved when it grows.
+func escape(v any)

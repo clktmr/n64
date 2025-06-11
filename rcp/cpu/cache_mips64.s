@@ -36,3 +36,7 @@ loop:
 
 done:
 	RET
+
+// func escape()
+TEXT ·escape(SB),NOSPLIT|NOFRAME,$0-0
+	RET
