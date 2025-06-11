@@ -198,9 +198,9 @@ func NewPadded[T any, A Alignment]() *Padded[T, A] {
 }
 
 func (p *Padded[T, A]) Value() *T {
+	ptr := unsafe.Pointer(&p.pad)
 	size := unsafe.Sizeof(p.pad)
-	align := size - uintptr(unsafe.Pointer(&p.pad[0]))&(size-1)
-	return (*T)(unsafe.Pointer(&p.pad[align&(size-1)]))
+	return (*T)(unsafe.Add(ptr, size-uintptr(ptr)&(size-1)))
 }
 
 func (p *Padded[T, A]) Writeback() {
