@@ -1,6 +1,6 @@
 module github.com/clktmr/n64
 
-go 1.22
+go 1.24
 
 require (
 	github.com/embeddedgo/display v1.1.0
