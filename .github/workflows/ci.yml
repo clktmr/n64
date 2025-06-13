@@ -49,7 +49,7 @@ jobs:
 
       - name: Build testing ROM
         run: |
-          go build -o test.elf ./test
+          go build -tags n64,debug -o test.elf ./test
           n64go rom test.elf
         env:
           GOENV: go.env
