@@ -2,10 +2,13 @@
 package rspq
 
 import (
+	"bytes"
 	"embed"
 	"embedded/mmio"
 	"encoding/binary"
 	"io"
+	"slices"
+	"unsafe"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/drivers/cartfs"
@@ -23,10 +26,9 @@ var (
 	rspQueueFiles  cartfs.FS = cartfs.Embed(_rspQueueFiles)
 )
 
-const (
-	rspqDataAddress    = 32
-	overlayDataAddress = 0x260 // TODO generated at link time
-)
+const rspqDataAddress = 32
+
+var rspqDataSize, rspqTextSize int
 
 const (
 	_                   = 1 << iota
@@ -58,6 +60,8 @@ func Reset() {
 	}
 
 	rsp.Load(uc)
+	rspqDataSize = len(uc.Data)
+	rspqTextSize = len(uc.Text)
 
 	lowpri.ClearBuffer(0)
 	lowpri.ClearBuffer(1)
@@ -66,24 +70,24 @@ func Reset() {
 	lowpri.cur = 0
 	highpri.cur = 0
 
-	var hdr rspQueue
-	hdr.RSPQDramLowpriAddr = cpu.PhysicalAddressSlice(lowpri.buffers[lowpri.bufIdx])
-	hdr.RSPQDramHighpriAddr = cpu.PhysicalAddressSlice(highpri.buffers[highpri.bufIdx])
-	hdr.RSPQDramAddr = hdr.RSPQDramLowpriAddr
-	hdr.Tables.OverlayDescriptor[0].State = cpu.PhysicalAddressSlice(dummyOverlayState)
-	hdr.Tables.OverlayDescriptor[0].DataSize = uint16(len(dummyOverlayState) * 8)
+	rspqData = rspQueue{}
+	rspqData.RSPQDramLowpriAddr = cpu.PhysicalAddressSlice(lowpri.buffers[lowpri.bufIdx])
+	rspqData.RSPQDramHighpriAddr = cpu.PhysicalAddressSlice(highpri.buffers[highpri.bufIdx])
+	rspqData.RSPQDramAddr = rspqData.RSPQDramLowpriAddr
+	rspqData.Tables.OverlayDescriptor[0].State = cpu.PhysicalAddressSlice(dummyOverlayState)
+	rspqData.Tables.OverlayDescriptor[0].DataSize = uint16(len(dummyOverlayState) * 8)
 
-	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, rspqDataAddress), binary.BigEndian, &hdr)
+	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, rspqDataAddress), binary.BigEndian, &rspqData)
 	if err != nil {
 		panic(err)
 	}
 
 	var ovlhdr rspqOverlayHeader
-	ovlhdr.StateStart = 0
-	ovlhdr.StateSize = 7
-	ovlhdr.CommandBase = 0
+	ovlhdr.Fields.StateStart = 0
+	ovlhdr.Fields.StateSize = 7
+	ovlhdr.Fields.CommandBase = 0
 
-	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, overlayDataAddress), binary.BigEndian, &ovlhdr)
+	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, int64(rspqDataSize)), binary.BigEndian, &ovlhdr.Fields)
 	if err != nil {
 		panic(err)
 	}
@@ -123,10 +127,9 @@ func Write(c Command, args ...uint32) {
 }
 
 func Crashed() bool {
-	if !rsp.Halted() {
+	if !rsp.Stopped() {
 		return false
 	}
-	// FIXME don't use mmio if dma is busy
 	imem := cpu.MMIO[[1024]mmio.U32](cpu.Addr(rsp.IMEM))
 	instruction := imem[(rsp.PC()>>2)+1].Load()
 	return instruction == 0x00ba000d // halted in break loop
@@ -155,3 +158,74 @@ func nextBuffer() {
 	rsp.Resume()
 	ctx.cur = 0
 }
+
+var q rspQueue
+
+// ucodes keeps a reference to registered rspq overlays to prevent them being
+// garbage collected, since the RSP will need to load them whenever processing a
+// command
+var ucodes = make([]*ucode.UCode, 0, 8)
+
+func Register(p *ucode.UCode) (overlayId uint32) {
+	r := bytes.NewReader(p.Data[rspqDataSize:])
+	hdr, err := loadOverlayHeader(r)
+	if err != nil {
+		panic(err)
+	}
+
+	idx := slices.IndexFunc(q.Tables.OverlayDescriptor[1:], func(o overlayDescriptor) bool {
+		return o.Code == 0
+	})
+	if idx == -1 {
+		panic("max overlay count")
+	}
+	idx += 1
+
+	slotCount := (len(hdr.Commands) + 15) >> 4
+
+	id := bytes.Index(q.Tables.OverlayTable[1:], make([]byte, slotCount))
+	if id == -1 {
+		panic("max command count")
+	}
+	id += 1
+
+	desc := &rspqData.Tables.OverlayDescriptor[idx]
+	code := p.Text[rspqTextSize:]
+	data := p.Data[rspqDataSize:]
+	state := p.Data[hdr.Fields.StateStart : hdr.Fields.StateStart+hdr.Fields.StateSize]
+	desc.Code = cpu.PhysicalAddressSlice(code)
+	desc.Data = cpu.PhysicalAddressSlice(data)
+	desc.CodeSize = uint16(len(code))
+	desc.DataSize = uint16(len(data))
+	desc.State = cpu.PhysicalAddressSlice(state)
+
+	// Let the assigned ids point at the overlay
+	for i := range slotCount {
+		rspqData.Tables.OverlayTable[id+i] = uint8(idx * int(unsafe.Sizeof(rspqData.Tables.OverlayDescriptor[0])))
+	}
+	hdr.Fields.CommandBase = uint16(id << 5)
+	err = hdr.Store(bytes.NewBuffer(p.Data[rspqDataSize:rspqDataSize]))
+	cpu.WritebackSlice(p.Data)
+	if err != nil {
+		panic(err)
+	}
+
+	ucodes = append(ucodes, p)
+
+	// TODO let rsp do the dma, so we don't have to wait
+	for !rsp.Stopped() {
+		// wait
+	}
+	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, rspqDataAddress), binary.BigEndian, &rspqData)
+	if err != nil {
+		panic(err)
+	}
+
+	return uint32(id << 28)
+}
+
+const (
+	maxOverlayCount        = 8
+	overlayIdCount         = 16
+	maxOverlayCommandCount = ((maxOverlayCount - 1) * 16)
+)

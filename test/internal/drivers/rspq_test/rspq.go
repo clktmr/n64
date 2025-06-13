@@ -26,7 +26,7 @@ func TestCrash(t *testing.T) {
 
 	// Cause rspq assertion fail with invalid command
 	rspq.Write(rspq.Command(0xde))
-	for !rsp.Halted() {
+	for !rsp.Stopped() {
 		// wait
 	}
 
@@ -41,7 +41,7 @@ func TestDMA(t *testing.T) {
 	rspq.Reset()
 
 	rspq.DMAWrite(got, 256, uint32(len(got)))
-	for !rsp.Halted() {
+	for !rsp.Stopped() {
 		// wait
 	}
 

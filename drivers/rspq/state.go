@@ -1,6 +1,10 @@
 package rspq
 
 import (
+	"encoding/binary"
+	"io"
+	"slices"
+
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
 )
@@ -11,6 +15,8 @@ const (
 )
 
 var (
+	rspqData rspQueue
+
 	ctx     = lowpri
 	lowpri  = newContext(0x200, sigBufdoneLow)
 	highpri = newContext(0x80, sigBufdoneHigh)
@@ -42,15 +48,17 @@ func (p *context) ClearBuffer(idx int) {
 	}
 }
 
+type overlayDescriptor struct {
+	Code, Data, State  cpu.Addr
+	CodeSize, DataSize uint16
+}
+
 // Struct layout is known by rsp_queue microcode and copied to DMEM. See
 // rsp_queue_s in libdragons's rspq_internal.h
 type rspQueue struct {
 	Tables struct {
 		OverlayTable      [0x10]uint8
-		OverlayDescriptor [8]struct {
-			Code, Data, State  cpu.Addr
-			CodeSize, DataSize uint16
-		}
+		OverlayDescriptor [8]overlayDescriptor
 	}
 	RSPQPointerStack    [8]uint32
 	RSPQDramLowpriAddr  cpu.Addr
@@ -76,11 +84,41 @@ type rspQueue struct {
 
 // Struct layout is known by rsp_queue microcode and copied to DMEM.
 type rspqOverlayHeader struct {
-	StateStart  uint16 // Start of the portion of DMEM used as "state"
-	StateSize   uint16 // Size of the portion of DMEM used as "state"
-	CommandBase uint16 // Primary overlay ID used for this overlay
+	Fields struct {
+		StateStart  uint16 // Start of the portion of DMEM used as "state"
+		StateSize   uint16 // Size of the portion of DMEM used as "state"
+		CommandBase uint16 // Primary overlay ID used for this overlay
+		_           uint16
+	}
+	Commands []uint16
+}
 
-	// TODO
-	// _           uint16
-	// commands    *uint16
+func loadOverlayHeader(r io.Reader) (*rspqOverlayHeader, error) {
+	p := &rspqOverlayHeader{}
+	err := binary.Read(r, binary.BigEndian, &p.Fields)
+	if err != nil {
+		return nil, err
+	}
+	p.Commands = cpu.MakePaddedSlice[uint16](maxOverlayCommandCount)
+	err = binary.Read(r, binary.BigEndian, &p.Commands)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return nil, err
+	}
+	idx := slices.Index(p.Commands[:], 0)
+	if idx != -1 {
+		p.Commands = p.Commands[:idx]
+	}
+	return p, nil
+}
+
+func (p *rspqOverlayHeader) Store(w io.Writer) error {
+	err := binary.Write(w, binary.BigEndian, &p.Fields)
+	if err != nil {
+		return err
+	}
+	err = binary.Write(w, binary.BigEndian, append(p.Commands, 0))
+	if err != nil {
+		return err
+	}
+	return nil
 }

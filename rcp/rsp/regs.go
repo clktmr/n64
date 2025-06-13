@@ -90,13 +90,13 @@ func SetInterrupt(en bool) {
 	}
 }
 
-func Halted() bool { return regs.status.LoadBits(halted) != 0 }
-func Broke() bool  { return regs.status.LoadBits(broke) != 0 }
-func Resume()      { regs.status.Store(clrBroke | clrHalt) }
+func Stopped() bool { return regs.status.LoadBits(halted|dmaBusy) == halted }
+func Broke() bool   { return regs.status.LoadBits(broke) != 0 }
+func Resume()       { regs.status.Store(clrBroke | clrHalt) }
 func Step() {
 	regs.status.Store(setSingleStep)
 	Resume()
-	for !Halted() {
+	for !Stopped() {
 		// wait
 	}
 }
@@ -122,7 +122,7 @@ func interleave(mask uint8) (r uint16) {
 // PC returns the RSP's current program counter value. Can only be read while
 // halted, otherwise returns 0.
 func PC() cpu.Addr {
-	if Halted() {
+	if Stopped() {
 		return pc.Load()
 	}
 	return 0xffff_ffff
