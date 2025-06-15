@@ -14,8 +14,8 @@ which adds a minimal rtos to the runtime via GOOS=noos.
 1. Install the embeddedgo toolchain with n64 patch:
 
 ```sh
-    go install github.com/clktmr/dl/go1.24.0-n64@latest
-    go1.24.0-n64 download
+    go install github.com/clktmr/dl/go1.24.0-n64-1@latest
+    go1.24.0-n64-1 download
 ```
 
    The next release of embeddedgo will have these changes included.
