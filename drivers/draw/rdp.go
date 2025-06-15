@@ -15,38 +15,54 @@ import (
 	"github.com/embeddedgo/display/images"
 )
 
-// Rdp provides hardware accelerated drawing capabilities.
+// HW provides hardware accelerated drawing capabilities.
 //
 // Besides implementing [draw.Drawer], it provides additional functions for
 // drawing text efficiently.
-type Rdp struct {
-	target *texture.Texture
-	dlist  *rdp.DisplayList
+type HW draw.Op
+
+const (
+	Over = HW(draw.Over)
+	Src  = HW(draw.Src)
+)
+
+// Draw implements the [Drawer] interface.
+func (op HW) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point) {
+	DrawMask(dst, r, src, sp, nil, image.Point{}, draw.Op(op))
 }
 
-func NewRdp() *Rdp {
-	r := &Rdp{
-		dlist: &rdp.RDP,
+func (op HW) DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point) {
+	DrawMask(dst, r, src, sp, mask, mp, draw.Op(op))
+}
+
+var target *texture.Texture
+
+func Bounds() image.Rectangle { return target.Bounds() }
+func Flush()                  { rdp.RDP.Flush() }
+
+func setFramebuffer(tex *texture.Texture) {
+	target = tex
+	rdp.RDP.SetColorImage(target)
+	rdp.RDP.SetScissor(image.Rectangle{Max: target.Bounds().Size()}, rdp.InterlaceNone)
+}
+
+func Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, op draw.Op) {
+	DrawMask(dst, r, src, sp, nil, image.Point{}, op)
+}
+
+func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
+	if target != dst {
+		if dst, ok := dst.(*texture.Texture); ok {
+			setFramebuffer(dst)
+		} else {
+			panic("dst not a texture")
+		}
 	}
 
-	return r
-}
-
-func (fb *Rdp) SetFramebuffer(tex *texture.Texture) {
-	fb.target = tex
-	fb.dlist.SetColorImage(fb.target)
-	fb.dlist.SetScissor(image.Rectangle{Max: fb.target.Bounds().Size()}, rdp.InterlaceNone)
-}
-
-func (fb *Rdp) Draw(r image.Rectangle, src image.Image, sp image.Point, op draw.Op) {
-	fb.DrawMask(r, src, sp, nil, image.Point{}, op)
-}
-
-func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
 	// Readjust r if we draw to a viewport/subimage of the framebuffer
-	r = r.Bounds().Sub(fb.target.Bounds().Min)
+	r = r.Bounds().Sub(dst.Bounds().Min)
 
-	if !r.Overlaps(fb.target.Bounds()) {
+	if !r.Overlaps(dst.Bounds()) {
 		return
 	}
 
@@ -56,9 +72,9 @@ func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask
 		case nil:
 			_, isAlpha := srcImg.Image.(*image.Alpha)
 			if isAlpha {
-				fb.drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.RGBA{0xff, 0xff, 0xff, 0xff}, op)
+				drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.RGBA{0xff, 0xff, 0xff, 0xff}, op)
 			} else {
-				fb.drawColorImage(r, srcImg, sp, image.Point{1, 1}, nil, op)
+				drawColorImage(r, srcImg, sp, image.Point{1, 1}, nil, op)
 			}
 			return
 		}
@@ -68,28 +84,28 @@ func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask
 			// fill
 			switch op {
 			case draw.Src:
-				fb.drawUniformSrc(r, srcImg.C, nil)
+				drawUniformSrc(r, srcImg.C, nil)
 				return
 			case draw.Over:
-				fb.drawUniformOver(r, srcImg.C, color.Opaque)
+				drawUniformOver(r, srcImg.C, color.Opaque)
 				return
 			}
 		case *image.Uniform:
 			switch op {
 			case draw.Src:
-				fb.drawUniformSrc(r, srcImg.C, maskImg.C)
+				drawUniformSrc(r, srcImg.C, maskImg.C)
 				return
 			case draw.Over:
-				fb.drawUniformOver(r, srcImg.C, maskImg.C)
+				drawUniformOver(r, srcImg.C, maskImg.C)
 				return
 			}
 		case *texture.Texture:
-			fb.drawColorImage(r, maskImg, mp, image.Point{1, 1}, srcImg.C, op)
+			drawColorImage(r, maskImg, mp, image.Point{1, 1}, srcImg.C, op)
 			return
 		case *images.Magnifier:
 			maskAlpha, ok := maskImg.Image.(*texture.Texture)
 			debug.Assert(ok, "rdp unsupported magnifier format")
-			fb.drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, srcImg.C, op)
+			drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, srcImg.C, op)
 			return
 		}
 	}
@@ -97,7 +113,7 @@ func (fb *Rdp) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask
 	debug.Assert(false, "rdp unsupported format")
 }
 
-func (fb *Rdp) drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Color) {
+func drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Color) {
 	if mask != nil {
 		rf, gf, bf, af := fill.RGBA()
 		_, _, _, ma := mask.RGBA()
@@ -109,22 +125,22 @@ func (fb *Rdp) drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Co
 			uint8((af * m) >> 24),
 		}
 	}
-	fb.dlist.SetFillColor(fill)
-	fb.dlist.SetOtherModes(
+	rdp.RDP.SetFillColor(fill)
+	rdp.RDP.SetOtherModes(
 		0, rdp.CycleTypeFill, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, rdp.BlendMode{},
 	)
-	fb.dlist.FillRectangle(r)
+	rdp.RDP.FillRectangle(r)
 }
 
-func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.Color) {
+func drawUniformOver(r image.Rectangle, fill color.Color, mask color.Color) {
 	// CycleTypeFill doesn't support blending, use CycleTypeOne instead. The
 	// following operation is required by draw.Over:
 	//
 	//     a = 1.0 - (fill_alpha * mask_alpha)
 	//     dst = (dst*a + fill*mask_alpha)
 
-	fb.dlist.SetPrimitiveColor(fill)
-	fb.dlist.SetEnvironmentColor(mask)
+	rdp.RDP.SetPrimitiveColor(fill)
+	rdp.RDP.SetEnvironmentColor(mask)
 
 	// cc = fill*mask_alpha
 	cp := rdp.CombineParams{
@@ -136,16 +152,16 @@ func (fb *Rdp) drawUniformOver(r image.Rectangle, fill color.Color, mask color.C
 		rdp.CombineAAlphaZero, rdp.CombineEnvironment,
 		rdp.CombinePrimitive, rdp.CombineDAlphaOne,
 	}
-	fb.dlist.SetCombineMode(rdp.CombineMode{
+	rdp.RDP.SetCombineMode(rdp.CombineMode{
 		Two: rdp.CombinePass{RGB: cp, Alpha: cpA},
 	})
 
-	fb.dlist.SetOtherModes(
+	rdp.RDP.SetOtherModes(
 		rdp.ForceBlend|rdp.ImageRead,
 		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOverPremult,
 	)
 
-	fb.dlist.FillRectangle(r)
+	rdp.RDP.FillRectangle(r)
 }
 
 // These modes expect the color combiner to pass (1-alpha) instead of alpha to
@@ -178,24 +194,24 @@ var (
 	}
 )
 
-func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
+func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
 	var modeflags rdp.ModeFlags
 	colorSource := rdp.CombineTex0
 
 	if fill != nil {
-		fb.dlist.SetPrimitiveColor(fill)
+		rdp.RDP.SetPrimitiveColor(fill)
 		colorSource = rdp.CombinePrimitive
 	}
 
 	if src.Palette() != nil {
 		modeflags |= rdp.TLUT
-		fb.dlist.SetTextureImage(src.Palette())
-		_, idx := fb.dlist.SetTile(rdp.TileDescriptor{
+		rdp.RDP.SetTextureImage(src.Palette())
+		_, idx := rdp.RDP.SetTile(rdp.TileDescriptor{
 			Format: texture.CI4, // tlut must always use 4bpp
 			Addr:   0x100,
 			Line:   uint16(src.Format().TMEMWords(src.Palette().Bounds().Dx())),
 		})
-		fb.dlist.LoadTLUT(idx, src.Palette().Bounds())
+		rdp.RDP.LoadTLUT(idx, src.Palette().Bounds())
 	}
 
 	var blendmode *rdp.BlendMode
@@ -205,7 +221,7 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 		} else {
 			blendmode = &blendOver
 		}
-		fb.dlist.SetOtherModes(
+		rdp.RDP.SetOtherModes(
 			rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0|modeflags,
 			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
 		)
@@ -214,15 +230,15 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 			blendmode = &blendSrcPremult
 		} else {
 			blendmode = &blendSrc
-			fb.dlist.SetBlendColor(color.RGBA{A: 0xff})
+			rdp.RDP.SetBlendColor(color.RGBA{A: 0xff})
 		}
-		fb.dlist.SetOtherModes(
+		rdp.RDP.SetOtherModes(
 			rdp.ForceBlend|rdp.BiLerp0|modeflags,
 			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
 		)
 	}
 
-	fb.dlist.SetCombineMode(rdp.CombineMode{
+	rdp.RDP.SetCombineMode(rdp.CombineMode{
 		Two: rdp.CombinePass{
 			RGB: rdp.CombineParams{0, 0, 0, colorSource}, // cc = src
 			Alpha: rdp.CombineParams{ // cc_alpha = 1-tex0_alpha
@@ -230,10 +246,10 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 				rdp.CombineTex0, rdp.CombineDAlphaOne,
 			}},
 	})
-	fb.dlist.SetTextureImage(src)
+	rdp.RDP.SetTextureImage(src)
 
 	step := rdp.MaxTileSize(src.Format())
-	loadIdx, drawIdx := fb.dlist.SetTile(rdp.TileDescriptor{
+	loadIdx, drawIdx := rdp.RDP.SetTile(rdp.TileDescriptor{
 		Format: src.Format(),
 		Addr:   0x0,
 		Line:   uint16(src.Format().TMEMWords(step.Dx() / scale.X)),
@@ -251,8 +267,8 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 
 			debug.Assert(!tile.Empty(), "drawing empty tile")
 
-			fb.dlist.LoadTile(loadIdx, tile)
-			fb.dlist.TextureRectangle(tile.Add(origin), tile.Min, scale, drawIdx)
+			rdp.RDP.LoadTile(loadIdx, tile)
+			rdp.RDP.TextureRectangle(tile.Add(origin), tile.Min, scale, drawIdx)
 		}
 	}
 
@@ -262,21 +278,29 @@ func (fb *Rdp) drawColorImage(r image.Rectangle, src *texture.Texture, p image.P
 // Draws text str inside r, beginning at p. Returns the next p.
 // Fore- and background colors fg and bg don't support alpha. If a nil
 // background color is passed, it will be transparent.
-func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.Color, str []byte) image.Point {
-	fb.dlist.SetEnvironmentColor(fg)
+func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.Color, str []byte) image.Point {
+	if target != dst {
+		if dst, ok := dst.(*texture.Texture); ok {
+			setFramebuffer(dst)
+		} else {
+			panic("dst not a texture")
+		}
+	}
+
+	rdp.RDP.SetEnvironmentColor(fg)
 
 	blendmode := &blendOver
 	if bg != nil {
-		fb.dlist.SetBlendColor(bg)
+		rdp.RDP.SetBlendColor(bg)
 		blendmode = &blendSrc
 	}
 
-	fb.dlist.SetOtherModes(
+	rdp.RDP.SetOtherModes(
 		rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
 		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
 	)
 
-	fb.dlist.SetCombineMode(rdp.CombineMode{
+	rdp.RDP.SetCombineMode(rdp.CombineMode{
 		Two: rdp.CombinePass{
 			RGB: rdp.CombineParams{0, 0, 0, rdp.CombineEnvironment}, // cc = src
 			Alpha: rdp.CombineParams{ // cc_alpha = 1-tex0_alpha
@@ -291,14 +315,14 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 	}
 	tex, ok := img.(*texture.Texture)
 	debug.Assert(ok, "fontmap format")
-	loadIdx, drawIdx := fb.dlist.SetTile(rdp.TileDescriptor{
+	loadIdx, drawIdx := rdp.RDP.SetTile(rdp.TileDescriptor{
 		Format: tex.Format(),
 		Addr:   0x0,
 		Line:   uint16(tex.Format().TMEMWords(tex.Bounds().Dx())),
 	})
 
 	pos := p
-	clip := r.Intersect(fb.target.Bounds())
+	clip := r.Intersect(dst.Bounds())
 
 	var oldtex *texture.Texture
 	for len(str) > 0 {
@@ -320,24 +344,16 @@ func (fb *Rdp) DrawText(r image.Rectangle, font *fonts.Face, p image.Point, fg, 
 			tex, ok := img.(*texture.Texture)
 			debug.Assert(ok, "fontmap format")
 			if tex != oldtex {
-				fb.dlist.SetTextureImage(tex)
+				rdp.RDP.SetTextureImage(tex)
 				oldtex = tex
 			}
 
-			fb.dlist.LoadTile(loadIdx, glyphRect)
-			fb.dlist.TextureRectangle(glyphRectSS, glyphRect.Min, image.Point{1, 1}, drawIdx)
+			rdp.RDP.LoadTile(loadIdx, glyphRect)
+			rdp.RDP.TextureRectangle(glyphRectSS, glyphRect.Min, image.Point{1, 1}, drawIdx)
 		}
 
 		pos.X += adv
 	}
 
 	return pos
-}
-
-func (fb *Rdp) Bounds() image.Rectangle {
-	return fb.target.Bounds()
-}
-
-func (fb *Rdp) Flush() {
-	fb.dlist.Flush()
 }

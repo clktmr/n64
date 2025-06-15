@@ -7,36 +7,28 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
-// A software based draw implementation.
+// SW implements a software-based drawer by forwarding the calls to image.draw.
 //
-// Note that as of now using 32bpp textures has better performance, since they
-// use the optimized implementation from image/draw.
-type Cpu struct {
-	target *texture.Texture
+// It ensures to that image.draw uses the optimized path by passing images
+// instead of textures. Note that as of now using 32bpp textures has better
+// performance, since there is no optimized implementation for 16bpp images.
+type SW draw.Op
+
+const (
+	OverSW = SW(draw.Over)
+	SrcSW  = SW(draw.Src)
+)
+
+func (op SW) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point) {
+	op.DrawMask(dst, r, src, sp, nil, image.Point{})
 }
 
-func NewCpu() *Cpu {
-	return &Cpu{}
-}
-
-func (p *Cpu) SetFramebuffer(fb *texture.Texture) {
-	p.target = fb
-}
-
-func (fb *Cpu) Draw(r image.Rectangle, src image.Image, sp image.Point, op draw.Op) {
-	fb.DrawMask(r, src, sp, nil, image.Point{}, op)
-}
-
-func (p *Cpu) DrawMask(r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
+func (op SW) DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point) {
 	if tex, ok := src.(texture.Texture); ok {
 		src = tex.Image
 	}
 	if tex, ok := mask.(texture.Texture); ok {
 		mask = tex.Image
 	}
-	draw.DrawMask(p.target.Image, r, src, sp, mask, mp, op)
-}
-
-func (p *Cpu) Flush() {
-	p.target.Writeback()
+	draw.DrawMask(dst, r, src, sp, mask, mp, draw.Op(op))
 }

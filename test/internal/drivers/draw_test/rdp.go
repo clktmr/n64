@@ -149,10 +149,6 @@ func TestDrawMask(t *testing.T) {
 	}
 
 	// Run all testcases
-	drawerHW := n64draw.NewRdp()
-	drawerHW.SetFramebuffer(result)
-	drawerSW := n64draw.NewCpu()
-	drawerSW.SetFramebuffer(expected)
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// prepare
@@ -163,10 +159,9 @@ func TestDrawMask(t *testing.T) {
 			result.Invalidate()
 
 			// draw
-			drawerSW.DrawMask(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // expected
-			drawerSW.Flush()
-			drawerHW.DrawMask(tc.r, tc.src, tc.sp, tc.mask, tc.mp, tc.op) // result
-			drawerHW.Flush()
+			n64draw.SW(tc.op).DrawMask(expected, tc.r, tc.src, tc.sp, tc.mask, tc.mp) // expected
+			n64draw.HW(tc.op).DrawMask(result, tc.r, tc.src, tc.sp, tc.mask, tc.mp)   // result
+			n64draw.Flush()
 
 			// compare
 			const showThreshold = 18 // allow some errors due to precision
