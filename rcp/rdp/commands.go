@@ -77,7 +77,7 @@ func (dl *DisplayList) Flush() {
 }
 
 //go:nosplit
-func (dl *DisplayList) Push(cmd command) { // TODO unexport
+func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 	regs := regs // avoid multiple nilcheck() on regs
 	retries := 0
 	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= cpu.PhysicalAddress(dl.end) {
@@ -86,19 +86,21 @@ func (dl *DisplayList) Push(cmd command) { // TODO unexport
 		}
 	}
 
-	idx := int(dl.end-dl.start) >> 3
-	dl.commands[idx] = cmd
+	for _, cmd := range cmds {
+		// unsafe.Pointer is used for performance
+		ptr := cpu.Uncached((*command)(unsafe.Pointer(dl.end)))
+		*ptr = cmd
 
-	cpu.Writeback(dl.end, 8)
-	dl.end += 8
+		dl.end += 8
 
-	regs.end.Store(cpu.PhysicalAddress(dl.end))
-
-	if idx == len(dl.commands)-1 {
-		regs.start.Store(cpu.PhysicalAddress(dl.start))
-		regs.end.Store(cpu.PhysicalAddress(dl.start))
-		dl.end = dl.start
+		if int(dl.end-dl.start)>>3 == len(dl.commands)-1 {
+			regs.end.Store(cpu.PhysicalAddress(dl.end))
+			regs.start.Store(cpu.PhysicalAddress(dl.start))
+			regs.end.Store(cpu.PhysicalAddress(dl.start))
+			dl.end = dl.start
+		}
 	}
+	regs.end.Store(cpu.PhysicalAddress(dl.end))
 }
 
 // Sets the framebuffer to render the final image into.
@@ -219,8 +221,7 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) (loadIdx, drawIdx uint8) {
 	cmd |= command(ts.MaskS)<<4 | command(ts.ShiftS)
 	cmd |= command(ts.Flags)
 
-	dl.Push(SyncTile)
-	dl.Push(cmd)
+	dl.Push(SyncTile, cmd)
 
 	return
 }
@@ -228,8 +229,6 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) (loadIdx, drawIdx uint8) {
 // Copies a tile into TMEM. The tile is copied from the texture image, which
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
-	dl.Push(SyncTile)
-
 	if idx == tile4bpp {
 		dl.SetTileSize(0, r)
 		r.Min.X >>= 1
@@ -239,7 +238,7 @@ func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
 	cmd := 0xf4<<56 | command(r.Min.X)<<46 | command(r.Min.Y)<<34
 	cmd |= command(idx)<<24 | command(r.Max.X-1)<<14 | command(r.Max.Y-1)<<2
 
-	dl.Push(cmd)
+	dl.Push(SyncTile, cmd)
 }
 
 // Copies a color palette into TMEM. The palette is copied from the texture image, which
@@ -398,12 +397,10 @@ func (dl *DisplayList) SetOtherModes(
 	}
 	dl.otherModes = m
 
-	dl.Push(SyncPipe)
-
 	dl.SetScissor(dl.scissorSet, dl.interlace)
 
 	cmd := 0xef00_000f_0000_0000 | m
-	dl.Push(command(cmd))
+	dl.Push(SyncPipe, command(cmd))
 }
 
 type InterlaceFrame uint64
@@ -468,11 +465,9 @@ func (dl *DisplayList) SetBlendColor(c color.Color) {
 	}
 	dl.blendColor = cRGBA
 
-	dl.Push(SyncPipe)
-
-	dl.Push(0xf9<<56 |
-		command(dl.blendColor.R)<<24 | command(dl.blendColor.G)<<16 |
-		command(dl.blendColor.B)<<8 | command(dl.blendColor.A))
+	dl.Push(SyncPipe, 0xf9<<56|
+		command(dl.blendColor.R)<<24|command(dl.blendColor.G)<<16|
+		command(dl.blendColor.B)<<8|command(dl.blendColor.A))
 }
 
 func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
@@ -494,11 +489,9 @@ func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
 	}
 	dl.environmentColor = cRGBA
 
-	dl.Push(SyncPipe)
-
-	dl.Push(0xfb<<56 |
-		command(dl.environmentColor.R)<<24 | command(dl.environmentColor.G)<<16 |
-		command(dl.environmentColor.B)<<8 | command(dl.environmentColor.A))
+	dl.Push(SyncPipe, 0xfb<<56|
+		command(dl.environmentColor.R)<<24|command(dl.environmentColor.G)<<16|
+		command(dl.environmentColor.B)<<8|command(dl.environmentColor.A))
 }
 
 func (dl *DisplayList) SetCombineMode(m CombineMode) {
@@ -506,8 +499,6 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 		return
 	}
 	dl.combineMode = m
-
-	dl.Push(SyncPipe)
 
 	cmd := command(0xfc<<56 |
 		m.One.RGB.A<<52 | m.One.RGB.C<<47 |
@@ -519,7 +510,7 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 		m.One.RGB.D<<15 | m.One.Alpha.B<<12 | m.One.Alpha.D<<9 |
 		m.Two.RGB.D<<6 | m.Two.Alpha.B<<3 | m.Two.Alpha.D)
 
-	dl.Push(cmd)
+	dl.Push(SyncPipe, cmd)
 }
 
 // Draws a rectangle filled with the color set by SetFillColor().
@@ -547,9 +538,9 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 
 	cmd := 0xe4<<56 | command(r.Max.X)<<46 | command(r.Max.Y)<<34
 	cmd |= command(tileIdx)<<24 | command(r.Min.X)<<14 | command(r.Min.Y)<<2
-	dl.Push(cmd)
-	dl.Push(command(p.X<<53) | command(p.Y<<37) |
-		command(((0x8000/scale.X)>>5)<<16|(0x8000/scale.Y)>>5))
+	cmd2 := command(p.X<<53) | command(p.Y<<37)
+	cmd2 |= command(((0x8000/scale.X)>>5)<<16 | (0x8000/scale.Y)>>5)
+	dl.Push(cmd, cmd2)
 }
 
 // MaxTileSize returns the largest tile that fits into TMEM for the given
