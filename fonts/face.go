@@ -27,6 +27,8 @@ type Face struct {
 // GlyphMap returns the image containing a glyph map with the specified rune.
 // The subimage defined by rect contains the requested glyph, with it's origin
 // and vertical advance in pixels.
+//
+//go:nosplit
 func (f *Face) GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin image.Point, advance int) {
 	sf := getSubfont(f, r)
 	if sf == nil {
@@ -43,6 +45,7 @@ func (f *Face) GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin i
 	return
 }
 
+//go:nosplit
 func getSubfont(f *Face, r rune) (sf *subfont.Subfont) {
 	// TODO: binary search
 	for _, sf = range f.Subfonts {

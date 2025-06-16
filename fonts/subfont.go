@@ -34,6 +34,7 @@ func (p *SubfontData) Glyph(i int) (img image.Image, origin image.Point, advance
 	return
 }
 
+//go:nosplit
 func (p *SubfontData) GlyphMap(i int) (img image.Image, r image.Rectangle, origin image.Point, advance int) {
 	g := &p.glyphs[i]
 	img, r, origin, advance = p.fontMap, g.img.Bounds(), g.origin, g.advance
