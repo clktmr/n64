@@ -20,6 +20,7 @@ import (
 	"github.com/clktmr/n64/test/internal/drivers/controller_test"
 	"github.com/clktmr/n64/test/internal/drivers/draw_test"
 	"github.com/clktmr/n64/test/internal/drivers/rspq_test"
+	"github.com/clktmr/n64/test/internal/fonts_test"
 	"github.com/clktmr/n64/test/internal/rcp_test"
 	"github.com/clktmr/n64/test/internal/rcp_test/cpu_test"
 	"github.com/clktmr/n64/test/internal/rcp_test/periph_test"
@@ -55,6 +56,7 @@ func main() {
 
 	os.Args = append(os.Args, "-test.v")
 	os.Args = append(os.Args, "-test.bench=.")
+	os.Args = append(os.Args, "-test.benchmem")
 
 	print("Hold START to enable interactive test.. ")
 	controller.Poll()
@@ -97,6 +99,8 @@ func main() {
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(runtime_test.BenchmarkSchedule),
+			newInternalBenchmark(fonts_test.BenchmarkGlyphMap),
+			newInternalBenchmark(draw_test.BenchmarkDrawText),
 		}, nil,
 	)
 }
