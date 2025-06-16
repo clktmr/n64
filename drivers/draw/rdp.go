@@ -324,6 +324,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 	pos := p
 	clip := r.Intersect(dst.Bounds())
 
+	outofbounds := false
 	var oldtex *texture.Texture
 	for len(str) > 0 {
 		rune, size := utf8.DecodeRune(str)
@@ -331,6 +332,10 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 		if rune == '\n' {
 			pos.X = r.Min.X
 			pos.Y += int(font.Height)
+			outofbounds = false
+			continue
+		}
+		if outofbounds {
 			continue
 		}
 
@@ -350,6 +355,8 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 
 			rdp.RDP.LoadTile(loadIdx, glyphRect)
 			rdp.RDP.TextureRectangle(glyphRectSS, glyphRect.Min, image.Point{1, 1}, drawIdx)
+		} else if glyphRectSS.Min.X > clip.Max.X {
+			outofbounds = true // skip rest of line
 		}
 
 		pos.X += adv
