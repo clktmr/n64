@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"image"
-	"image/draw"
 	"log"
 	"os"
 	"path/filepath"
@@ -76,27 +75,29 @@ func Main(args []string) {
 		log.Fatalln(err)
 	}
 
-	// Initialize the context.
-	fg, bg := image.White, image.Black
-	fontMap := texture.NewI4(image.Rect(0, 0, dim, dim))
-	draw.Draw(fontMap, fontMap.Bounds(), bg, image.Point{}, draw.Src)
-	c := freetype.NewContext()
-	c.SetDPI(*dpi)
-	c.SetFont(f)
-	c.SetFontSize(*size)
-	c.SetClip(fontMap.Bounds())
-	c.SetDst(fontMap)
-	c.SetSrc(fg)
+	options := &truetype.Options{
+		Size: *size,
+		DPI:  *dpi,
+	}
 	switch *hinting {
 	default:
-		c.SetHinting(font.HintingNone)
+		options.Hinting = font.HintingNone
+	case "vertical":
+		options.Hinting = font.HintingVertical
 	case "full":
-		c.SetHinting(font.HintingFull)
+		options.Hinting = font.HintingFull
 	}
+	face := truetype.NewFace(f, options)
+	defer face.Close()
+
+	// Initialize the context.
+	fontMap := texture.NewI4(image.Rect(0, 0, dim, dim))
+	drawer := font.Drawer{Dst: fontMap, Src: image.White, Face: face}
 
 	// Draw the font file
-	lineHeight := c.PointToFixed((*size) * (*spacing)).Ceil()
-	pt := freetype.Pt(0, lineHeight)
+	spacingFixed := fixed.Int26_6(*spacing * (1 << 6))
+	lineHeight := face.Metrics().Height.Mul(spacingFixed).Ceil()
+	drawer.Dot = fixed.Point26_6{0, fixed.I(lineHeight)}
 	var missing []byte
 	for s := rune(*start); s <= rune(*end); s++ {
 		// Use a common "missing" glyph
@@ -104,43 +105,39 @@ func Main(args []string) {
 			positions = append(positions, missing...)
 			continue
 		}
-		// Always start drawing at a fraction of a pixel
-		pt = fixed.P(pt.X.Ceil(), pt.Y.Ceil())
+		// Always start drawing at full pixels
+		drawer.Dot = fixed.P(drawer.Dot.X.Ceil(), drawer.Dot.Y.Ceil())
 
-		// Try to draw and check if we need to wrap
-		c.SetSrc(bg)
-		nextPt, err := c.DrawString(string(s), pt)
-		if err != nil {
-			log.Fatalln(err)
+		// Check if we need to wrap
+		const padding = 1
+		adv, _ := face.GlyphAdvance(s)
+		nextDot := drawer.Dot.Add(fixed.P(adv.Ceil()+padding, 0))
+
+		if nextDot.X.Ceil() >= dim {
+			drawer.Dot.Y += fixed.I(lineHeight + padding)
+			drawer.Dot.X = fixed.I(0)
 		}
-
-		adv := byte(nextPt.X.Floor() - pt.X.Floor())
-
-		if nextPt.X.Ceil() >= dim {
-			pt.Y += c.PointToFixed(float64(lineHeight))
-			pt.X = c.PointToFixed(0)
-		}
-		if nextPt.Y.Ceil() >= dim {
+		if nextDot.Y.Ceil() >= dim {
 			log.Fatalln("Too many glyphs to fit into font image map")
 		}
 
-		positions = append(positions, byte(pt.X.Floor()))
-		positions = append(positions, byte(pt.Y.Floor()))
-		positions = append(positions, adv)
+		positions = append(positions, byte(drawer.Dot.X.Round()))
+		positions = append(positions, byte(drawer.Dot.Y.Round()))
+		positions = append(positions, byte(adv.Ceil()))
 
 		if f.Index(s) == 0 && missing == nil {
 			missing = positions[len(positions)-3:]
 		}
 
 		// Actual drawing
-		c.SetSrc(fg)
-		pt, err = c.DrawString(string(s), pt)
+		drawer.DrawString(string(s))
 		if err != nil {
 			log.Fatalln(err)
 		}
+		drawer.Dot = drawer.Dot.Add(fixed.P(padding, 0))
 	}
 
-	lastLine := pt.Y.Ceil() + lineHeight
+	lastLine := drawer.Dot.Y.Ceil() + lineHeight
 	shrinkedFontMap := fontMap.SubImage(image.Rect(0, 0, dim, lastLine))
 
 	// Save the font map image to disk
@@ -186,9 +183,6 @@ func Main(args []string) {
 	}
 	defer subfontsFile.Close()
 
-	// TODO store ascent per rune
-	ascent := f.VMetric(c.PointToFixed((*size)), f.Index('A')).AdvanceHeight
-
 	err = tmpl.Execute(subfontsFile, struct {
 		Name, Package  string
 		Height, Ascent int
@@ -196,7 +190,7 @@ func Main(args []string) {
 		Name:    fmt.Sprintf("%s %g", f.Name(truetype.NameIDFontFullName), *size),
 		Package: pkgname,
 		Height:  lineHeight,
-		Ascent:  ascent.Ceil(),
+		Ascent:  face.Metrics().Ascent.Round(),
 	})
 	if err != nil {
 		log.Fatalln(err)

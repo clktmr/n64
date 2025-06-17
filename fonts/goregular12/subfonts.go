@@ -11,7 +11,7 @@ import (
 
 const (
 	Height = 15
-	Ascent = 12
+	Ascent = 11
 )
 
 //go:embed *.tex *.pos
