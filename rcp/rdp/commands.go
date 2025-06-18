@@ -38,7 +38,8 @@ const (
 type DisplayList struct {
 	state
 
-	commands   [64]command
+	commands   [2][32]command
+	bufIdx     int
 	start, end uintptr
 }
 
@@ -79,13 +80,6 @@ func (dl *DisplayList) Flush() {
 //go:nosplit
 func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 	regs := regs // avoid multiple nilcheck() on regs
-	retries := 0
-	for regs.status.LoadBits(startPending) != 0 && regs.current.Load() <= cpu.PhysicalAddress(dl.end) {
-		if retries += 1; retries > 1024*1024 { // wait max ~1 sec
-			panic("rdp stall")
-		}
-	}
-
 	for _, cmd := range cmds {
 		// unsafe.Pointer is used for performance
 		ptr := cpu.Uncached((*command)(unsafe.Pointer(dl.end)))
@@ -93,11 +87,18 @@ func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 
 		dl.end += 8
 
-		if int(dl.end-dl.start)>>3 == len(dl.commands)-1 {
+		if int(dl.end-dl.start) == len(dl.commands[0])<<3 {
 			regs.end.Store(cpu.PhysicalAddress(dl.end))
+			dl.bufIdx = 1 - dl.bufIdx
+			dl.start = uintptr(unsafe.Pointer(&dl.commands[dl.bufIdx]))
+			dl.end = dl.start
+			for retries := 0; regs.status.LoadBits(startPending) != 0; retries++ {
+				if retries > 1024*1024 { // wait max ~1 sec
+					panic("rdp stall")
+				}
+			}
 			regs.start.Store(cpu.PhysicalAddress(dl.start))
 			regs.end.Store(cpu.PhysicalAddress(dl.start))
-			dl.end = dl.start
 		}
 	}
 	regs.end.Store(cpu.PhysicalAddress(dl.end))
