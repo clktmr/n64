@@ -56,18 +56,18 @@ func (m Memory) dma(p []byte, off int64, read bool) (n int, err error) {
 	pp := p[head:tail]
 	addr += cpu.Addr(head)
 
-	debug.Assert(regs.status.LoadBits(halted|dmaBusy) != 0, "rsp: dma busy")
+	debug.Assert(regs().status.LoadBits(halted|dmaBusy) != 0, "rsp: dma busy")
 
 	dmaMtx.Lock()
 	defer dmaMtx.Unlock()
 
-	regs.rdramAddr.Store(cpu.PhysicalAddressSlice(pp))
-	regs.rspAddr.Store(addr)
+	regs().rdramAddr.Store(cpu.PhysicalAddressSlice(pp))
+	regs().rspAddr.Store(addr)
 
 	if read {
 		if head != tail {
 			cpu.InvalidateSlice(pp)
-			regs.writeLen.Store(uint32(tail - head - 1))
+			regs().writeLen.Store(uint32(tail - head - 1))
 			waitDMA()
 		}
 		rcp.ReadIO[*mmio.U32](addr, p[:head])
@@ -77,7 +77,7 @@ func (m Memory) dma(p []byte, off int64, read bool) (n int, err error) {
 		rcp.WriteIO[*mmio.U32](addr+cpu.Addr(tail), p[tail:])
 		if head != tail {
 			cpu.WritebackSlice(pp)
-			regs.readLen.Store(uint32(tail - head - 1))
+			regs().readLen.Store(uint32(tail - head - 1))
 			waitDMA()
 		}
 	}
@@ -87,7 +87,7 @@ func (m Memory) dma(p []byte, off int64, read bool) (n int, err error) {
 
 // Blocks until DMA has finished.
 func waitDMA() {
-	for regs.status.Load()&(dmaBusy|ioBusy) != 0 {
+	for regs().status.Load()&(dmaBusy|ioBusy) != 0 {
 		runtime.Gosched()
 	}
 }

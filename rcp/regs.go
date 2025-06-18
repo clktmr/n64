@@ -9,7 +9,7 @@ import (
 // The RCP's clock speed
 const ClockSpeed = 62.5e6
 
-var regs *registers = cpu.MMIO[registers](0x0430_0000)
+func regs() *registers { return cpu.MMIO[registers](0x0430_0000) }
 
 // The RCP has multiple interrupts, which are all routed to the same external
 // interrupt line on the CPU. So all of these must be handled in the
@@ -73,19 +73,19 @@ type registers struct {
 func EnableInterrupts(mask interruptFlag) {
 	mask = convertMask(mask)
 	mask = mask << 1
-	regs.mask.Store(mask)
+	regs().mask.Store(mask)
 }
 
 func DisableInterrupts(mask interruptFlag) {
 	mask = convertMask(mask)
-	regs.mask.Store(mask)
+	regs().mask.Store(mask)
 }
 
 func Interrupts() {
-	regs.mask.Load()
+	regs().mask.Load()
 }
 
-func ClearDPIntr() { regs.mode.Store(ClearDP) }
+func ClearDPIntr() { regs().mode.Store(ClearDP) }
 
 func convertMask(mask interruptFlag) interruptFlag {
 	var wmask interruptFlag

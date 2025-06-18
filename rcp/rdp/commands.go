@@ -64,9 +64,9 @@ func init() {
 	RDP.start = uintptr(unsafe.Pointer(&RDP.commands))
 	RDP.end = RDP.start
 
-	regs.status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
-	regs.start.Store(cpu.PhysicalAddress(RDP.start))
-	regs.end.Store(cpu.PhysicalAddress(RDP.end))
+	regs().status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
+	regs().start.Store(cpu.PhysicalAddress(RDP.start))
+	regs().end.Store(cpu.PhysicalAddress(RDP.end))
 }
 
 // Flush blocks until all enqueued commands are fully processed.
@@ -79,7 +79,6 @@ func (dl *DisplayList) Flush() {
 
 //go:nosplit
 func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
-	regs := regs // avoid multiple nilcheck() on regs
 	for _, cmd := range cmds {
 		// unsafe.Pointer is used for performance
 		ptr := cpu.Uncached((*command)(unsafe.Pointer(dl.end)))
@@ -88,20 +87,20 @@ func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 		dl.end += 8
 
 		if int(dl.end-dl.start) == len(dl.commands[0])<<3 {
-			regs.end.Store(cpu.PhysicalAddress(dl.end))
+			regs().end.Store(cpu.PhysicalAddress(dl.end))
 			dl.bufIdx = 1 - dl.bufIdx
 			dl.start = uintptr(unsafe.Pointer(&dl.commands[dl.bufIdx]))
 			dl.end = dl.start
-			for retries := 0; regs.status.LoadBits(startPending) != 0; retries++ {
+			for retries := 0; regs().status.LoadBits(startPending) != 0; retries++ {
 				if retries > 1024*1024 { // wait max ~1 sec
 					panic("rdp stall")
 				}
 			}
-			regs.start.Store(cpu.PhysicalAddress(dl.start))
-			regs.end.Store(cpu.PhysicalAddress(dl.start))
+			regs().start.Store(cpu.PhysicalAddress(dl.start))
+			regs().end.Store(cpu.PhysicalAddress(dl.start))
 		}
 	}
-	regs.end.Store(cpu.PhysicalAddress(dl.end))
+	regs().end.Store(cpu.PhysicalAddress(dl.end))
 }
 
 // Sets the framebuffer to render the final image into.

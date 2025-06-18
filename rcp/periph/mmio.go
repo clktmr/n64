@@ -111,7 +111,7 @@ type r32[T mmio.T32] struct{ r mmio.R32[T] }
 //go:nosplit
 func (r *r32[T]) Store(v T) {
 	r.r.Store(v)
-	for regs.status.Load()&(ioBusy) != 0 {
+	for regs().status.Load()&(ioBusy) != 0 {
 		// wait
 	}
 }

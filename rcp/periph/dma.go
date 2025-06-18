@@ -38,18 +38,18 @@ func (job *dmaJob) initiate() bool {
 		if head == tail {
 			return false
 		}
-		regs.dramAddr.Store(cpu.PhysicalAddressSlice(dmaBuf))
-		regs.cartAddr.Store(job.cart + cpu.Addr(head))
+		regs().dramAddr.Store(cpu.PhysicalAddressSlice(dmaBuf))
+		regs().cartAddr.Store(job.cart + cpu.Addr(head))
 		cpu.WritebackSlice(dmaBuf)
-		regs.readLen.Store(n)
+		regs().readLen.Store(n)
 	} else { // dmaLoad
 		if head == tail {
 			return false
 		}
-		regs.dramAddr.Store(cpu.PhysicalAddressSlice(dmaBuf))
-		regs.cartAddr.Store(job.cart + cpu.Addr(head))
+		regs().dramAddr.Store(cpu.PhysicalAddressSlice(dmaBuf))
+		regs().cartAddr.Store(job.cart + cpu.Addr(head))
 		cpu.InvalidateSlice(dmaBuf)
-		regs.writeLen.Store(n)
+		regs().writeLen.Store(n)
 	}
 
 	rcp.EnableInterrupts(rcp.IntrPeriph)
@@ -101,14 +101,14 @@ var dmaQueue rcp.IntrQueue[dmaJob]
 var dmaActive atomic.Bool // TODO rename dmaQueueLock, make spinlock
 
 func init() {
-	regs.status.Store(clearInterrupt)
+	regs().status.Store(clearInterrupt)
 	rcp.SetHandler(rcp.IntrPeriph, handler)
 }
 
 //go:nosplit
 //go:nowritebarrierrec
 func handler() {
-	regs.status.Store(clearInterrupt)
+	regs().status.Store(clearInterrupt)
 	dmaActive.Store(false)
 
 	job, ok := dmaQueue.Pop()

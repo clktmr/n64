@@ -92,17 +92,17 @@ func waitUSB(cmd command) error {
 }
 
 func execCommand(cmdId command, data0 uint32, data1 uint32) (result0 uint32, result1 uint32, err error) {
-	regs.data0.Store(data0)
-	regs.data1.Store(data1)
-	regs.status.Store(status(cmdId))
+	regs().data0.Store(data0)
+	regs().data1.Store(data1)
+	regs().status.Store(status(cmdId))
 
 	status := statusBusy
 	for status&statusBusy != 0 {
-		status = regs.status.Load()
+		status = regs().status.Load()
 	}
 
-	result0 = regs.data0.Load()
-	result1 = regs.data1.Load()
+	result0 = regs().data0.Load()
+	result1 = regs().data1.Load()
 
 	if status&statusError != 0 {
 		err = errCodes[result0]

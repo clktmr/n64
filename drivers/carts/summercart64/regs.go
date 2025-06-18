@@ -22,7 +22,7 @@ type registers struct {
 	key        periph.U32
 }
 
-var regs = cpu.MMIO[registers](0x1fff_0000)
+func regs() *registers { return cpu.MMIO[registers](0x1fff_0000) }
 
 type status uint32
 
@@ -93,11 +93,11 @@ type Cart struct {
 // access to the ROM.
 func Probe() *Cart {
 	// sc64 magic unlock sequence
-	regs.key.Store(0x0)
-	regs.key.Store(0x5f554e4c)
-	regs.key.Store(0x4f434b5f)
+	regs().key.Store(0x0)
+	regs().key.Store(0x5f554e4c)
+	regs().key.Store(0x4f434b5f)
 
-	if regs.identifier.Load() == 0x53437632 { // SummerCart64 V2
+	if regs().identifier.Load() == 0x53437632 { // SummerCart64 V2
 		s := &Cart{}
 		if st, err := s.Config(CfgSaveType); err == nil {
 			params := saveStorageParams[st]
@@ -133,5 +133,5 @@ func (v *Cart) SaveStorage() *periph.Device {
 //
 //go:nosplit
 func (v *Cart) ClearInterrupt() {
-	regs.identifier.StoreSafe(0)
+	regs().identifier.StoreSafe(0)
 }

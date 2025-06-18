@@ -17,7 +17,7 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-var regs = cpu.MMIO[registers](0x0410_0000)
+func regs() *registers { return cpu.MMIO[registers](0x0410_0000) }
 
 type statusFlags uint32
 
@@ -82,9 +82,9 @@ func handler() {
 // Busy returns the number of GCLK cycles in which the specified component was
 // busy since the last call to Busy.
 func Busy() (cmd, pipe, tmem uint32) {
-	cmd = regs.cmdBusy.Load()
-	pipe = regs.pipeBusy.Load()
-	tmem = regs.tmemBusy.Load()
-	regs.status.Store(clrBufferBusy | clrPipeBusy | clrTMEMBusy)
+	cmd = regs().cmdBusy.Load()
+	pipe = regs().pipeBusy.Load()
+	tmem = regs().tmemBusy.Load()
+	regs().status.Store(clrBufferBusy | clrPipeBusy | clrTMEMBusy)
 	return
 }

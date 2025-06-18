@@ -15,7 +15,7 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 )
 
-var regs = cpu.MMIO[registers](0x0440_0000)
+func regs() *registers { return cpu.MMIO[registers](0x0440_0000) }
 
 type registers struct {
 	control   mmio.U32
@@ -106,16 +106,16 @@ func SetupNTSC(interlace bool) {
 		lines -= 1
 	}
 
-	regs.vSync.Store(lines)
-	regs.hSync.Store(0b00000<<16 | 3093)
-	regs.hSyncLeap.Store(3093<<16 | 3093)
-	regs.vBurst.Store(14<<16 | 516)
-	regs.burst.Store(62<<20 | 5<<16 | 34<<8 | 57)
+	regs().vSync.Store(lines)
+	regs().hSync.Store(0b00000<<16 | 3093)
+	regs().hSyncLeap.Store(3093<<16 | 3093)
+	regs().vBurst.Store(14<<16 | 516)
+	regs().burst.Store(62<<20 | 5<<16 | 34<<8 | 57)
 
 	limits = limitsNTSC
 	SetScale(limits)
 
-	regs.vIntr.Store(2)
+	regs().vIntr.Store(2)
 	SetFramebuffer(fb)
 }
 
@@ -141,15 +141,15 @@ func SetupPAL(interlace, pal60 bool) {
 		lines -= 1
 	}
 
-	regs.vSync.Store(lines)
-	regs.hSync.Store(0b10101<<16 | 3177)
-	regs.hSyncLeap.Store(3183<<16 | 3182)
-	regs.vBurst.Store(9<<16 | 619)
-	regs.burst.Store(64<<20 | 4<<16 | 35<<8 | 58)
+	regs().vSync.Store(lines)
+	regs().hSync.Store(0b10101<<16 | 3177)
+	regs().hSyncLeap.Store(3183<<16 | 3182)
+	regs().vBurst.Store(9<<16 | 619)
+	regs().burst.Store(64<<20 | 4<<16 | 35<<8 | 58)
 
 	SetScale(limits)
 
-	regs.vIntr.Store(2)
+	regs().vIntr.Store(2)
 	SetFramebuffer(fb)
 }
 
@@ -211,7 +211,7 @@ var VSync bool = true
 func SetFramebuffer(fb *texture.Texture) {
 	currentFb, _ := framebuffer.Read()
 	if fb == nil {
-		regs.control.Store(0)
+		regs().control.Store(0)
 		framebuffer.Put(nil)
 	} else if currentFb == nil ||
 		currentFb.Format() != fb.Format() ||
@@ -222,17 +222,17 @@ func SetFramebuffer(fb *texture.Texture) {
 			control |= uint32(controlSerrate)
 		}
 
-		regs.control.Store(0)
+		regs().control.Store(0)
 
 		framebuffer.Put(fb)
 		fbSize := fb.Bounds().Size()
 		videoSize := SetScale(Scale()).Size()
-		regs.xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
-		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
-		regs.width.Store(uint32(fb.Stride()))
+		regs().xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
+		regs().yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
+		regs().width.Store(uint32(fb.Stride()))
 
 		updateFramebuffer(fb)
-		regs.control.Store(control)
+		regs().control.Store(control)
 	} else {
 		framebuffer.Put(fb)
 		if !VSync {

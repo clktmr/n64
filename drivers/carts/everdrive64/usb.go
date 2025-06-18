@@ -15,8 +15,8 @@ type Cart struct {
 
 // Probe returns the [Cart] if an EverDrive64 was detected.
 func Probe() *Cart {
-	regs.key.Store(0xaa55) // magic key to unlock registers
-	switch regs.version.Load() {
+	regs().key.Store(0xaa55) // magic key to unlock registers
+	switch regs().version.Load() {
 	case 0xed64_0008: // EverDrive64 X3
 		fallthrough
 	case 0x0000_0001: // EverDrive64 X7 without sdcard inserted
@@ -33,7 +33,7 @@ func Probe() *Cart {
 // Write writes data from p to the USB port as raw bytes.
 func (v *Cart) Write(p []byte) (n int, err error) {
 	for len(p) > 0 {
-		regs.usbCfgW.Store(writeNop)
+		regs().usbCfgW.Store(writeNop)
 
 		offset := int64(min(len(p), bufferSize))
 
@@ -45,9 +45,9 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 		}
 		p = p[nn:]
 
-		regs.usbCfgW.Store(write | usbMode(offset))
+		regs().usbCfgW.Store(write | usbMode(offset))
 
-		for regs.usbCfgR.Load()&act != 0 {
+		for regs().usbCfgR.Load()&act != 0 {
 			// wait
 		}
 

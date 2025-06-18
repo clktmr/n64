@@ -25,8 +25,8 @@ func init() {
 //go:linkname rcpHandler IRQ3_Handler
 //go:interrupthandler
 func rcpHandler() {
-	pending := regs.interrupt.Load()
-	mask := regs.mask.Load()
+	pending := regs().interrupt.Load()
+	mask := regs().mask.Load()
 	irq := 0
 	for flag := interruptFlag(1); flag != IntrLast; flag = flag << 1 {
 		if flag&pending != 0 && flag&mask != 0 {

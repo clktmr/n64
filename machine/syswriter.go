@@ -7,7 +7,7 @@ import (
 	"github.com/clktmr/n64/rcp/periph"
 )
 
-var regs = cpu.MMIO[registers](0x13ff_0000)
+func regs() *registers { return cpu.MMIO[registers](0x13ff_0000) }
 
 const token = 0x49533634
 const bufferSize = 512 // actually 64*1024 - 0x20, but ISViewer.buf will allocate this
@@ -40,7 +40,7 @@ func DefaultWrite(fd int, p []byte) int {
 
 		for i := 0; i < n/4; i++ {
 			pi := 4 * i
-			regs.buf[i].StoreSafe(0 |
+			regs().buf[i].StoreSafe(0 |
 				uint32(p[pi])<<24 |
 				uint32(p[pi+1])<<16 |
 				uint32(p[pi+2])<<8 |
@@ -53,18 +53,18 @@ func DefaultWrite(fd int, p []byte) int {
 				base := len(p) - n%4
 				tail |= uint32(p[base+i]) << ((3 - i) * 8)
 			}
-			regs.buf[n/4].StoreSafe(tail)
+			regs().buf[n/4].StoreSafe(tail)
 		}
 
-		regs.readPtr.StoreSafe(0)
-		regs.writePtr.StoreSafe(uint32(n))
-		regs.token.StoreSafe(token)
+		regs().readPtr.StoreSafe(0)
+		regs().writePtr.StoreSafe(uint32(n))
+		regs().token.StoreSafe(token)
 
-		for regs.readPtr.LoadSafe() != regs.writePtr.LoadSafe() {
+		for regs().readPtr.LoadSafe() != regs().writePtr.LoadSafe() {
 			// wait
 		}
 
-		regs.token.StoreSafe(0x0)
+		regs().token.StoreSafe(0x0)
 		p = p[n:]
 	}
 

@@ -39,7 +39,7 @@ func init() {
 //go:nosplit
 //go:nowritebarrierrec
 func handler() {
-	regs.status.Store(0) // clears interrupt
+	regs().status.Store(0) // clears interrupt
 
 	buf, _ := cmdBuffer.Get()
 	if buf == nil {
@@ -52,8 +52,8 @@ func handler() {
 	} else {
 		// DMA write finished, trigger read back
 		cpu.InvalidateSlice(buf)
-		regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
-		regs.pifReadAddr.Store(pifRamAddr)
+		regs().dramAddr.Store(cpu.PhysicalAddressSlice(buf))
+		regs().pifReadAddr.Store(pifRamAddr)
 	}
 }
 
@@ -97,8 +97,8 @@ func Run(block *CommandBlock) {
 
 	cmdBuffer.Put(buf)
 	cpu.WritebackSlice(buf)
-	regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
-	regs.pifWriteAddr.Store(pifRamAddr)
+	regs().dramAddr.Store(cpu.PhysicalAddressSlice(buf))
+	regs().pifWriteAddr.Store(pifRamAddr)
 
 	// Wait until message was received
 	if !cmdFinished.Wait(1 * time.Second) {

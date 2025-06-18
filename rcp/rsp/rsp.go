@@ -8,8 +8,8 @@ import (
 )
 
 func init() {
-	regs.status.Store(setHalt | clrSingleStep)
-	pc.Store(0x1000)
+	regs().status.Store(setHalt | clrSingleStep)
+	pc().Store(0x1000)
 	rcp.SetHandler(rcp.IntrRSP, handler)
 	rcp.EnableInterrupts(rcp.IntrRSP)
 }
@@ -19,7 +19,7 @@ var IntBreak rtos.Cond
 //go:nosplit
 //go:nowritebarrierrec
 func handler() {
-	regs.status.Store(clrIntr)
+	regs().status.Store(clrIntr)
 	IntBreak.Signal()
 }
 
@@ -33,5 +33,5 @@ func Load(ucode *ucode.UCode) {
 		panic(err)
 	}
 
-	pc.Store(ucode.Entry)
+	pc().Store(ucode.Entry)
 }

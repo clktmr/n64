@@ -6,7 +6,7 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-var regs = cpu.MMIO[registers](0x0460_0000)
+func regs() *registers { return cpu.MMIO[registers](0x0460_0000) }
 
 type statusFlags uint32
 

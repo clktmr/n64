@@ -13,8 +13,8 @@ import (
 )
 
 // RSP program counter. Access only allowed when RSP is halted.
-var pc = cpu.MMIO[mmio.R32[cpu.Addr]](0x0408_0000)
-var regs = cpu.MMIO[registers](0x0404_0000)
+func pc() *mmio.R32[cpu.Addr] { return cpu.MMIO[mmio.R32[cpu.Addr]](0x0408_0000) }
+func regs() *registers        { return cpu.MMIO[registers](0x0404_0000) }
 
 type statusFlags uint32
 
@@ -84,17 +84,17 @@ const (
 
 func SetInterrupt(en bool) {
 	if en {
-		regs.status.Store(setIntbreak)
+		regs().status.Store(setIntbreak)
 	} else {
-		regs.status.Store(clrIntbreak)
+		regs().status.Store(clrIntbreak)
 	}
 }
 
-func Stopped() bool { return regs.status.LoadBits(halted|dmaBusy) == halted }
-func Broke() bool   { return regs.status.LoadBits(broke) != 0 }
-func Resume()       { regs.status.Store(clrBroke | clrHalt) }
+func Stopped() bool { return regs().status.LoadBits(halted|dmaBusy) == halted }
+func Broke() bool   { return regs().status.LoadBits(broke) != 0 }
+func Resume()       { regs().status.Store(clrBroke | clrHalt) }
 func Step() {
-	regs.status.Store(setSingleStep)
+	regs().status.Store(setSingleStep)
 	Resume()
 	for !Stopped() {
 		// wait
@@ -103,9 +103,9 @@ func Step() {
 
 type Signal uint8
 
-func Signals() Signal       { return Signal(regs.status.Load() >> 7) }
-func SetSignals(s Signal)   { regs.status.Store(s.SetMask()) }
-func ClearSignals(s Signal) { regs.status.Store(s.ClearMask()) }
+func Signals() Signal       { return Signal(regs().status.Load() >> 7) }
+func SetSignals(s Signal)   { regs().status.Store(s.SetMask()) }
+func ClearSignals(s Signal) { regs().status.Store(s.ClearMask()) }
 
 func (s Signal) SetMask() statusFlags   { return statusFlags(interleave(uint8(s))) << 10 }
 func (s Signal) ClearMask() statusFlags { return statusFlags(interleave(uint8(s))) << 9 }
@@ -123,7 +123,7 @@ func interleave(mask uint8) (r uint16) {
 // halted, otherwise returns 0.
 func PC() cpu.Addr {
 	if Stopped() {
-		return pc.Load()
+		return pc().Load()
 	}
 	return 0xffff_ffff
 }

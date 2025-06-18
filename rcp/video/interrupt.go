@@ -28,7 +28,7 @@ func init() {
 //go:nosplit
 //go:nowritebarrierrec
 func handler() {
-	regs.vCurrent.Store(0) // clears interrupt
+	regs().vCurrent.Store(0) // clears interrupt
 
 	fb, _ := framebuffer.Get()
 	if fb == nil { // only needed for Ares
@@ -39,10 +39,10 @@ func handler() {
 	if r, updated := scale.Get(); updated {
 		fbSize := fb.Bounds().Size()
 		videoSize := r.Size()
-		regs.hVideo.Store(uint32(r.Min.X<<16 | r.Max.X))
-		regs.vVideo.Store(uint32(r.Min.Y<<16 | r.Max.Y))
-		regs.xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
-		regs.yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
+		regs().hVideo.Store(uint32(r.Min.X<<16 | r.Max.X))
+		regs().vVideo.Store(uint32(r.Min.Y<<16 | r.Max.Y))
+		regs().xScale.Store(uint32((fbSize.X<<10 + videoSize.X>>1) / (videoSize.X)))
+		regs().yScale.Store(uint32((fbSize.Y<<10 + videoSize.Y>>2) / (videoSize.Y >> 1)))
 	}
 
 	updateFramebuffer(fb)
@@ -55,10 +55,10 @@ func handler() {
 //go:nosplit
 func updateFramebuffer(fb *texture.Texture) {
 	addr := fb.Addr()
-	if regs.control.Load()&uint32(controlSerrate) != 0 {
+	if regs().control.Load()&uint32(controlSerrate) != 0 {
 		// Shift the framebuffer vertically based on current field.
-		yScale := regs.yScale.Load()
-		if regs.vCurrent.Load()&1 == 0 { // odd field
+		yScale := regs().yScale.Load()
+		if regs().vCurrent.Load()&1 == 0 { // odd field
 			yOffset := int(0xffff&yScale) >> 1
 			// Move framebuffer address by a whole line if offset is
 			// more than a pixel.
@@ -66,11 +66,11 @@ func updateFramebuffer(fb *texture.Texture) {
 				yOffset -= 1024
 				addr += cpu.Addr(fb.Format().Bytes(fb.Stride()))
 			}
-			yScale = (uint32(yOffset)<<16 | 0xffff&regs.yScale.Load())
+			yScale = (uint32(yOffset)<<16 | 0xffff&regs().yScale.Load())
 		} else { // even field
-			yScale = (0xffff & regs.yScale.Load())
+			yScale = (0xffff & regs().yScale.Load())
 		}
-		regs.yScale.Store(yScale)
+		regs().yScale.Store(yScale)
 	}
-	regs.origin.Store(addr)
+	regs().origin.Store(addr)
 }

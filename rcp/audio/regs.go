@@ -19,7 +19,7 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
-var regs = cpu.MMIO[registers](0x0450_0000)
+func regs() *registers { return cpu.MMIO[registers](0x0450_0000) }
 
 type registers struct {
 	dramAddr mmio.R32[cpu.Addr] // dma address
@@ -87,9 +87,9 @@ func SetSampleRate(hz int) {
 	samplesPerBuffer := (hz / buffersPerSecond) &^ 7
 	bufCap = samplesPerBuffer * 2 * 2
 
-	regs.control.Store(0)
-	regs.dacRate.Store(uint32(dacrate) - 1)
-	regs.bitRate.Store(uint32(bitrate) - 1)
+	regs().control.Store(0)
+	regs().dacRate.Store(uint32(dacrate) - 1)
+	regs().bitRate.Store(uint32(bitrate) - 1)
 
 	for i := range bufs {
 		bufs[i] = newBuffer(bufCap)
@@ -164,7 +164,7 @@ func (b *Writer) Flush() {
 	writing = (writing + 1) % len(bufs)
 	bufs[writing] = bufs[writing][:0]
 
-	if regs.status.LoadBits(dmaEnabled) == 0 {
+	if regs().status.LoadBits(dmaEnabled) == 0 {
 		handler()
 	}
 }
@@ -177,7 +177,7 @@ var dmaStart rtos.Cond
 //go:nowritebarrierrec
 func handler() {
 	if rtos.HandlerMode() {
-		regs.status.Store(0) // clear interrupt
+		regs().status.Store(0) // clear interrupt
 		dmaStart.Signal()
 	} else {
 		rcp.DisableInterrupts(rcp.IntrAudio)
@@ -187,18 +187,18 @@ func handler() {
 	buf, updated := pending.Get()
 	if !updated {
 		// No data was written, disable playback after dma finished
-		if regs.status.LoadBits(dmaBusy) == 0 {
-			regs.control.Store(0)
+		if regs().status.LoadBits(dmaBusy) == 0 {
+			regs().control.Store(0)
 		} else {
-			regs.dramAddr.Store(0)
-			regs.length.Store(0)
+			regs().dramAddr.Store(0)
+			regs().length.Store(0)
 		}
 		return
 	}
 
-	regs.dramAddr.Store(cpu.PhysicalAddressSlice(buf))
-	regs.length.Store(uint32(len(buf) - 1))
-	regs.control.Store(1)
+	regs().dramAddr.Store(cpu.PhysicalAddressSlice(buf))
+	regs().length.Store(uint32(len(buf) - 1))
+	regs().control.Store(1)
 }
 
 // newBuffer returns a newly allocated empty buffer with at least capacity
