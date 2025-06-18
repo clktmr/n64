@@ -20,6 +20,7 @@ import (
 	"github.com/golang/freetype"
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -56,39 +57,50 @@ func Main(args []string) {
 	flags.Usage = usage
 	flags.Parse(args[1:])
 
-	if flags.NArg() == 1 {
+	switch flags.NArg() {
+	case 0:
+		break
+	case 1:
 		fontfile = flags.Arg(0)
-	} else {
+	default:
 		flags.Usage()
 		os.Exit(1)
 	}
 
 	// TODO check for overlapping with previously generated subfonts
 
-	// Read the font data.
-	fontBytes, err := os.ReadFile(fontfile)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	f, err := freetype.ParseFont(fontBytes)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	var face font.Face
+	var name string
+	if fontfile == "" {
+		face = basicfont.Face7x13
+		name = "basicfont"
+	} else {
+		// Read the font data.
+		fontBytes, err := os.ReadFile(fontfile)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		f, err := freetype.ParseFont(fontBytes)
+		if err != nil {
+			log.Fatalln(err)
+		}
 
-	options := &truetype.Options{
-		Size: *size,
-		DPI:  *dpi,
+		options := &truetype.Options{
+			Size: *size,
+			DPI:  *dpi,
+		}
+		switch *hinting {
+		default:
+			options.Hinting = font.HintingNone
+		case "vertical":
+			options.Hinting = font.HintingVertical
+		case "full":
+			options.Hinting = font.HintingFull
+		}
+		face = truetype.NewFace(f, options)
+		defer face.Close()
+		name = f.Name(truetype.NameIDFontFullName)
 	}
-	switch *hinting {
-	default:
-		options.Hinting = font.HintingNone
-	case "vertical":
-		options.Hinting = font.HintingVertical
-	case "full":
-		options.Hinting = font.HintingFull
-	}
-	face := truetype.NewFace(f, options)
-	defer face.Close()
 
 	// Initialize the context.
 	fontMap := texture.NewI4(image.Rect(0, 0, dim, dim))
@@ -101,7 +113,8 @@ func Main(args []string) {
 	var missing []byte
 	for s := rune(*start); s <= rune(*end); s++ {
 		// Use a common "missing" glyph
-		if f.Index(s) == 0 && missing != nil {
+
+		if _, ok := face.GlyphAdvance(s); !ok && missing != nil {
 			positions = append(positions, missing...)
 			continue
 		}
@@ -125,15 +138,12 @@ func Main(args []string) {
 		positions = append(positions, byte(drawer.Dot.Y.Round()))
 		positions = append(positions, byte(adv.Ceil()))
 
-		if f.Index(s) == 0 && missing == nil {
+		if _, ok := face.GlyphAdvance(s); !ok && missing == nil {
 			missing = positions[len(positions)-3:]
 		}
 
 		// Actual drawing
 		drawer.DrawString(string(s))
-		if err != nil {
-			log.Fatalln(err)
-		}
 		drawer.Dot = drawer.Dot.Add(fixed.P(padding, 0))
 	}
 
@@ -141,7 +151,7 @@ func Main(args []string) {
 	shrinkedFontMap := fontMap.SubImage(image.Rect(0, 0, dim, lastLine))
 
 	// Save the font map image to disk
-	pkgname := f.Name(truetype.NameIDFontFullName)
+	pkgname := name
 	pkgname = strings.ReplaceAll(pkgname, " ", "")
 	pkgname = fmt.Sprintf("%s%.0f", strings.ToLower(pkgname), (*size))
 
@@ -187,7 +197,7 @@ func Main(args []string) {
 		Name, Package  string
 		Height, Ascent int
 	}{
-		Name:    fmt.Sprintf("%s %g", f.Name(truetype.NameIDFontFullName), *size),
+		Name:    fmt.Sprintf("%s %g", name, *size),
 		Package: pkgname,
 		Height:  lineHeight,
 		Ascent:  face.Metrics().Ascent.Round(),
