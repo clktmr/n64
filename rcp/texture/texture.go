@@ -116,10 +116,10 @@ func (p *Texture) SubImage(r image.Rectangle) *Texture {
 	sub, _ := p.Image.(interface {
 		SubImage(r image.Rectangle) image.Image
 	})
-	return NewTextureFromImage(sub.SubImage(r))
+	return newTextureFromImage(sub.SubImage(r))
 }
 
-func NewTextureFromImage(img image.Image) (tex *Texture) {
+func newTextureFromImage(img image.Image) (tex *Texture) {
 	switch img := img.(type) {
 	case *image.RGBA:
 		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA32, true, nil}
@@ -138,6 +138,11 @@ func NewTextureFromImage(img image.Image) (tex *Texture) {
 	default:
 		panic("unsupported image format")
 	}
+	return
+}
+
+func NewTextureFromImage(img image.Image) (tex *Texture) {
+	tex = newTextureFromImage(img)
 	tex.Writeback()
 	return
 }
