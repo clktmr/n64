@@ -31,25 +31,19 @@ const cacheLineMask = ^(CacheLineSize - 1)
 // beginning and end.
 type CacheLinePad struct{ _ [CacheLineSize]byte }
 
-// Causes the cache to be written back to RAM. Call this before requesting
-// another component to read from this address range. If the specified address
-// is currently not cached, this is a no-op.
-func Writeback(addr uintptr, length int)
-
-// Causes the cache to be read from RAM before next access. Call this before
-// the address range is to be written by another component. If the specified
-// address is currently not cached, this is a no-op.
-func Invalidate(addr uintptr, length int)
+func writeback(addr uintptr, length int)
+func invalidate(addr uintptr, length int)
 
 // Cached is a datatype that provides cache operations.
 type Cached interface {
-	// Writeback writes all cached pixels to memory. Call before passing an
-	// object that was modified by the CPU to another hardware component.
+	// Causes the cache to be written back to RAM. Call this before
+	// requesting another component to read from this address range. If the
+	// specified address is currently not cached, this is a no-op.
 	Writeback()
 
-	// Invalidate discards all currently cached pixel values. Call before
-	// reading a texture that was modified by the CPU to another hardware
-	// component.
+	// Causes the cache to be read from RAM before next access. Call this
+	// before the address range is to be written by another component. If
+	// the specified address is currently not cached, this is a no-op.
 	Invalidate()
 }
 
@@ -132,22 +126,26 @@ func IsPadded[T Paddable](p []T) bool {
 	return addr%CacheLineSize == 0 && cap(p)-len(p) >= cap(p)%cls
 }
 
-// Like [Writeback], but for a padded slice.
+// Causes the cache to be written back to RAM. Call this before requesting
+// another component to read from this address range. If the specified address
+// is currently not cached, this is a no-op.
 func WritebackSlice[T Paddable](buf []T) {
 	debug.Assert(IsPadded(buf), "unpadded cache writeback")
 
 	var t T
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-	Writeback(addr, len(buf)*int(unsafe.Sizeof(t)))
+	writeback(addr, len(buf)*int(unsafe.Sizeof(t)))
 }
 
-// Like [Invalidate], but for a padded slice.
+// Causes the cache to be read from RAM before next access. Call this before the
+// address range is to be written by another component. If the specified address
+// is currently not cached, this is a no-op.
 func InvalidateSlice[T Paddable](buf []T) {
 	debug.Assert(IsPadded(buf), "unpadded cache invalidate")
 
 	var t T
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
-	Invalidate(addr, len(buf)*int(unsafe.Sizeof(t)))
+	invalidate(addr, len(buf)*int(unsafe.Sizeof(t)))
 }
 
 // Uncached returns a pointer to p with caching disabled. The returned pointer
@@ -197,18 +195,21 @@ func NewPadded[T any, A Alignment]() *Padded[T, A] {
 	return a
 }
 
+// Value returns the padded value.
 func (p *Padded[T, A]) Value() *T {
 	ptr := unsafe.Pointer(&p.pad)
 	size := unsafe.Sizeof(p.pad)
 	return (*T)(unsafe.Add(ptr, size-uintptr(ptr)&(size-1)))
 }
 
+// Writeback implements the Cached interface.
 func (p *Padded[T, A]) Writeback() {
-	Writeback(uintptr(unsafe.Pointer(p.Value())), int(unsafe.Sizeof(p.val)))
+	writeback(uintptr(unsafe.Pointer(p.Value())), int(unsafe.Sizeof(p.val)))
 }
 
+// Invalidate implements the Cached interface.
 func (p *Padded[T, A]) Invalidate() {
-	Invalidate(uintptr(unsafe.Pointer(p.Value())), int(unsafe.Sizeof(p.val)))
+	invalidate(uintptr(unsafe.Pointer(p.Value())), int(unsafe.Sizeof(p.val)))
 }
 
 // escape ensures that v escapes to heap. This is used to avoid	allocation on

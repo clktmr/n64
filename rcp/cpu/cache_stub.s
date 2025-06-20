@@ -4,13 +4,13 @@
 #include "funcdata.h"
 #include "textflag.h"
 
-// func Writeback(addr uintptr, length uint)
-TEXT ·Writeback(SB),NOSPLIT|NOFRAME,$0-16
+// func writeback(addr uintptr, length uint)
+TEXT ·writeback(SB),NOSPLIT|NOFRAME,$0-16
 	RET
 
 
-// func Invalidate(addr uintptr, length uint)
-TEXT ·Invalidate(SB),NOSPLIT|NOFRAME,$0-16
+// func invalidate(addr uintptr, length uint)
+TEXT ·invalidate(SB),NOSPLIT|NOFRAME,$0-16
 	RET
 
 // func escape()

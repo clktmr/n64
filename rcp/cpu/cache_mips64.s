@@ -2,8 +2,8 @@
 #include "funcdata.h"
 #include "textflag.h"
 
-// func Writeback(addr uintptr, length uint)
-TEXT ·Writeback(SB),NOSPLIT|NOFRAME,$0-16
+// func writeback(addr uintptr, length uint)
+TEXT ·writeback(SB),NOSPLIT|NOFRAME,$0-16
 	MOVV  addr+0(FP), R4
 	MOVV  length+8(FP), R5
 	ADDU  R5, R4, R8
@@ -20,8 +20,8 @@ done:
 	RET
 
 
-// func Invalidate(addr uintptr, length uint)
-TEXT ·Invalidate(SB),NOSPLIT|NOFRAME,$0-16
+// func invalidate(addr uintptr, length uint)
+TEXT ·invalidate(SB),NOSPLIT|NOFRAME,$0-16
 	MOVV  addr+0(FP), R4
 	MOVV  length+8(FP), R5
 	ADDU  R5, R4, R8
