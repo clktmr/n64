@@ -38,7 +38,11 @@ const (
 type DisplayList struct {
 	state
 
-	commands   [2][32]command
+	buf [2]struct {
+		_        cpu.CacheLinePad
+		commands [32]command
+		_        cpu.CacheLinePad
+	}
 	bufIdx     int
 	start, end uintptr
 }
@@ -61,7 +65,7 @@ type state struct {
 var RDP DisplayList
 
 func init() {
-	RDP.start = uintptr(unsafe.Pointer(&RDP.commands))
+	RDP.start = uintptr(unsafe.Pointer(&RDP.buf[RDP.bufIdx].commands))
 	RDP.end = RDP.start
 
 	regs().status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
@@ -86,10 +90,10 @@ func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 
 		dl.end += 8
 
-		if int(dl.end-dl.start) == len(dl.commands[0])<<3 {
+		if int(dl.end-dl.start) == len(dl.buf[0].commands)<<3 {
 			regs().end.Store(cpu.PhysicalAddress(dl.end))
 			dl.bufIdx = 1 - dl.bufIdx
-			dl.start = uintptr(unsafe.Pointer(&dl.commands[dl.bufIdx]))
+			dl.start = uintptr(unsafe.Pointer(&dl.buf[dl.bufIdx].commands))
 			dl.end = dl.start
 			for retries := 0; regs().status.LoadBits(startPending) != 0; retries++ {
 				if retries > 1024*1024 { // wait max ~1 sec
