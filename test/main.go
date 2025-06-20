@@ -83,6 +83,7 @@ func main() {
 			newInternalTest(cpu_test.TestPadSlice),
 			newInternalTest(cpu_test.TestMakePaddedSliceAligned),
 			newInternalTest(cpu_test.TestUncached),
+			newInternalTest(cpu_test.TestPadded),
 			newInternalTest(rsp_test.TestDMA),
 			newInternalTest(rsp_test.TestRun),
 			newInternalTest(rsp_test.TestInterrupt),

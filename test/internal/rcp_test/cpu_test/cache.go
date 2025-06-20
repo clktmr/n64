@@ -120,3 +120,14 @@ func TestUncached(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestPadded(t *testing.T) {
+	padded := cpu.NewPadded[int, cpu.Align64]()
+	value := padded.Value()
+	if cpu.PhysicalAddress(value)%64 != 0 {
+		t.Fatalf("alignment: %p", value)
+	}
+
+	runtime.GC()
+	runtime.KeepAlive(value)
+}
