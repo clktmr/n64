@@ -58,7 +58,7 @@ func absDiffColor(a color.Color, b color.Color) int {
 
 func TestDrawMask(t *testing.T) {
 	// Split the screen into four viewports
-	fb := texture.NewRGBA32(image.Rect(0, 0, 320, 240))
+	fb := video.Framebuffer()
 	quarter := image.Rectangle{Max: fb.Bounds().Max.Div(2)}
 	bounds := quarter.Inset(16)
 	expected := fb.SubImage(bounds)
@@ -69,10 +69,6 @@ func TestDrawMask(t *testing.T) {
 	diff.SetOrigin(bounds.Min)
 	err := fb.SubImage(bounds.Add(quarter.Max))
 	err.SetOrigin(bounds.Min)
-
-	video.SetupPAL(false, false)
-	video.SetFramebuffer(fb)
-	t.Cleanup(func() { video.SetFramebuffer(nil) })
 
 	// Load some test images
 	imgN64LogoSmall, _ := png.Decode(bytes.NewReader(pngN64LogoSmall))

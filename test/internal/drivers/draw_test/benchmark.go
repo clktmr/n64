@@ -7,7 +7,6 @@ import (
 
 	"github.com/clktmr/n64/drivers/draw"
 	"github.com/clktmr/n64/fonts/gomono12"
-	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 )
 
@@ -22,11 +21,8 @@ id est laborum.`)
 func BenchmarkDrawText(b *testing.B) {
 	gomono := gomono12.NewFace()
 
-	fb := texture.NewRGBA16(image.Rect(0, 0, 320, 240))
+	fb := video.Framebuffer()
 
-	video.Setup(false)
-	video.SetFramebuffer(fb)
-	b.Cleanup(func() { video.SetFramebuffer(nil) })
 	white := color.RGBA{0xff, 0xff, 0xff, 0xff}
 	black := color.RGBA{0x0, 0x0, 0x0, 0xff}
 
