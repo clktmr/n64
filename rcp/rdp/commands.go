@@ -69,8 +69,8 @@ func init() {
 	RDP.end = RDP.start
 
 	regs().status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
-	regs().start.Store(cpu.PhysicalAddress(RDP.start))
-	regs().end.Store(cpu.PhysicalAddress(RDP.end))
+	regs().start.Store(cpu.PAddr(RDP.start))
+	regs().end.Store(cpu.PAddr(RDP.end))
 }
 
 // Flush blocks until all enqueued commands are fully processed.
@@ -91,7 +91,7 @@ func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 		dl.end += 8
 
 		if int(dl.end-dl.start) == len(dl.buf[0].commands)<<3 {
-			regs().end.Store(cpu.PhysicalAddress(dl.end))
+			regs().end.Store(cpu.PAddr(dl.end))
 			dl.bufIdx = 1 - dl.bufIdx
 			dl.start = uintptr(unsafe.Pointer(&dl.buf[dl.bufIdx].commands))
 			dl.end = dl.start
@@ -100,11 +100,11 @@ func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 					panic("rdp stall")
 				}
 			}
-			regs().start.Store(cpu.PhysicalAddress(dl.start))
-			regs().end.Store(cpu.PhysicalAddress(dl.start))
+			regs().start.Store(cpu.PAddr(dl.start))
+			regs().end.Store(cpu.PAddr(dl.start))
 		}
 	}
-	regs().end.Store(cpu.PhysicalAddress(dl.end))
+	regs().end.Store(cpu.PAddr(dl.end))
 }
 
 // Sets the framebuffer to render the final image into.
@@ -128,7 +128,7 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 func (dl *DisplayList) SetDepthImage(addr uintptr) {
 	debug.Assert(addr%64 == 0, "rdp zbuffer must be 64 byte aligned")
 
-	dl.Push(command((0xfe << 56) | command(cpu.PhysicalAddress(addr))))
+	dl.Push(command((0xfe << 56) | command(cpu.PAddr(addr))))
 }
 
 // Sets the image where LoadTile and LoadBlock will copy their data from.

@@ -14,13 +14,19 @@ const (
 // Addr represents a physical memory address
 type Addr uint32
 
-// PhysicalAddress returns the physical address of a virtual address in KSEG0 or
-// KSEG1.
-func PhysicalAddress(addr uintptr) Addr {
+// PAddr returns the physical address of a virtual address.
+func PAddr(addr uintptr) Addr {
 	return Addr(addr & ^uintptr(0xe000_0000))
+}
+
+type Pointer[T any] interface{ *T }
+
+// PhysicalAddress returns the physical address of a pointer.
+func PhysicalAddress[T Pointer[Q], Q any](s T) Addr {
+	return PAddr(uintptr(unsafe.Pointer(s)))
 }
 
 // Same as [PhysicalAddress] but for slices.
 func PhysicalAddressSlice[T any](s []T) Addr {
-	return PhysicalAddress(uintptr(unsafe.Pointer(unsafe.SliceData(s))))
+	return PAddr(uintptr(unsafe.Pointer(unsafe.SliceData(s))))
 }

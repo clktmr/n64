@@ -27,7 +27,7 @@ type registers struct {
 	buf      [bufferSize / 4]periph.U32
 }
 
-var piBuf = periph.NewDevice(cpu.PhysicalAddress(regs().buf[0].Addr()), bufferSize)
+var piBuf = periph.NewDevice(cpu.PhysicalAddressSlice(regs().buf[:]), bufferSize)
 
 type Cart struct{}
 

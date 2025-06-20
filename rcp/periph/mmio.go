@@ -28,8 +28,7 @@ func (r *R32[T]) Store(val T) {
 	p[1] = byte(val >> 16)
 	p[2] = byte(val >> 8)
 	p[3] = byte(val)
-	vaddr := uintptr(unsafe.Pointer(r))
-	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaStore, done})
+	dma(dmaJob{cpu.PhysicalAddress(r), p[:], dmaStore, done})
 	if !done.Wait(1 * time.Second) {
 		panic("dma timeout")
 	}
@@ -40,8 +39,7 @@ func (r *R32[T]) Store(val T) {
 // MMIO or DMA the goroutine is parked until the value was read.
 func (r *R32[T]) Load() (v T) {
 	bufid, p, done := getBuf()
-	vaddr := uintptr(unsafe.Pointer(r))
-	dma(dmaJob{cpu.PhysicalAddress(vaddr), p[:], dmaLoad, done})
+	dma(dmaJob{cpu.PhysicalAddress(r), p[:], dmaLoad, done})
 	if !done.Wait(1 * time.Second) {
 		panic("dma timeout")
 	}
