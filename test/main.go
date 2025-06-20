@@ -4,7 +4,10 @@ package main
 import (
 	"embedded/rtos"
 	"fmt"
+	"image"
+	"io"
 	"os"
+	"path"
 	"reflect"
 	"runtime"
 	"syscall"
@@ -12,9 +15,12 @@ import (
 
 	"github.com/clktmr/n64/drivers/carts"
 	"github.com/clktmr/n64/drivers/carts/isviewer"
+	"github.com/clktmr/n64/drivers/console"
 	"github.com/clktmr/n64/drivers/controller"
 	_ "github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp/serial/joybus"
+	"github.com/clktmr/n64/rcp/texture"
+	"github.com/clktmr/n64/rcp/video"
 	"github.com/clktmr/n64/test/internal/drivers/cartfs_test"
 	"github.com/clktmr/n64/test/internal/drivers/carts/summercart64_test"
 	"github.com/clktmr/n64/test/internal/drivers/controller_test"
@@ -40,8 +46,10 @@ func main() {
 		panic("no logging peripheral found")
 	}
 
-	console := termfs.NewLight("termfs", nil, cart)
-	rtos.Mount(console, "/dev/console")
+	guiconsole := console.NewConsole()
+
+	fs := termfs.NewLight("termfs", nil, io.MultiWriter(cart, guiconsole))
+	rtos.Mount(fs, "/dev/console")
 	os.Stdout, err = os.OpenFile("/dev/console", syscall.O_WRONLY, 0)
 	if err != nil {
 		panic(err)
@@ -117,14 +125,14 @@ func matchAll(_ string, _ string) (bool, error) { return true, nil }
 
 func newInternalTest(testFn func(*testing.T)) testing.InternalTest {
 	return testing.InternalTest{
-		runtime.FuncForPC(reflect.ValueOf(testFn).Pointer()).Name(),
+		path.Base(runtime.FuncForPC(reflect.ValueOf(testFn).Pointer()).Name()),
 		testFn,
 	}
 }
 
 func newInternalBenchmark(testFn func(*testing.B)) testing.InternalBenchmark {
 	return testing.InternalBenchmark{
-		runtime.FuncForPC(reflect.ValueOf(testFn).Pointer()).Name(),
+		path.Base(runtime.FuncForPC(reflect.ValueOf(testFn).Pointer()).Name()),
 		testFn,
 	}
 }
