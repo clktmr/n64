@@ -1,6 +1,8 @@
 package cpu_test
 
 import (
+	"runtime"
+	"slices"
 	"testing"
 	"unsafe"
 
@@ -102,4 +104,19 @@ func TestPadSlice(t *testing.T) {
 	t.Run("uint16", testPadSlice[uint16])
 	t.Run("uint32", testPadSlice[uint32])
 	t.Run("uint64", testPadSlice[uint64])
+}
+
+func TestUncached(t *testing.T) {
+	bufCached := cpu.MakePaddedSlice[byte](32)
+	bufUncached := cpu.UncachedSlice(bufCached)
+
+	// Make sure bufUncached isn't collected
+	runtime.GC()
+
+	cpu.InvalidateSlice(bufCached)
+	copy(bufUncached, []byte("uncached access"))
+
+	if !slices.Equal(bufCached, bufUncached) {
+		t.Fatal()
+	}
 }
