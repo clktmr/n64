@@ -3,6 +3,7 @@ package rdp
 import (
 	"image"
 	"image/color"
+	"runtime"
 	"time"
 	"unsafe"
 
@@ -45,6 +46,8 @@ type DisplayList struct {
 	}
 	bufIdx     int
 	start, end uintptr
+
+	pinner runtime.Pinner
 }
 
 type state struct {
@@ -73,12 +76,14 @@ func init() {
 	regs().end.Store(cpu.PAddr(RDP.end))
 }
 
-// Flush blocks until all enqueued commands are fully processed.
+// Flush blocks until all enqueued commands are fully processed. After a Flush,
+// commands must not rely on any state from before the flush.
 func (dl *DisplayList) Flush() {
 	dl.Push(SyncFull)
 	if !fullSync.Wait(1 * time.Second) {
 		panic("rdp timeout")
 	}
+	dl.pinner.Unpin()
 }
 
 //go:nosplit
@@ -117,6 +122,8 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
+	dl.pinner.Pin(img.Pointer())
+
 	dl.Push(((0xff << 56) | command(img.Format()) | command(img.Stride()-1)<<32) |
 		command(img.Addr()))
 
@@ -125,10 +132,12 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 }
 
 // Sets the zbuffer. Width is taken from SetColorImage, bpp is always 18.
-func (dl *DisplayList) SetDepthImage(addr uintptr) {
-	debug.Assert(addr%64 == 0, "rdp zbuffer must be 64 byte aligned")
+func (dl *DisplayList) SetDepthImage(img *texture.Texture) {
+	debug.Assert(img.Addr()%64 == 0, "rdp zbuffer alignment")
 
-	dl.Push(command((0xfe << 56) | command(cpu.PAddr(addr))))
+	dl.pinner.Pin(img.Pointer())
+
+	dl.Push(command((0xfe << 56) | command(img.Addr())))
 }
 
 // Sets the image where LoadTile and LoadBlock will copy their data from.
@@ -142,6 +151,8 @@ func (dl *DisplayList) SetTextureImage(img *texture.Texture) {
 		format = texture.Format(format.Components()) | texture.Format(texture.BPP8)
 		stride >>= 1
 	}
+
+	dl.pinner.Pin(img.Pointer())
 
 	// according to wiki, format[23:21] has no effect
 	dl.Push((0xfd << 56) | command(format) | command(stride-1)<<32 |
