@@ -32,7 +32,9 @@ type Face struct {
 func (f *Face) GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin image.Point, advance int) {
 	sf := getSubfont(f, r)
 	if sf == nil {
-		sf = getSubfont(f, 0) // try to use rune(0) to render unsupported codepoints
+		// try to use rune(0) to render unsupported codepoints
+		r = 0
+		sf = getSubfont(f, r)
 		if sf == nil {
 			return
 		}

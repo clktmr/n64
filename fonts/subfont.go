@@ -78,9 +78,17 @@ func NewSubfontData(pos, tex []byte, height, ascent int) *SubfontData {
 type Loader struct {
 	FS             *cartfs.FS
 	Height, Ascent int
+	files          []subfontPath
 }
 
-func (l *Loader) Load(r rune, current []*subfont.Subfont) (containing *subfont.Subfont, updated []*subfont.Subfont) {
+type subfontPath struct {
+	first, last rune
+	path        string
+}
+
+func NewLoader(fs *cartfs.FS, height, ascent int) (l *Loader) {
+	l = &Loader{fs, height, ascent, nil}
+
 	entries, err := l.FS.ReadDir(".")
 	if err != nil {
 		panic(err)
@@ -96,13 +104,21 @@ func (l *Loader) Load(r rune, current []*subfont.Subfont) (containing *subfont.S
 			if err != nil {
 				panic(err)
 			}
-			if r >= rune(start) && r <= rune(end) {
-				containing = l.loadSubfont(name, rune(start), rune(end))
-				updated = append(current, containing)
-				return
-			}
+			l.files = append(l.files, subfontPath{rune(start), rune(end), name})
 		}
 	}
+	return
+}
+
+func (l *Loader) Load(r rune, current []*subfont.Subfont) (containing *subfont.Subfont, updated []*subfont.Subfont) {
+	for _, f := range l.files {
+		if r >= f.first && r <= f.last {
+			containing = l.loadSubfont(f.path, f.first, f.last)
+			updated = append(current, containing)
+			return
+		}
+	}
+	updated = current
 	return
 }
 
