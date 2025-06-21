@@ -12,7 +12,9 @@ import (
 	"embedded/mmio"
 	"embedded/rtos"
 	"io"
+	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/clktmr/n64/machine"
 	"github.com/clktmr/n64/rcp"
@@ -55,6 +57,7 @@ var (
 	writing int
 	bufs    [3][]byte
 	bufCap  int
+	pinner  runtime.Pinner
 )
 
 func init() {
@@ -92,7 +95,9 @@ func SetSampleRate(hz int) {
 	regs().bitRate.Store(uint32(bitrate) - 1)
 
 	for i := range bufs {
+		pinner.Unpin()
 		bufs[i] = newBuffer(bufCap)
+		pinner.Pin(unsafe.Pointer(unsafe.SliceData(bufs[i])))
 	}
 }
 
