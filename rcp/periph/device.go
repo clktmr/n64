@@ -8,6 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -59,10 +60,8 @@ func (v *Device) ReadAt(p []byte, off int64) (n int, err error) {
 		err = io.EOF
 	}
 
-	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, v.done})
-	if !v.done.Wait(1 * time.Second) {
-		panic("dma timeout")
-	}
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	dmaSync(addr, dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, v.done})
 	n = len(p)
 
 	return
@@ -78,13 +77,19 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 		err = ErrEndOfDevice
 	}
 
-	dma(dmaJob{v.addr + cpu.Addr(off), p, dmaStore, v.done})
-	if !v.done.Wait(1 * time.Second) {
-		panic("dma timeout")
-	}
+	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
+	dmaSync(addr, dmaJob{v.addr + cpu.Addr(off), p, dmaStore, v.done})
 	n = len(p)
 
 	return
+}
+
+//go:uintptrescapes
+func dmaSync(_ uintptr, job dmaJob) {
+	dma(job)
+	if !job.done.Wait(1 * time.Second) {
+		panic("dma timeout")
+	}
 }
 
 var (
