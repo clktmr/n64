@@ -5,6 +5,7 @@ import (
 	"io"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
@@ -97,13 +98,19 @@ func Run(block *CommandBlock) {
 
 	cmdBuffer.Put(buf)
 	cpu.WritebackSlice(buf)
-	regs().dramAddr.Store(cpu.PhysicalAddressSlice(buf))
+	ramAddr := uintptr(unsafe.Pointer(unsafe.SliceData(buf)))
+	run(ramAddr, pifRamAddr)
+
+	cmdBuffer.Put(nil)
+}
+
+//go:uintptrescapes
+func run(ramAddr uintptr, pifRamAddr cpu.Addr) {
+	regs().dramAddr.Store(cpu.PAddr(ramAddr))
 	regs().pifWriteAddr.Store(pifRamAddr)
 
 	// Wait until message was received
 	if !cmdFinished.Wait(1 * time.Second) {
 		panic("pif timeout")
 	}
-
-	cmdBuffer.Put(nil)
 }
