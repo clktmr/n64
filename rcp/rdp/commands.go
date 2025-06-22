@@ -39,6 +39,7 @@ const (
 type DisplayList struct {
 	state
 
+	// TODO Pin buffers
 	buf [2]struct {
 		_        cpu.CacheLinePad
 		commands [32]command
@@ -61,6 +62,8 @@ type state struct {
 	scissorSet, scissorReal image.Rectangle
 	interlace               InterlaceFrame
 
+	// framebuffer info
+	addr cpu.Addr
 	size image.Point
 	bpp  texture.Depth
 }
@@ -83,6 +86,7 @@ func (dl *DisplayList) Flush() {
 	if !fullSync.Wait(1 * time.Second) {
 		panic("rdp timeout")
 	}
+	dl.addr = 0x0
 	dl.pinner.Unpin()
 }
 
@@ -120,6 +124,10 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 		img.Format() == texture.RGBA32 ||
 		img.Format() == texture.I8, "rdp unsupported format")
 
+	if dl.addr == img.Addr() {
+		return
+	}
+
 	// TODO according to wiki, a sync *might* be needed in edge cases
 
 	dl.pinner.Pin(img.Pointer())
@@ -127,6 +135,7 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 	dl.Push(((0xff << 56) | command(img.Format()) | command(img.Stride()-1)<<32) |
 		command(img.Addr()))
 
+	dl.addr = img.Addr()
 	dl.size = img.Bounds().Size()
 	dl.bpp = img.Format().Depth()
 }

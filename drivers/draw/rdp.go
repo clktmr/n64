@@ -51,12 +51,8 @@ func Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, op
 }
 
 func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
-	if target != dst {
-		if dst, ok := dst.(*texture.Texture); ok {
-			setFramebuffer(dst)
-		} else {
-			panic("dst not a texture")
-		}
+	if dst, _ := dst.(*texture.Texture); true {
+		setFramebuffer(dst)
 	}
 
 	// Readjust r if we draw to a viewport/subimage of the framebuffer
@@ -279,12 +275,8 @@ func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scal
 // Fore- and background colors fg and bg don't support alpha. If a nil
 // background color is passed, it will be transparent.
 func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.Color, str []byte) image.Point {
-	if target != dst {
-		if dst, ok := dst.(*texture.Texture); ok {
-			setFramebuffer(dst)
-		} else {
-			panic("dst not a texture")
-		}
+	if dst, _ := dst.(*texture.Texture); true {
+		setFramebuffer(dst)
 	}
 
 	rdp.RDP.SetEnvironmentColor(fg)
