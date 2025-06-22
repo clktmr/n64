@@ -7,6 +7,7 @@ import (
 	"embedded/mmio"
 	"encoding/binary"
 	"io"
+	"runtime"
 	"slices"
 	"unsafe"
 
@@ -165,6 +166,7 @@ var q rspQueue
 // garbage collected, since the RSP will need to load them whenever processing a
 // command
 var ucodes = make([]*ucode.UCode, 0, 8)
+var pinner runtime.Pinner
 
 func Register(p *ucode.UCode) (overlayId uint32) {
 	r := bytes.NewReader(p.Data[rspqDataSize:])
@@ -205,12 +207,16 @@ func Register(p *ucode.UCode) (overlayId uint32) {
 	}
 	hdr.Fields.CommandBase = uint16(id << 5)
 	err = hdr.Store(bytes.NewBuffer(p.Data[rspqDataSize:rspqDataSize]))
-	cpu.WritebackSlice(p.Data)
 	if err != nil {
 		panic(err)
 	}
 
+	pinner.Pin(unsafe.SliceData(p.Text))
+	pinner.Pin(unsafe.SliceData(p.Data))
 	ucodes = append(ucodes, p)
+
+	cpu.WritebackSlice(p.Text)
+	cpu.WritebackSlice(p.Data)
 
 	// TODO let rsp do the dma, so we don't have to wait
 	for !rsp.Stopped() {
