@@ -8,6 +8,7 @@ package video
 import (
 	"embedded/mmio"
 	"image"
+	"runtime"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/machine"
@@ -200,6 +201,8 @@ func SetScale(r image.Rectangle) image.Rectangle {
 // avoid tearing.
 var VSync bool = true
 
+var pinner runtime.Pinner
+
 // Sets the framebuffer to the specified texture and enables video output. If a
 // framebuffer was already set, does a fast swap without reconfigure. Setting a
 // nil framebuffer will disable video output.
@@ -210,6 +213,13 @@ var VSync bool = true
 // framebuffer will still be in use until next vblank.
 func SetFramebuffer(fb *texture.Texture) {
 	currentFb, _ := framebuffer.Read()
+
+	// Unpinning here is a bit too early, because the currentFb will still
+	// be read until next vblank. But we can't do it in the vblank interrupt
+	// handler, where it actually belongs, because is not safe for calling
+	// from interrupt context. Worst case garbage is displayed.
+	pinner.Unpin()
+
 	if fb == nil {
 		regs().control.Store(0)
 		framebuffer.Put(nil)
@@ -224,6 +234,7 @@ func SetFramebuffer(fb *texture.Texture) {
 
 		regs().control.Store(0)
 
+		pinner.Pin(fb.Pointer())
 		framebuffer.Put(fb)
 		fbSize := fb.Bounds().Size()
 		videoSize := SetScale(Scale()).Size()
@@ -234,6 +245,7 @@ func SetFramebuffer(fb *texture.Texture) {
 		updateFramebuffer(fb)
 		regs().control.Store(control)
 	} else {
+		pinner.Pin(fb.Pointer())
 		framebuffer.Put(fb)
 		if !VSync {
 			updateFramebuffer(fb)
