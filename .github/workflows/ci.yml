@@ -3,7 +3,7 @@ name: CI
 env:
   go-version: stable
   ares-version: v144
-  embeddedgo-version: go1.24.0-n64-1
+  embeddedgo-version: go1.24.4-embedded
 
 on:
   push:
