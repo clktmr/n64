@@ -13,3 +13,15 @@ require (
 	golang.org/x/text v0.13.0
 	rsc.io/rsc v0.0.0-20180427141835-fc6202590229
 )
+
+require (
+	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
+	golang.org/x/mod v0.25.0 // indirect
+	golang.org/x/sync v0.15.0 // indirect
+	golang.org/x/tools v0.34.0 // indirect
+)
+
+tool (
+	github.com/clktmr/n64/tools/n64go
+	golang.org/x/exp/cmd/gorelease
+)
