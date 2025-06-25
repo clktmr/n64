@@ -88,15 +88,14 @@ func (f *File) allocPages(pageCnt int) (err error) {
 	}
 
 	newPages := make([]uint16, 0)
-	inodes(f.fs)(func(page int, inode uint16) bool {
+	for page, inode := range inodes(f.fs) {
 		if inode == inodeFree {
 			newPages = append(newPages, uint16(page))
 		}
 		if len(newPages) >= pageCnt {
-			return false
+			break
 		}
-		return true
-	})
+	}
 
 	if len(newPages) < pageCnt {
 		return ErrNoSpace

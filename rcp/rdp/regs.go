@@ -62,7 +62,7 @@ type registers struct {
 	pipeBusy mmio.U32
 	tmemBusy mmio.U32
 
-	// TODO there are more undocumented registers (DPC_* and DPS_*)
+	// Note: There are more undocumented registers (DPS_*)
 }
 
 var fullSync rtos.Cond

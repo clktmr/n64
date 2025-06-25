@@ -59,8 +59,6 @@ func Main(args []string) {
 		Data:  sectionData(elffile, ".data"),
 	}
 
-	fmt.Printf("_ovl_data_start: 0x%08x\n", uintptr(symbolValue(elffile, "_ovl_data_start"))) // TODO store somewhere
-
 	w, err := os.Create(outfile)
 	if err != nil {
 		log.Fatalln(err)

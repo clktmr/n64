@@ -231,12 +231,11 @@ func (p *FS) Free() int64 {
 	defer p.mtx.RUnlock()
 
 	freePages := 0
-	inodes(p)(func(page int, inode uint16) bool {
+	for _, inode := range inodes(p) {
 		if inode == inodeFree {
 			freePages += 1
 		}
-		return true
-	})
+	}
 	return int64(freePages << pageBits)
 }
 
@@ -432,7 +431,7 @@ func (p *FS) validPage(page uint16) bool {
 func (p *FS) iNodesChecksum(update bool) (valid bool) {
 	valid = true
 	var csum uint16
-	inodes(p)(func(page int, inode uint16) bool {
+	for page, inode := range inodes(p) {
 		csum += inode
 		if (page+1)%pagesPerBank == 0 { // last page in this bank
 			csumIdx := page &^ (pagesPerBank - 1)
@@ -441,18 +440,16 @@ func (p *FS) iNodesChecksum(update bool) (valid bool) {
 				if update {
 					p.inodes[csumIdx] = csum&0xff | p.inodes[csumIdx]&0xff00
 				} else {
-					return false
+					break
 				}
 			}
 			csum = 0
 		}
-		return true
-	})
+	}
 	return
 }
 
 // rangefunc for iterating inodes
-// TODO use range syntax at callsites after updating to Go1.23
 func inodes(p *FS) func(func(int, uint16) bool) {
 	return func(yield func(int, uint16) bool) {
 		page := p.firstPage()

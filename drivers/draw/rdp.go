@@ -267,8 +267,6 @@ func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scal
 			rdp.RDP.TextureRectangle(tile.Add(origin), tile.Min, scale, drawIdx)
 		}
 	}
-
-	// TODO runtime.KeepAlive(src.addr) until FullSync?
 }
 
 // Draws text str inside r, beginning at p. Returns the next p.

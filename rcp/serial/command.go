@@ -2,7 +2,7 @@ package serial
 
 import (
 	"embedded/rtos"
-	"io"
+	"errors"
 	"sync"
 	"time"
 	"unsafe"
@@ -74,7 +74,7 @@ func NewCommandBlock(cmd pifCommand) *CommandBlock {
 // aren't enough free bytes.
 func (c *CommandBlock) Alloc(n int) ([]byte, error) {
 	if n > c.Free() {
-		return nil, io.EOF // TODO return another error value
+		return nil, errors.New("command block full")
 	}
 	l := len(c.buf)
 	c.buf = c.buf[:l+n]

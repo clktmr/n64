@@ -74,7 +74,7 @@ func init() {
 	RDP.start = uintptr(unsafe.Pointer(&RDP.buf[RDP.bufIdx].commands))
 	RDP.end = RDP.start
 
-	regs().status.Store(clrFlush | clrFreeze | clrXbus) // TODO why? see libdragon
+	regs().status.Store(clrFlush | clrFreeze | clrXbus)
 	regs().start.Store(cpu.PAddr(RDP.start))
 	regs().end.Store(cpu.PAddr(RDP.end))
 }
@@ -127,8 +127,6 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 	if dl.addr == img.Addr() {
 		return
 	}
-
-	// TODO according to wiki, a sync *might* be needed in edge cases
 
 	dl.pinner.Pin(img.Pointer())
 

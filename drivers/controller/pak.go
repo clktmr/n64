@@ -76,7 +76,7 @@ func (pak *Pak) ReadAt(p []byte, off int64) (n int, err error) {
 	startOffset := off & blockMask
 
 	for n < len(p) {
-		pak.readCmd.Reset() // TODO necessary?
+		pak.readCmd.Reset()
 		pak.readCmd.SetAddress(uint16(off))
 		serial.Run(&pak.readCmdBlock)
 
@@ -115,7 +115,7 @@ func (pak *Pak) WriteAt(p []byte, off int64) (n int, err error) {
 		copied := copy(tmp[startOffset:], p[n:])
 		startOffset = 0 // reset, only for first iteration needed
 
-		pak.writeCmd.Reset() // TODO necessary?
+		pak.writeCmd.Reset()
 		err = pak.writeCmd.SetData(tmp[:])
 		if err != nil {
 			return
