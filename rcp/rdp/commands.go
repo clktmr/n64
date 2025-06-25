@@ -42,7 +42,7 @@ type DisplayList struct {
 	// TODO Pin buffers
 	buf [2]struct {
 		_        cpu.CacheLinePad
-		commands [32]command
+		commands [512]command
 		_        cpu.CacheLinePad
 	}
 	bufIdx     int
