@@ -40,7 +40,7 @@ jobs:
 
       - name: Install Embedded Go
         run: |
-          go install -v github.com/clktmr/dl/${{ env.embeddedgo-version }}@latest
+          go install -v github.com/embeddedgo/dl/${{ env.embeddedgo-version }}@latest
           ${{ env.embeddedgo-version }} version || ${{ env.embeddedgo-version }} download
 
       - name: Install n64go tool

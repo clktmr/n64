@@ -14,7 +14,7 @@ which adds a minimal rtos to the runtime via GOOS=noos.
 1. Install the embeddedgo toolchain:
 
 ```sh
-    go install github.com/clktmr/dl/go1.24.4-embedded@latest
+    go install github.com/embeddedgo/dl/go1.24.4-embedded@latest
     go1.24.4-embedded download
 ```
 
