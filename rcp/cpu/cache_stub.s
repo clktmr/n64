@@ -12,7 +12,3 @@ TEXT ·writeback(SB),NOSPLIT|NOFRAME,$0-16
 // func invalidate(addr uintptr, length uint)
 TEXT ·invalidate(SB),NOSPLIT|NOFRAME,$0-16
 	RET
-
-// func escape()
-TEXT ·escape(SB),NOSPLIT|NOFRAME,$0-0
-	RET

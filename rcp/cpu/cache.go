@@ -191,7 +191,6 @@ type Padded[T any, A Alignment] struct {
 
 func NewPadded[T any, A Alignment]() *Padded[T, A] {
 	a := &Padded[T, A]{}
-	escape(&a)
 	return a
 }
 
@@ -211,7 +210,3 @@ func (p *Padded[T, A]) Writeback() {
 func (p *Padded[T, A]) Invalidate() {
 	invalidate(uintptr(unsafe.Pointer(p.Value())), int(unsafe.Sizeof(p.val)))
 }
-
-// escape ensures that v escapes to heap. This is used to avoid	allocation on
-// stack, because the stack might be moved when it grows.
-func escape(v any)
