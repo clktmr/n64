@@ -18,8 +18,7 @@ func TestControllerState(t *testing.T) {
 	t.Log("Press L+R+Start to end the test.")
 
 	for {
-		controller.Poll()
-		controllers := controller.States
+		controllers := controller.Poll()
 		for i, gamepad := range controllers {
 			if gamepad.Plugged() {
 				t.Log(i, "plugged")

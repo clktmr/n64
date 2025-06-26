@@ -29,8 +29,8 @@ func (v *Console) Write(p []byte) (n int, err error) {
 }
 
 func (v *Console) Update() {
-	controller.Poll()
-	pressed := controller.States[0].Pressed()
+	inputs := controller.Poll()
+	pressed := inputs[0].Pressed()
 	switch {
 	case pressed&joybus.ButtonCUp != 0:
 		v.scroll.Y += 1

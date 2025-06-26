@@ -32,20 +32,11 @@ func init() {
 	}
 	err = joybus.ControlByte(cmdAllInfo, joybus.CtrlAbort)
 	debug.AssertErrNil(err)
-
-	for i := range States {
-		States[i].Port.number = uint8(i + 1)
-	}
 }
-
-// States of the four controller ports on the console's front. Updated by
-// [Poll].
-var States [4]Controller
 
 // Updates the state of all four controllers and stores them in [States]. Blocks
 // until all states were received.
-func Poll() {
-	p := &States
+func Poll() (states [4]Controller) {
 	// poll info
 	for _, cmd := range cmdAllInfoPorts {
 		cmd.Reset()
@@ -59,9 +50,11 @@ func Poll() {
 
 	serial.Run(cmdAllStates)
 
+	p := &states
 	for i := range p {
 		var err error
 
+		p[i].Port.number = uint8(i + 1)
 		p[i].Port.last = p[i].Port.current
 		dev, flags, err := cmdAllInfoPorts[i].Info()
 		p[i].Port.current.device = dev
@@ -72,4 +65,5 @@ func Poll() {
 		cur := &p[i].current
 		cur.down, cur.xAxis, cur.yAxis, p[i].err = cmdAllStatesPorts[i].State()
 	}
+	return
 }
