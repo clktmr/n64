@@ -17,11 +17,13 @@ type SubfontData struct {
 	height, ascent int
 	positions      []byte
 	fontMap        *texture.Texture
-	glyphs         [256]struct { // TODO constant
-		img     *texture.Texture
-		origin  image.Point
-		advance int
-	}
+	glyphs         []glyphData
+}
+
+type glyphData struct {
+	img     *texture.Texture
+	origin  image.Point
+	advance int
 }
 
 func (p *SubfontData) Advance(i int) int {
@@ -67,6 +69,7 @@ func NewSubfontData(pos, tex []byte, height, ascent int) *SubfontData {
 	}
 	f.fontMap = fontMap
 
+	f.glyphs = make([]glyphData, len(pos)/3)
 	for i := range f.glyphs {
 		g := &f.glyphs[i]
 		g.img, g.origin, g.advance = f.glyph(i)

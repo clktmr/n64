@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	Height = 15
+	Height = 14
 	Ascent = 11
 )
 

@@ -17,10 +17,10 @@ import (
 	"text/template"
 
 	"github.com/clktmr/n64/rcp/texture"
-	"github.com/golang/freetype"
-	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -30,7 +30,7 @@ var (
 	dpi      = flags.Float64("dpi", 72, "screen resolution in Dots Per Inch")
 	hinting  = flags.String("hinting", "none", "none | full")
 	size     = flags.Float64("size", 12, "font size in points")
-	spacing  = flags.Float64("spacing", 1.25, "line spacing")
+	spacing  = flags.Float64("spacing", 1.0, "line spacing")
 	start    = flags.Uint("start", 0, "Unicode value of first character")
 	end      = flags.Uint("end", 0xff, "Unicode value of last character")
 	fontfile string
@@ -80,12 +80,12 @@ func Main(args []string) {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		f, err := freetype.ParseFont(fontBytes)
+		f, err := opentype.Parse(fontBytes)
 		if err != nil {
 			log.Fatalln(err)
 		}
 
-		options := &truetype.Options{
+		options := &opentype.FaceOptions{
 			Size: *size,
 			DPI:  *dpi,
 		}
@@ -97,9 +97,15 @@ func Main(args []string) {
 		case "full":
 			options.Hinting = font.HintingFull
 		}
-		face = truetype.NewFace(f, options)
+		face, err = opentype.NewFace(f, options)
+		if err != nil {
+			log.Fatalln(err)
+		}
 		defer face.Close()
-		name = f.Name(truetype.NameIDFontFullName)
+		name, _ = f.Name(nil, sfnt.NameIDFull)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 
 	// Initialize the context.
@@ -112,9 +118,10 @@ func Main(args []string) {
 	drawer.Dot = fixed.Point26_6{0, fixed.I(lineHeight)}
 	var missing []byte
 	for s := rune(*start); s <= rune(*end); s++ {
-		// Use a common "missing" glyph
+		adv, hasGlyph := face.GlyphAdvance(s)
 
-		if _, ok := face.GlyphAdvance(s); !ok && missing != nil {
+		// Use a common "missing" glyph
+		if !hasGlyph && missing != nil {
 			positions = append(positions, missing...)
 			continue
 		}
@@ -123,7 +130,6 @@ func Main(args []string) {
 
 		// Check if we need to wrap
 		const padding = 1
-		adv, _ := face.GlyphAdvance(s)
 		nextDot := drawer.Dot.Add(fixed.P(adv.Ceil()+padding, 0))
 
 		if nextDot.X.Ceil() >= dim {
@@ -138,7 +144,7 @@ func Main(args []string) {
 		positions = append(positions, byte(drawer.Dot.Y.Round()))
 		positions = append(positions, byte(adv.Ceil()))
 
-		if _, ok := face.GlyphAdvance(s); !ok && missing == nil {
+		if !hasGlyph && missing == nil {
 			missing = positions[len(positions)-3:]
 		}
 
