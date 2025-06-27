@@ -207,13 +207,13 @@ func handler() {
 // newBuffer returns a newly allocated empty buffer with at least capacity
 // bufCap, which can be used to play audio.
 func newBuffer(n int) []byte {
-	buf := cpu.MakePaddedSliceAligned[byte](n+dmaAlign, dmaAlign)
+	buf := cpu.MakePaddedSliceAligned[byte](n+cpu.CacheLineSize, dmaAlign)
 
 	// Workaround DMA hardware bug: End must not be aligned to 0x2000.
 	if cpu.PhysicalAddressSlice(buf[len(buf):])&0x1fff == 0 {
-		buf = buf[:len(buf)-dmaAlign]
+		buf = buf[:len(buf)-cpu.CacheLineSize]
 	} else {
-		buf = buf[dmaAlign:]
+		buf = buf[cpu.CacheLineSize:]
 	}
 
 	return buf[:0]
