@@ -5,7 +5,6 @@ package texture
 import (
 	"image"
 	"image/draw"
-	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
 )
@@ -95,7 +94,7 @@ type Texture struct {
 func (p *Texture) Addr() cpu.Addr { return cpu.PhysicalAddressSlice(p.pix) }
 
 // Addr returns a pointer to the images pixel data.
-func (p *Texture) Pointer() unsafe.Pointer { return unsafe.Pointer(unsafe.SliceData(p.pix)) }
+func (p *Texture) Pix() []byte { return p.pix }
 
 // Stride returns the stride (in pixels) between vertically adjacent
 // pixels.

@@ -8,7 +8,6 @@ package video
 import (
 	"embedded/mmio"
 	"image"
-	"runtime"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/machine"
@@ -201,7 +200,7 @@ func SetScale(r image.Rectangle) image.Rectangle {
 // avoid tearing.
 var VSync bool = true
 
-var pinner runtime.Pinner
+var pinner cpu.Pinner
 
 // Sets the framebuffer to the specified texture and enables video output. If a
 // framebuffer was already set, does a fast swap without reconfigure. Setting a
@@ -234,7 +233,7 @@ func SetFramebuffer(fb *texture.Texture) {
 
 		regs().control.Store(0)
 
-		pinner.Pin(fb.Pointer())
+		cpu.PinSlice(&pinner, fb.Pix())
 		framebuffer.Put(fb)
 		fbSize := fb.Bounds().Size()
 		videoSize := SetScale(Scale()).Size()
@@ -245,7 +244,7 @@ func SetFramebuffer(fb *texture.Texture) {
 		updateFramebuffer(fb)
 		regs().control.Store(control)
 	} else {
-		pinner.Pin(fb.Pointer())
+		cpu.PinSlice(&pinner, fb.Pix())
 		framebuffer.Put(fb)
 		if !VSync {
 			updateFramebuffer(fb)

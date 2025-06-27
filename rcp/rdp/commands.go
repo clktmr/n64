@@ -3,7 +3,6 @@ package rdp
 import (
 	"image"
 	"image/color"
-	"runtime"
 	"time"
 	"unsafe"
 
@@ -48,7 +47,7 @@ type DisplayList struct {
 	bufIdx     int
 	start, end uintptr
 
-	pinner runtime.Pinner
+	pinner cpu.Pinner
 }
 
 type state struct {
@@ -128,7 +127,7 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 		return
 	}
 
-	dl.pinner.Pin(img.Pointer())
+	cpu.PinSlice(&dl.pinner, img.Pix())
 
 	dl.Push(((0xff << 56) | command(img.Format()) | command(img.Stride()-1)<<32) |
 		command(img.Addr()))
@@ -142,7 +141,7 @@ func (dl *DisplayList) SetColorImage(img *texture.Texture) {
 func (dl *DisplayList) SetDepthImage(img *texture.Texture) {
 	debug.Assert(img.Addr()%64 == 0, "rdp zbuffer alignment")
 
-	dl.pinner.Pin(img.Pointer())
+	cpu.PinSlice(&dl.pinner, img.Pix())
 
 	dl.Push(command((0xfe << 56) | command(img.Addr())))
 }
@@ -159,7 +158,7 @@ func (dl *DisplayList) SetTextureImage(img *texture.Texture) {
 		stride >>= 1
 	}
 
-	dl.pinner.Pin(img.Pointer())
+	cpu.PinSlice(&dl.pinner, img.Pix())
 
 	// according to wiki, format[23:21] has no effect
 	dl.Push((0xfd << 56) | command(format) | command(stride-1)<<32 |

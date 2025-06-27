@@ -7,7 +7,6 @@ import (
 	"embedded/mmio"
 	"encoding/binary"
 	"io"
-	"runtime"
 	"slices"
 	"unsafe"
 
@@ -166,7 +165,7 @@ var q rspQueue
 // garbage collected, since the RSP will need to load them whenever processing a
 // command
 var ucodes = make([]*ucode.UCode, 0, 8)
-var pinner runtime.Pinner
+var pinner cpu.Pinner
 
 func Register(p *ucode.UCode) (overlayId uint32) {
 	r := bytes.NewReader(p.Data[rspqDataSize:])
