@@ -67,7 +67,8 @@ func main() {
 	os.Args = append(os.Args, "-test.benchmem")
 
 	print("Hold START to enable interactive test.. ")
-	inputs := controller.Poll()
+	inputs := [4]controller.Controller{}
+	controller.Poll(&inputs)
 	if inputs[0].Down()&joybus.ButtonStart == 0 {
 		os.Args = append(os.Args, "-test.short")
 		println("skipping")

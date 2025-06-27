@@ -34,9 +34,9 @@ func init() {
 	debug.AssertErrNil(err)
 }
 
-// Updates the state of all four controllers and stores them in [States]. Blocks
+// Updates the state of all four controllers and stores them in states. Blocks
 // until all states were received.
-func Poll() (states [4]Controller) {
+func Poll(states *[4]Controller) {
 	// poll info
 	for _, cmd := range cmdAllInfoPorts {
 		cmd.Reset()
@@ -50,7 +50,7 @@ func Poll() (states [4]Controller) {
 
 	serial.Run(cmdAllStates)
 
-	p := &states
+	p := states
 	for i := range p {
 		var err error
 
