@@ -19,6 +19,8 @@ import (
 	"github.com/clktmr/n64/rcp/texture"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/font/gofont/goregular"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/font/sfnt"
 	"golang.org/x/image/math/fixed"
@@ -71,14 +73,24 @@ func Main(args []string) {
 
 	var face font.Face
 	var name string
-	if fontfile == "" {
+	if fontfile == "basicfont" {
 		face = basicfont.Face7x13
 		name = "basicfont"
 	} else {
 		// Read the font data.
-		fontBytes, err := os.ReadFile(fontfile)
-		if err != nil {
-			log.Fatalln(err)
+		var err error
+		var fontBytes []byte
+		if fontfile == "gomono" {
+			fontBytes = gomono.TTF
+			name = "gomono"
+		} else if fontfile == "goregular" {
+			fontBytes = goregular.TTF
+			name = "goregular"
+		} else {
+			fontBytes, err = os.ReadFile(fontfile)
+			if err != nil {
+				log.Fatalln(err)
+			}
 		}
 		f, err := opentype.Parse(fontBytes)
 		if err != nil {
@@ -161,7 +173,7 @@ func Main(args []string) {
 	pkgname = strings.ReplaceAll(pkgname, " ", "")
 	pkgname = fmt.Sprintf("%s%.0f", strings.ToLower(pkgname), (*size))
 
-	directory := filepath.Join("fonts", pkgname)
+	directory := filepath.Join(".", pkgname)
 	os.MkdirAll(directory, 0775)
 	basename := fmt.Sprintf("%04x_%04x", *start, *end)
 
