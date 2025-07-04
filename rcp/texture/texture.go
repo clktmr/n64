@@ -85,9 +85,9 @@ type Texture struct {
 	stride int
 	rect   *image.Rectangle
 
-	format  Format
-	premult bool
-	palette *Texture
+	format   Format
+	hasAlpha bool
+	palette  *Texture
 }
 
 // Addr returns the base address of the images pixel data.
@@ -110,11 +110,9 @@ func (p *Texture) Palette() *Texture { return p.palette }
 // subimages are used as viewports and should have their origin in (0, 0).
 func (p *Texture) SetOrigin(origin image.Point) { *p.rect = p.rect.Sub(p.rect.Min.Sub(origin)) }
 
-// Premult returns whether the image's color channels are premultiplied
-// with it's alpha channels.
-func (p *Texture) Premult() bool { return p.premult }
-func (p *Texture) Writeback()    { cpu.WritebackSlice(p.pix) }
-func (p *Texture) Invalidate()   { cpu.InvalidateSlice(p.pix) }
+func (p *Texture) HasAlpha() bool { return p.hasAlpha }
+func (p *Texture) Writeback()     { cpu.WritebackSlice(p.pix) }
+func (p *Texture) Invalidate()    { cpu.InvalidateSlice(p.pix) }
 func (p *Texture) SubImage(r image.Rectangle) *Texture {
 	sub, _ := p.Image.(interface {
 		SubImage(r image.Rectangle) image.Image
@@ -124,18 +122,18 @@ func (p *Texture) SubImage(r image.Rectangle) *Texture {
 
 func newTextureFromImage(img image.Image) (tex *Texture) {
 	switch img := img.(type) {
+	case *image.NRGBA:
+		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA32, true, nil}
 	case *image.RGBA:
 		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA32, true, nil}
-	case *image.NRGBA:
-		tex = &Texture{img, img.Pix, img.Stride >> 2, &img.Rect, RGBA32, false, nil}
 	case *imageRGBA16:
 		tex = &Texture{img, img.Pix, img.Stride >> 1, &img.Rect, RGBA16, true, nil}
 	case *image.Alpha:
-		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I8, false, nil}
-	case *image.Gray:
 		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I8, true, nil}
+	case *image.Gray:
+		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, I8, false, nil}
 	case *imageI4:
-		tex = &Texture{img, img.Pix, img.Stride << 1, &img.Rect, I4, true, nil}
+		tex = &Texture{img, img.Pix, img.Stride << 1, &img.Rect, I4, false, nil}
 	case *imageCI8:
 		tex = &Texture{img, img.Pix, img.Stride, &img.Rect, CI8, true, NewTextureFromImage(img.Palette)}
 	default:
@@ -150,8 +148,8 @@ func NewTextureFromImage(img image.Image) (tex *Texture) {
 	return
 }
 
-// Stores pixels in RGBA with 32bit (8:8:8:8)
-func NewRGBA32(r image.Rectangle) *Texture {
+// Stores pixels alpha-premultiplied in RGBA with 32bit (8:8:8:8)
+func NewFramebuffer(r image.Rectangle) *Texture {
 	return NewTextureFromImage(&image.RGBA{
 		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, alignFramebuffer),
 		Stride: 4 * r.Dx(),
@@ -160,9 +158,7 @@ func NewRGBA32(r image.Rectangle) *Texture {
 }
 
 // Stores pixels in RGBA with 32bit (8:8:8:8)
-//
-// Same as RGBA32, but not premultiplied-alpha.
-func NewNRGBA32(r image.Rectangle) *Texture {
+func NewRGBA32(r image.Rectangle) *Texture {
 	return NewTextureFromImage(&image.NRGBA{
 		Pix:    cpu.MakePaddedSliceAligned[byte](r.Dx()*r.Dy()*4, alignFramebuffer),
 		Stride: 4 * r.Dx(),

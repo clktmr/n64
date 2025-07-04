@@ -54,9 +54,9 @@ type state struct {
 	combineMode      CombineMode
 	otherModes       ModeFlags
 	fillColor        color.RGBA
-	blendColor       color.RGBA
-	primitiveColor   color.RGBA
-	environmentColor color.RGBA
+	blendColor       color.NRGBA
+	primitiveColor   color.NRGBA
+	environmentColor color.NRGBA
 
 	scissorSet, scissorReal image.Rectangle
 	interlace               InterlaceFrame
@@ -462,8 +462,6 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	}
 	dl.fillColor = cRGBA
 
-	dl.Push(SyncPipe)
-
 	r, g, b, a := uint32(dl.fillColor.R), uint32(dl.fillColor.G), uint32(dl.fillColor.B), uint32(dl.fillColor.A)
 	var ci uint32
 	if dl.bpp == texture.BPP32 {
@@ -476,15 +474,15 @@ func (dl *DisplayList) SetFillColor(c color.Color) {
 	} else {
 		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")
 	}
-	dl.Push(command(0xf7<<56) | command(ci))
+	dl.Push(SyncPipe, command(0xf7<<56)|command(ci))
 }
 
 func (dl *DisplayList) SetBlendColor(c color.Color) {
-	cRGBA := asRGBA(c)
-	if cRGBA == dl.blendColor {
+	cNRGBA := asNRGBA(c)
+	if cNRGBA == dl.blendColor {
 		return
 	}
-	dl.blendColor = cRGBA
+	dl.blendColor = cNRGBA
 
 	dl.Push(SyncPipe, 0xf9<<56|
 		command(dl.blendColor.R)<<24|command(dl.blendColor.G)<<16|
@@ -492,11 +490,11 @@ func (dl *DisplayList) SetBlendColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
-	cRGBA := asRGBA(c)
-	if cRGBA == dl.primitiveColor {
+	cNRGBA := asNRGBA(c)
+	if cNRGBA == dl.primitiveColor {
 		return
 	}
-	dl.primitiveColor = cRGBA
+	dl.primitiveColor = cNRGBA
 
 	dl.Push(0xfa<<56 |
 		command(dl.primitiveColor.R)<<24 | command(dl.primitiveColor.G)<<16 |
@@ -504,11 +502,11 @@ func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
 }
 
 func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
-	cRGBA := asRGBA(c)
-	if cRGBA == dl.environmentColor {
+	cNRGBA := asNRGBA(c)
+	if cNRGBA == dl.environmentColor {
 		return
 	}
-	dl.environmentColor = cRGBA
+	dl.environmentColor = cNRGBA
 
 	dl.Push(SyncPipe, 0xfb<<56|
 		command(dl.environmentColor.R)<<24|command(dl.environmentColor.G)<<16|
@@ -603,4 +601,26 @@ func _asRGBA(c color.Color) (ret color.RGBA) {
 	ret.B = uint8(b >> 8)
 	ret.A = uint8(a >> 8)
 	return
+}
+
+// Little unsafe helper to avoid heap allocation from calls to RGBA().
+//
+//go:noescape
+//go:linkname asNRGBA github.com/clktmr/n64/rcp/rdp._asNRGBA
+func asNRGBA(c color.Color) (ret color.NRGBA)
+func _asNRGBA(c color.Color) (ret color.NRGBA) {
+	if c, ok := c.(color.NRGBA); ok {
+		return c
+	}
+	r, g, b, a := c.RGBA()
+	if a == 0xffff {
+		return color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), 0xff}
+	}
+	if a == 0 {
+		return color.NRGBA{0, 0, 0, 0}
+	}
+	r = (r * 0xffff) / a
+	g = (g * 0xffff) / a
+	b = (b * 0xffff) / a
+	return color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), uint8(a >> 8)}
 }

@@ -79,7 +79,7 @@ func main() {
 	video.Setup(false)
 	res := video.NativeResolution()
 	res.X /= 2
-	fb := texture.NewRGBA32(image.Rectangle{Max: res})
+	fb := texture.NewFramebuffer(image.Rectangle{Max: res})
 	video.SetFramebuffer(fb)
 
 	testing.Main(

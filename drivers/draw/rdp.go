@@ -26,7 +26,7 @@ const (
 	Src  = HW(draw.Src)
 )
 
-// Draw implements the [Drawer] interface.
+// Draw implements the [draw.Drawer] interface.
 func (op HW) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point) {
 	DrawMask(dst, r, src, sp, nil, image.Point{}, draw.Op(op))
 }
@@ -129,70 +129,50 @@ func drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Color) {
 }
 
 func drawUniformOver(r image.Rectangle, fill color.Color, mask color.Color) {
-	// CycleTypeFill doesn't support blending, use CycleTypeOne instead. The
-	// following operation is required by draw.Over:
+	// CycleTypeFill doesn't support blending, use CycleTypeOne instead.
+	// Assuming fill is not premultiplied alpha, the following operation is
+	// required by draw.Over:
 	//
-	//     a = 1.0 - (fill_alpha * mask_alpha)
-	//     dst = (dst*a + fill*mask_alpha)
+	//     a = (fill_alpha * mask_alpha)
+	//     dst = (1-a)*dst + a*fill
 
 	rdp.RDP.SetPrimitiveColor(fill)
 	rdp.RDP.SetEnvironmentColor(mask)
 
-	// cc = fill*mask_alpha
-	cp := rdp.CombineParams{
-		rdp.CombinePrimitive, rdp.CombineBColorZero,
-		rdp.CombineCColorEnvironmentAlpha, rdp.CombineDColorZero,
-	}
-	// cc_alpha = 1-fill_alpha*mask_alpha
-	cpA := rdp.CombineParams{
-		rdp.CombineAAlphaZero, rdp.CombineEnvironment,
-		rdp.CombinePrimitive, rdp.CombineDAlphaOne,
-	}
 	rdp.RDP.SetCombineMode(rdp.CombineMode{
-		Two: rdp.CombinePass{RGB: cp, Alpha: cpA},
+		Two: rdp.CombinePass{
+			RGB:   rdp.CombineParams{0, 0, 0, rdp.CombinePrimitive},
+			Alpha: rdp.CombineParams{rdp.CombinePrimitive, rdp.CombineBAlphaZero, rdp.CombineEnvironment, rdp.CombineDAlphaZero},
+		},
 	})
 
 	rdp.RDP.SetOtherModes(
 		rdp.ForceBlend|rdp.ImageRead,
-		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOverPremult,
+		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOver,
 	)
 
 	rdp.RDP.FillRectangle(r)
 }
 
-// These modes expect the color combiner to pass (1-alpha) instead of alpha to
-// the blender. This allows to calculate all ops with the same color combiner
-// configuration.
 var (
-	blendOver = rdp.BlendMode{ // dst = cc_alpha*dst + (1-cc_alpha)*cc
-		P1: rdp.BlenderPMFramebuffer,
+	blendOver = rdp.BlendMode{ // dst = cc_alpha*cc + (1-cc_alpha)*dst
+		P1: rdp.BlenderPMColorCombiner,
 		A1: rdp.BlenderAColorCombinerAlpha,
-		M1: rdp.BlenderPMColorCombiner,
+		M1: rdp.BlenderPMFramebuffer,
 		B1: rdp.BlenderBOneMinusAlphaA,
 	}
-	blendOverPremult = rdp.BlendMode{ // dst = cc_alpha*dst + cc
-		P1: rdp.BlenderPMFramebuffer,
+	blendSrc = rdp.BlendMode{ // dst = cc_alpha*cc
+		P1: rdp.BlenderPMColorCombiner,
 		A1: rdp.BlenderAColorCombinerAlpha,
 		M1: rdp.BlenderPMColorCombiner,
-		B1: rdp.BlenderBOne,
-	}
-	blendSrc = rdp.BlendMode{ // dst = (1-cc_alpha)*cc
-		P1: rdp.BlenderPMBlendColor,
-		A1: rdp.BlenderAColorCombinerAlpha,
-		M1: rdp.BlenderPMColorCombiner,
-		B1: rdp.BlenderBOneMinusAlphaA,
-	}
-	blendSrcPremult = rdp.BlendMode{ // dst = cc
-		P1: rdp.BlenderPMFramebuffer,
-		A1: rdp.BlenderAZero,
-		M1: rdp.BlenderPMColorCombiner,
-		B1: rdp.BlenderBOne,
+		B1: rdp.BlenderBZero,
 	}
 )
 
 func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
 	var modeflags rdp.ModeFlags
 	colorSource := rdp.CombineTex0
+	alphaSource := rdp.CombineTex0
 
 	if fill != nil {
 		rdp.RDP.SetPrimitiveColor(fill)
@@ -210,37 +190,26 @@ func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scal
 		rdp.RDP.LoadTLUT(idx, src.Palette().Bounds())
 	}
 
-	var blendmode *rdp.BlendMode
 	if op == draw.Over {
-		if src.Premult() {
-			blendmode = &blendOverPremult
-		} else {
-			blendmode = &blendOver
-		}
 		rdp.RDP.SetOtherModes(
 			rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0|modeflags,
-			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
+			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherPattern, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOver,
 		)
 	} else {
-		if src.Premult() {
-			blendmode = &blendSrcPremult
-		} else {
-			blendmode = &blendSrc
-			rdp.RDP.SetBlendColor(color.RGBA{A: 0xff})
-		}
 		rdp.RDP.SetOtherModes(
 			rdp.ForceBlend|rdp.BiLerp0|modeflags,
-			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
+			rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendSrc,
 		)
 	}
 
+	if !src.HasAlpha() {
+		alphaSource = rdp.CombineDAlphaOne
+	}
 	rdp.RDP.SetCombineMode(rdp.CombineMode{
 		Two: rdp.CombinePass{
-			RGB: rdp.CombineParams{0, 0, 0, colorSource}, // cc = src
-			Alpha: rdp.CombineParams{ // cc_alpha = 1-tex0_alpha
-				rdp.CombineAAlphaZero, rdp.CombineBAlphaOne,
-				rdp.CombineTex0, rdp.CombineDAlphaOne,
-			}},
+			RGB:   rdp.CombineParams{0, 0, 0, colorSource},
+			Alpha: rdp.CombineParams{0, 0, 0, alphaSource},
+		},
 	})
 	rdp.RDP.SetTextureImage(src)
 
@@ -277,7 +246,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 		setFramebuffer(dst)
 	}
 
-	rdp.RDP.SetEnvironmentColor(fg)
+	rdp.RDP.SetPrimitiveColor(fg)
 
 	blendmode := &blendOver
 	if bg != nil {
@@ -292,11 +261,9 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 
 	rdp.RDP.SetCombineMode(rdp.CombineMode{
 		Two: rdp.CombinePass{
-			RGB: rdp.CombineParams{0, 0, 0, rdp.CombineEnvironment}, // cc = src
-			Alpha: rdp.CombineParams{ // cc_alpha = 1-tex0_alpha
-				rdp.CombineAAlphaZero, rdp.CombineBAlphaOne,
-				rdp.CombineTex0, rdp.CombineDAlphaOne,
-			}},
+			RGB:   rdp.CombineParams{0, 0, 0, rdp.CombinePrimitive},
+			Alpha: rdp.CombineParams{0, 0, 0, rdp.CombineTex0},
+		},
 	})
 
 	img, _, _, _ := font.GlyphMap(0)

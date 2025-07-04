@@ -23,8 +23,8 @@ func BenchmarkDrawText(b *testing.B) {
 
 	fb := video.Framebuffer()
 
-	white := color.RGBA{0xff, 0xff, 0xff, 0xff}
-	black := color.RGBA{0x0, 0x0, 0x0, 0xff}
+	white := color.NRGBA{0xff, 0xff, 0xff, 0xff}
+	black := color.NRGBA{0x0, 0x0, 0x0, 0xff}
 
 	for b.Loop() {
 		draw.DrawText(fb, fb.Bounds(), gomono, image.Point{}, white, black, lorem)

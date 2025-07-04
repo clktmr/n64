@@ -11,8 +11,8 @@ import (
 )
 
 func TestFillRect(t *testing.T) {
-	testcolor := color.RGBA{R: 0, G: 0x37, B: 0x77, A: 0xff}
-	img := texture.NewRGBA32(image.Rect(0, 0, 32, 32))
+	testcolor := color.NRGBA{R: 0, G: 0x37, B: 0x77, A: 0xff}
+	img := texture.NewFramebuffer(image.Rect(0, 0, 32, 32))
 
 	dl := &rdp.RDP
 
@@ -36,7 +36,7 @@ func TestFillRect(t *testing.T) {
 
 	for x := range bounds.Max.X {
 		for y := range bounds.Max.Y {
-			result := img.At(x, y)
+			result := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
 			if result != testcolor {
 				t.Errorf("%v at (%d,%d)", result, x, y)
 			}

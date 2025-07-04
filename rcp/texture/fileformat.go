@@ -10,7 +10,7 @@ import (
 
 type header struct {
 	Format        Format
-	Premult       bool
+	HasAlpha      bool
 	Width, Height uint16
 	PaletteSize   uint16
 }
@@ -30,11 +30,7 @@ func Load(r io.Reader) (tex *Texture, err error) {
 	rect := image.Rect(0, 0, int(hdr.Width), int(hdr.Height))
 	switch hdr.Format {
 	case RGBA32:
-		if hdr.Premult {
-			tex = NewRGBA32(rect)
-		} else {
-			tex = NewNRGBA32(rect)
-		}
+		tex = NewRGBA32(rect)
 	case RGBA16:
 		tex = NewRGBA16(rect)
 	// case fmtYUV16:
@@ -42,7 +38,11 @@ func Load(r io.Reader) (tex *Texture, err error) {
 	// case fmtIA8:
 	// case fmtIA4:
 	case I8:
-		tex = NewI8(rect)
+		if hdr.HasAlpha {
+			tex = NewAlpha(rect)
+		} else {
+			tex = NewI8(rect)
+		}
 	case I4:
 		tex = NewI4(rect)
 	case CI8:
@@ -79,10 +79,10 @@ func (p *Texture) Store(w io.Writer) error {
 	}
 
 	var hdr = header{
-		Format:  p.Format(),
-		Premult: p.Premult(),
-		Width:   uint16(p.Bounds().Dx()),
-		Height:  uint16(p.Bounds().Dy()),
+		Format:   p.Format(),
+		HasAlpha: p.HasAlpha(),
+		Width:    uint16(p.Bounds().Dx()),
+		Height:   uint16(p.Bounds().Dy()),
 	}
 
 	if p.palette != nil {

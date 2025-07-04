@@ -74,18 +74,15 @@ func TestDrawMask(t *testing.T) {
 	imgN64LogoSmall, _ := png.Decode(bytes.NewReader(pngN64LogoSmall))
 	imgN64LogoLarge, _ := png.Decode(bytes.NewReader(pngN64LogoLarge))
 
-	imgGreen := &image.Uniform{color.RGBA{G: 0xff, A: 0xff}}
-	imgTransparentGreen := &image.Uniform{color.RGBA{G: 0xff, A: 0xaf}}
-	imgTransparentGray := &image.Uniform{color.RGBA{0x7f, 0x7f, 0x7f, 0xaf}}
+	imgGreen := &image.Uniform{color.NRGBA{G: 0xff, A: 0xff}}
+	imgTransparentGreen := &image.Uniform{color.NRGBA{G: 0xff, A: 0xaf}}
+	imgTransparentGray := &image.Uniform{color.NRGBA{0x7f, 0x7f, 0x7f, 0xaf}}
 
-	imgNRGBA := texture.NewNRGBA32(imgN64LogoSmall.Bounds())
-	draw.Src.Draw(imgNRGBA.Image, imgNRGBA.Bounds(), imgN64LogoSmall, image.Point{})
-	imgNRGBA.Writeback()
 	imgRGBA := texture.NewRGBA32(imgN64LogoSmall.Bounds())
 	draw.Src.Draw(imgRGBA.Image, imgRGBA.Bounds(), imgN64LogoSmall, image.Point{})
 	imgRGBA.Writeback()
 
-	imgLarge := texture.NewNRGBA32(imgN64LogoLarge.Bounds())
+	imgLarge := texture.NewRGBA32(imgN64LogoLarge.Bounds())
 	draw.Src.Draw(imgLarge.Image, imgLarge.Bounds(), imgN64LogoLarge, image.Point{})
 	imgLarge.Writeback()
 
@@ -125,20 +122,18 @@ func TestDrawMask(t *testing.T) {
 		"fillAlphaMaskSrc":     {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Src},
 		"fillAlphaMaskOver":    {bounds.Inset(24), imgGreen, image.Point{}, imgAlpha, image.Point{}, draw.Over},
 		"fillOutOfBounds":      {bounds.Inset(-4), imgGreen, image.Point{11, 5}, nil, image.Point{}, draw.Src},
-		"drawSrc":              {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src},
-		"drawOver":             {bounds.Inset(24), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Over},
-		"drawSrcPremult":       {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Src},
-		"drawOverPremult":      {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Over},
-		"drawSrcSubimage":      {bounds.Inset(24), imgNRGBA.SubImage(imgNRGBA.Bounds().Inset(4)), image.Point{}, nil, image.Point{}, draw.Src},
-		"drawSrcSubimageShift": {bounds.Inset(24), imgNRGBA.SubImage(imgNRGBA.Bounds().Inset(4)), image.Point{11, 5}, nil, image.Point{}, draw.Src},
-		"drawScissored":        {imgNRGBA.Bounds().Add(image.Pt(24, 24)).Inset(2), imgNRGBA, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawSrc":              {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Src},
+		"drawOver":             {bounds.Inset(24), imgRGBA, image.Point{}, nil, image.Point{}, draw.Over},
+		"drawSrcSubimage":      {bounds.Inset(24), imgRGBA.SubImage(imgRGBA.Bounds().Inset(4)), image.Point{}, nil, image.Point{}, draw.Src},
+		"drawSrcSubimageShift": {bounds.Inset(24), imgRGBA.SubImage(imgRGBA.Bounds().Inset(4)), image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawScissored":        {imgRGBA.Bounds().Add(image.Pt(24, 24)).Inset(2), imgRGBA, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawLarge":            {bounds.Inset(24), imgLarge, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawLarge16":          {bounds.Inset(24), imgLarge16, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawLarge8":           {bounds.Inset(24), imgLarge8, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawLarge4":           {bounds.Inset(0), imgLarge4, image.Point{4, 4}, nil, image.Point{}, draw.Src},
-		"drawShift":            {bounds.Inset(24), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
-		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
-		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgNRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawShift":            {bounds.Inset(24), imgRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawOutOfBoundsUL":    {bounds.Inset(-4), imgRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
+		"drawOutOfBoundsLR":    {bounds.Add(bounds.Size().Sub(image.Point{12, 12})), imgRGBA, image.Point{11, 5}, nil, image.Point{}, draw.Src},
 		"drawSrcI4":            {bounds.Inset(24), imgI4, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawSrcAlpha":         {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawOverAlpha":        {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Over},
@@ -160,14 +155,16 @@ func TestDrawMask(t *testing.T) {
 			n64draw.Flush()
 
 			// compare
-			const showThreshold = 18 // allow some errors due to precision
 			cumErr := 0
 			for x := range bounds.Max.X {
 				for y := range bounds.Max.Y {
 					e := expected.At(x, y).(color.RGBA)
 					r := result.At(x, y).(color.RGBA)
 					absErr := absDiffColor(e, r)
-					if absErr > showThreshold {
+					// Allow some errors due to precision.
+					// The N64's blender uses only 5 bit
+					// alpha.
+					if absErr > 24 {
 						cumErr += absErr
 						err.Set(x, y, color.RGBA{R: 0xff})
 						diff.Set(x, y, color.RGBA{
