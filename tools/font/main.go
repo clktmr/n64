@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"image"
+	"image/png"
 	"log"
 	"os"
 	"path/filepath"
@@ -35,6 +36,7 @@ var (
 	spacing  = flags.Float64("spacing", 1.0, "line spacing")
 	start    = flags.Uint("start", 0, "Unicode value of first character")
 	end      = flags.Uint("end", 0xff, "Unicode value of last character")
+	genpng   = flags.Bool("png", false, "Generate PNG for debugging")
 	fontfile string
 )
 
@@ -127,42 +129,53 @@ func Main(args []string) {
 	// Draw the font file
 	spacingFixed := fixed.Int26_6(*spacing * (1 << 6))
 	lineHeight := face.Metrics().Height.Mul(spacingFixed).Ceil()
-	drawer.Dot = fixed.Point26_6{0, fixed.I(lineHeight)}
+	drawer.Dot = fixed.Point26_6{}
+
 	var missing []byte
 	for s := rune(*start); s <= rune(*end); s++ {
-		adv, hasGlyph := face.GlyphAdvance(s)
+		bounds, adv, hasGlyph := face.GlyphBounds(s)
 
 		// Use a common "missing" glyph
 		if !hasGlyph && missing != nil {
 			positions = append(positions, missing...)
 			continue
 		}
-		// Always start drawing at full pixels
-		drawer.Dot = fixed.P(drawer.Dot.X.Ceil(), drawer.Dot.Y.Ceil())
+
+		// Always advance origin to full pixels
+		nextDot := drawer.Dot
+		nextDot.X -= fixed.I(bounds.Min.X.Floor())
+		nextDot.Y -= fixed.I(bounds.Min.Y.Floor())
 
 		// Check if we need to wrap
-		const padding = 1
-		nextDot := drawer.Dot.Add(fixed.P(adv.Ceil()+padding, 0))
-
-		if nextDot.X.Ceil() >= dim {
-			drawer.Dot.Y += fixed.I(lineHeight + padding)
+		if bounds.Add(nextDot).Max.X.Ceil() >= dim {
+			drawer.Dot.Y += fixed.I(lineHeight)
 			drawer.Dot.X = fixed.I(0)
+			nextDot = drawer.Dot
+			nextDot.X -= fixed.I(bounds.Min.X.Floor())
+			nextDot.Y -= fixed.I(bounds.Min.Y.Floor())
 		}
-		if nextDot.Y.Ceil() >= dim {
+		if bounds.Add(nextDot).Max.Y.Ceil() >= dim {
 			log.Fatalln("Too many glyphs to fit into font image map")
 		}
 
+		drawer.Dot = nextDot
+		bounds = bounds.Add(drawer.Dot)
+
 		positions = append(positions, byte(drawer.Dot.X.Round()))
 		positions = append(positions, byte(drawer.Dot.Y.Round()))
-		positions = append(positions, byte(adv.Ceil()))
+		positions = append(positions, byte(bounds.Min.X.Floor()))
+		positions = append(positions, byte(bounds.Min.Y.Floor()))
+		positions = append(positions, byte(bounds.Max.X.Ceil()))
+		positions = append(positions, byte(bounds.Max.Y.Ceil()))
+		positions = append(positions, byte(adv.Round()))
 
 		if !hasGlyph && missing == nil {
-			missing = positions[len(positions)-3:]
+			missing = positions[len(positions)-7:]
 		}
 
 		// Actual drawing
 		drawer.DrawString(string(s))
-		drawer.Dot = drawer.Dot.Add(fixed.P(padding, 0))
+		drawer.Dot = fixed.P(bounds.Max.X.Ceil(), bounds.Min.Y.Floor())
 	}
 
 	lastLine := drawer.Dot.Y.Ceil() + lineHeight
@@ -188,9 +201,25 @@ func Main(args []string) {
 		log.Fatalln(err)
 	}
 
+	if *genpng {
+		filename = fmt.Sprintf("%s.png", basename)
+		pngFile, err := os.Create(filepath.Join(directory, filename))
+		if err != nil {
+			log.Fatalln(err)
+		}
+		defer pngFile.Close()
+		err = png.Encode(pngFile, shrinkedFontMap)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+
 	// Save glyph positions to disk
 	filename = fmt.Sprintf("%s.pos", basename)
 	posFile, err := os.Create(filepath.Join(directory, filename))
+	if err != nil {
+		log.Fatalln(err)
+	}
 	defer posFile.Close()
 
 	for _, pos := range positions {

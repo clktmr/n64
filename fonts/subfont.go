@@ -27,7 +27,7 @@ type glyphData struct {
 }
 
 func (p *SubfontData) Advance(i int) int {
-	return int(p.positions[3*i+2])
+	return int(p.positions[7*i+6])
 }
 
 func (p *SubfontData) Glyph(i int) (img image.Image, origin image.Point, advance int) {
@@ -44,12 +44,15 @@ func (p *SubfontData) GlyphMap(i int) (img image.Image, r image.Rectangle, origi
 }
 
 func (p *SubfontData) glyph(i int) (img *texture.Texture, origin image.Point, advance int) {
-	base := 3 * i
-	advance = int(p.positions[base+2])
-	origin = image.Point{
-		int(p.positions[base]), int(p.positions[base+1]),
-	}
-	rect := image.Rect(origin.X, origin.Y-p.ascent, origin.X+advance, origin.Y+p.height-p.ascent)
+	base := 7 * i
+	advance = int(p.positions[base+6])
+	origin = image.Pt(
+		int(p.positions[base+0]), int(p.positions[base+1]),
+	)
+	rect := image.Rect(
+		int(p.positions[base+2]), int(p.positions[base+3]),
+		int(p.positions[base+4]), int(p.positions[base+5]),
+	)
 	img = p.fontMap.SubImage(rect)
 	return
 }
@@ -69,7 +72,7 @@ func NewSubfontData(pos, tex []byte, height, ascent int) *SubfontData {
 	}
 	f.fontMap = fontMap
 
-	f.glyphs = make([]glyphData, len(pos)/3)
+	f.glyphs = make([]glyphData, len(pos)/7)
 	for i := range f.glyphs {
 		g := &f.glyphs[i]
 		g.img, g.origin, g.advance = f.glyph(i)

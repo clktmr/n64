@@ -296,13 +296,14 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 			continue
 		}
 
-		img, glyphRect, _, adv := font.GlyphMap(rune)
+		img, glyphRect, origin, adv := font.GlyphMap(rune)
 		if img == nil {
 			continue
 		}
-		glyphRectSS := image.Rectangle{Max: glyphRect.Size()}.Add(pos)
 
-		if glyphRectSS.Overlaps(clip) {
+		glyphRectSS := glyphRect.Sub(origin).Add(pos)
+		drawRect := glyphRectSS.Intersect(clip)
+		if !drawRect.Empty() {
 			tex, ok := img.(*texture.Texture)
 			debug.Assert(ok, "fontmap format")
 			if tex != oldtex {
@@ -310,8 +311,10 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 				oldtex = tex
 			}
 
+			sp := glyphRect.Min.Add(drawRect.Min.Sub(glyphRectSS.Min))
+
 			rdp.RDP.LoadTile(loadIdx, glyphRect)
-			rdp.RDP.TextureRectangle(glyphRectSS, glyphRect.Min, image.Point{1, 1}, drawIdx)
+			rdp.RDP.TextureRectangle(drawRect, sp, image.Point{1, 1}, drawIdx)
 		} else if glyphRectSS.Min.X > clip.Max.X {
 			outofbounds = true // skip rest of line
 		}
