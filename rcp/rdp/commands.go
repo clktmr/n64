@@ -279,7 +279,7 @@ func (dl *DisplayList) SetTileSize(idx uint8, r image.Rectangle) {
 	cmd := 0xf2<<56 | command(r.Min.X)<<46 | command(r.Min.Y)<<34
 	cmd |= command(idx)<<24 | command(r.Max.X-1)<<14 | command(r.Max.Y-1)<<2
 
-	dl.Push(cmd)
+	dl.Push(SyncTile, cmd)
 }
 
 // Mode flags for the SetOtherModes() command.
