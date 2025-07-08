@@ -84,7 +84,7 @@ func SetSampleRate(hz int) {
 	// Calculate actual sample rate back from dacrate
 	hz = (2 * clockrate) / ((dacrate * 2) - 1)
 
-	const buffersPerSecond = 25 // TODO match display refresh rate/2
+	const buffersPerSecond = 25
 	samplesPerBuffer := (hz / buffersPerSecond) &^ 7
 	bufCap = samplesPerBuffer * 2 * 2
 
@@ -172,6 +172,12 @@ func (b *Writer) Flush() {
 	}
 }
 
+// Len returns the number of bytes that the buffer can hold before it will be
+// flushed. This always equals to 1/25 second of playback.
+func (b *Writer) Len() int {
+	return bufCap
+}
+
 var dmaStart rtos.Cond
 
 // handler is executed when the pending DMA starts.
@@ -204,8 +210,8 @@ func handler() {
 	regs().control.Store(1)
 }
 
-// newBuffer returns a newly allocated empty buffer with at least capacity
-// bufCap, which can be used to play audio.
+// newBuffer returns a newly allocated empty buffer with at least capacity n,
+// which can be used to play audio.
 func newBuffer(n int) []byte {
 	buf := cpu.MakePaddedSliceAligned[byte](n+cpu.CacheLineSize, dmaAlign)
 
