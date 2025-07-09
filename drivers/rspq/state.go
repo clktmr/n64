@@ -3,7 +3,6 @@ package rspq
 import (
 	"encoding/binary"
 	"io"
-	"slices"
 
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
@@ -100,13 +99,15 @@ func loadOverlayHeader(r io.Reader) (*rspqOverlayHeader, error) {
 		return nil, err
 	}
 	p.Commands = cpu.MakePaddedSlice[uint16](maxOverlayCommandCount)
-	err = binary.Read(r, binary.BigEndian, &p.Commands)
-	if err != nil && err != io.ErrUnexpectedEOF {
-		return nil, err
-	}
-	idx := slices.Index(p.Commands[:], 0)
-	if idx != -1 {
-		p.Commands = p.Commands[:idx]
+	for i := range p.Commands {
+		err = binary.Read(r, binary.BigEndian, &p.Commands[i])
+		if err != nil {
+			return nil, err
+		}
+		if p.Commands[i] == 0 {
+			p.Commands = p.Commands[:i]
+			break
+		}
 	}
 	return p, nil
 }
