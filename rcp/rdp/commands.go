@@ -1,6 +1,7 @@
 package rdp
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"time"
@@ -12,6 +13,69 @@ import (
 )
 
 type command uint64
+
+func (c command) String() string {
+	var name string
+	switch (c >> 56) &^ 0xc0 {
+	case 0x24:
+		name = "Texture Rectangle"
+	case 0x25:
+		name = "Texture Rectangle Flip"
+	case 0x26:
+		name = "Sync Load"
+	case 0x27:
+		name = "Sync Pipe"
+	case 0x28:
+		name = "Sync Tile"
+	case 0x29:
+		name = "Sync Full"
+	case 0x2A:
+		name = "Set Key GB"
+	case 0x2B:
+		name = "Set Key R"
+	case 0x2C:
+		name = "Set Convert"
+	case 0x2D:
+		name = "Set Scissor"
+	case 0x2E:
+		name = "Set Primitive Depth"
+	case 0x2F:
+		name = "Set Other Modes"
+	case 0x30:
+		name = "Load TLUT"
+	case 0x32:
+		name = "Set Tile Size"
+	case 0x33:
+		name = "Load Block"
+	case 0x34:
+		name = "Load Tile"
+	case 0x35:
+		name = "Set Tile"
+	case 0x36:
+		name = "Fill Rectangle"
+	case 0x37:
+		name = "Set Fill Color"
+	case 0x38:
+		name = "Set Fog Color"
+	case 0x39:
+		name = "Set Blend Color"
+	case 0x3A:
+		name = "Set Primitive Color"
+	case 0x3B:
+		name = "Set Environment Color"
+	case 0x3C:
+		name = "Set Combine Mode"
+	case 0x3D:
+		name = "Set Texture Image"
+	case 0x3E:
+		name = "Set Depth Image"
+	case 0x3F:
+		name = "Set Color Image"
+	default:
+		name = "Noop"
+	}
+	return fmt.Sprintf("%s 0x%x", name, uint64(c))
+}
 
 const (
 	// Waits until all previous commands have finished reading and writing
