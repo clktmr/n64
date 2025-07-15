@@ -92,9 +92,12 @@ func Init() {
 }
 
 func SetSampleRate(hz int) {
+	mtx.Lock()
+	defer mtx.Unlock()
 	sampleRate = hz
 }
 
+// exec queues an [cmdExec] command to the rspq.
 func exec(volume float32, channels int, dst []byte) {
 	debug.Assert(cpu.PhysicalAddressSlice(dst)&0xf == 0, "buffer alignment")
 	debug.Assert(cpu.PhysicalAddress(settings.Value())&0xf == 0, "settings alignment")
@@ -109,6 +112,7 @@ func exec(volume float32, channels int, dst []byte) {
 		uint32(cpu.PhysicalAddress(settings.Value())))
 }
 
+// Play connects the audio source src to channel.
 func Play(channel int, src *Source) {
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -125,6 +129,8 @@ func Play(channel int, src *Source) {
 }
 
 func Stop(channel int) {
+	mtx.Lock()
+	defer mtx.Unlock()
 	inputs[channel].src = nil
 }
 
@@ -139,6 +145,9 @@ func resampledSize(inputHz, outputHz, outputLen int) int {
 }
 
 func (b *Reader) Read(p []byte) (n int, err error) {
+	mtx.Lock()
+	defer mtx.Unlock()
+
 	numChannels := 0
 	for i, input := range inputs {
 		ch := &settings.Value().channels[i]
