@@ -26,6 +26,7 @@ import (
 	"github.com/clktmr/n64/test/internal/drivers/controller_test"
 	"github.com/clktmr/n64/test/internal/drivers/draw_test"
 	"github.com/clktmr/n64/test/internal/drivers/rspq_test"
+	"github.com/clktmr/n64/test/internal/drivers/rspq_test/mixer_test"
 	"github.com/clktmr/n64/test/internal/fonts_test"
 	"github.com/clktmr/n64/test/internal/rcp_test"
 	"github.com/clktmr/n64/test/internal/rcp_test/cpu_test"
@@ -113,6 +114,8 @@ func main() {
 			newInternalTest(rspq_test.TestWrite),
 			newInternalTest(rspq_test.TestDMA),
 			newInternalTest(rspq_test.TestVecUCode),
+			newInternalTest(mixer_test.TestResampling),
+			newInternalTest(mixer_test.TestMixing),
 		},
 		[]testing.InternalBenchmark{
 			newInternalBenchmark(runtime_test.BenchmarkSchedule),

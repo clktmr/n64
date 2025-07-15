@@ -42,9 +42,7 @@ type context struct {
 
 func (p *context) ClearBuffer(idx int) {
 	buffer := cpu.UncachedSlice(p.buffers[idx])
-	for i := range buffer {
-		buffer[i] = 0
-	}
+	clear(buffer)
 }
 
 type overlayDescriptor struct {
