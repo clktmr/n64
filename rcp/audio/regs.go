@@ -11,7 +11,9 @@ package audio
 import (
 	"embedded/mmio"
 	"embedded/rtos"
+	"errors"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/clktmr/n64/machine"
@@ -49,6 +51,8 @@ const dmaAlign = 8
 
 const maxBufLen = 1 << 17
 
+var ErrStop = errors.New("playback stopped")
+
 var (
 	// pending and write buffer; read buffer is always previous to pending
 	pending rcp.IntrInput[[]byte]
@@ -56,17 +60,20 @@ var (
 	bufs    [3][]byte
 	bufCap  int
 	pinner  cpu.Pinner
+
+	stopMtx sync.Mutex // dma must not be enabled while held
 )
 
 func init() {
-	SetSampleRate(48000)
+	Start(48000)
 	rcp.SetHandler(rcp.IntrAudio, handler)
 	rcp.EnableInterrupts(rcp.IntrAudio)
 }
 
-// SetSampleRate sets how many samples per second are played back. Per default
-// it's set to 48000 Hz.
-func SetSampleRate(hz int) {
+// Start begins playback from [Buffer]. The first parameter sets the samplerate,
+// which specifies how many samples per second are played back. Per default it's
+// set to 48000 Hz.
+func Start(hz int) {
 	var clockrate int
 	switch machine.VideoType {
 	case machine.VideoNTSC:
@@ -88,7 +95,8 @@ func SetSampleRate(hz int) {
 	samplesPerBuffer := (hz / buffersPerSecond) &^ 7
 	bufCap = samplesPerBuffer * 2 * 2
 
-	regs().control.Store(0)
+	Stop()
+
 	regs().dacRate.Store(uint32(dacrate) - 1)
 	regs().bitRate.Store(uint32(bitrate) - 1)
 
@@ -96,6 +104,21 @@ func SetSampleRate(hz int) {
 		pinner.Unpin()
 		bufs[i] = newBuffer(bufCap)
 		cpu.PinSlice(&pinner, bufs[i])
+	}
+
+	stopMtx.Unlock()
+}
+
+func Stop() {
+	if !stopMtx.TryLock() {
+		return // already stopped
+	}
+
+	dmaStop.Wait(0) // clear cond
+	if regs().status.LoadBits(dmaEnabled) != 0 {
+		if !dmaStop.Wait(1 * time.Second) {
+			panic("audio stop timeout")
+		}
 	}
 }
 
@@ -121,14 +144,17 @@ func (b *Writer) Write(p []byte) (n int, err error) {
 		bufs[writing] = buf
 
 		if len(buf) == bufCap {
-			b.Flush()
+			err = b.Flush()
+			if err != nil {
+				return n, err
+			}
 		}
 	}
 
 	return
 }
 
-// ReadFrom implements [io.ReadFrom].
+// ReadFrom implements [io.ReaderFrom].
 func (b *Writer) ReadFrom(r io.Reader) (n int64, err error) {
 	for {
 		buf := bufs[writing]
@@ -145,14 +171,17 @@ func (b *Writer) ReadFrom(r io.Reader) (n int64, err error) {
 		}
 
 		if len(buf) == bufCap {
-			b.Flush()
+			err = b.Flush()
+			if err != nil {
+				return n, err
+			}
 		}
 	}
 }
 
 // Flush blocks until all bytes written to the buffer were passed to the audio
 // DAC for playback.
-func (b *Writer) Flush() {
+func (b *Writer) Flush() error {
 	for {
 		if _, consumed := pending.Read(); consumed {
 			break
@@ -161,8 +190,14 @@ func (b *Writer) Flush() {
 			panic("audio dma timeout")
 		}
 	}
-	cpu.WritebackSlice(bufs[writing])
-	pending.Put(bufs[writing])
+
+	if stopMtx.TryLock() {
+		cpu.WritebackSlice(bufs[writing])
+		pending.Put(bufs[writing])
+		stopMtx.Unlock()
+	} else {
+		return ErrStop
+	}
 
 	writing = (writing + 1) % len(bufs)
 	bufs[writing] = bufs[writing][:0]
@@ -170,6 +205,8 @@ func (b *Writer) Flush() {
 	if regs().status.LoadBits(dmaEnabled) == 0 {
 		handler()
 	}
+
+	return nil
 }
 
 // Len returns the number of bytes that the buffer can hold before it will be
@@ -178,7 +215,7 @@ func (b *Writer) Len() int {
 	return bufCap
 }
 
-var dmaStart rtos.Cond
+var dmaStart, dmaStop rtos.Cond
 
 // handler is executed when the pending DMA starts.
 //
@@ -198,6 +235,7 @@ func handler() {
 		// No data was written, disable playback after dma finished
 		if regs().status.LoadBits(dmaBusy) == 0 {
 			regs().control.Store(0)
+			dmaStop.Signal()
 		} else {
 			regs().dramAddr.Store(0)
 			regs().length.Store(0)
