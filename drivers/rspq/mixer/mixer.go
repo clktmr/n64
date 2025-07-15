@@ -2,6 +2,7 @@ package mixer
 
 import (
 	"embed"
+	"errors"
 	"io"
 	"structs"
 	"sync"
@@ -151,13 +152,13 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 
 		if l, ok := input.src.ReadSeeker.(*looper); ok {
 			// Check if we must loop in the rsp
-			if l.Len() <= int64(inputLen) {
-				input.buf = inputsBuf.Alloc(int(l.Len() + loopOverread))
+			if l.Size() <= int64(inputLen) {
+				input.buf = inputsBuf.Alloc(int(l.Size() + loopOverread))
 				_, err := io.ReadFull(input.src, input.buf) // TODO read only once
 				if err != nil {
 					panic(err)
 				}
-				ch.len = uint20_12U(uint(l.Len()))
+				ch.len = uint20_12U(uint(l.Size()))
 				ch.loop_len = ch.len
 				ch.ptr = cpu.PhysicalAddressSlice(input.buf)
 				cpu.WritebackSlice(input.buf)
@@ -169,7 +170,6 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		input.buf = inputsBuf.Alloc(inputLen + cpu.CacheLineSize)
 
 		// seek back unread bytes and align down to cacheline
-		input.src.Seek(0, io.SeekCurrent)
 		seek := -int64(ch.len.Floor() - ch.pos.Floor()&^(cpu.CacheLineSize-1))
 		_, err := input.src.Seek(seek, io.SeekCurrent)
 		if err != nil {
@@ -179,7 +179,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		ch.pos &= (cpu.CacheLineSize-1)<<12 | (1<<12 - 1)
 
 		nn, err := io.ReadFull(input.src, input.buf)
-		if err == io.ErrUnexpectedEOF { // TODO think again about io.EOF
+		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			inputs[i].src = nil
 			inputs[i].buf = nil
 		} else if err != nil {
@@ -233,19 +233,22 @@ func (v *buffer) Free() {
 	v.pos = 0
 }
 
-// Loop returns a new io.ReadSeeker that loops the underlying io.ReadSeeker's
-// stream.
+// Loop returns a new io.ReadSeeker that loops the underlying io.ReadSeeker. The
+// new stream begins at offset 0 and expands to any positive offset. Note that
+// using [io.SeekEnd] for the whence argument in Seek is illegal.
 func Loop(rs io.ReadSeeker) io.ReadSeeker {
 	current, _ := rs.Seek(0, io.SeekCurrent)
 	end, _ := rs.Seek(0, io.SeekEnd)
 	start, _ := rs.Seek(0, io.SeekStart)
 	rs.Seek(current, io.SeekCurrent)
-	return &looper{rs, end - start}
+	return &looper{rs, start, current - start, end - start}
 }
 
 type looper struct {
 	io.ReadSeeker
-	n int64
+	base int64
+	off  int64
+	n    int64
 }
 
 func (v *looper) Read(p []byte) (n int, err error) {
@@ -253,30 +256,38 @@ func (v *looper) Read(p []byte) (n int, err error) {
 		var nn int
 		nn, err = io.ReadFull(v.ReadSeeker, p[n:])
 		n += nn
-		if err == io.ErrUnexpectedEOF {
-			v.Seek(0, io.SeekStart)
+		v.off += int64(nn)
+		if err == io.ErrUnexpectedEOF || err == io.EOF {
+			_, err = v.ReadSeeker.Seek(0, io.SeekStart)
+			if err != nil {
+				return
+			}
 			err = nil
 		}
 	}
 	return
 }
 
-func (v *looper) Seek(offset int64, whence int) (int64, error) {
-	rs := v.ReadSeeker
-	if whence != io.SeekCurrent {
-		return rs.Seek(offset, whence)
-	}
+var errWhence = errors.New("Seek: invalid whence")
+var errOffset = errors.New("Seek: invalid offset")
 
-	current, _ := rs.Seek(0, io.SeekCurrent)
-	end, _ := rs.Seek(0, io.SeekEnd)
-	start, _ := rs.Seek(0, io.SeekStart)
-	length := end - start
-	current -= start
-	current = ((current+offset)%length + length) % length
-	current += start
-	return rs.Seek(current, io.SeekStart)
+func (v *looper) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	default:
+		return 0, errWhence
+	case io.SeekStart:
+		// do nothing
+	case io.SeekCurrent:
+		offset += v.off
+	}
+	if offset < 0 {
+		return 0, errOffset
+	}
+	v.off = offset
+	_, err := v.ReadSeeker.Seek(offset%v.n+v.base, io.SeekStart)
+	return offset, err
 }
 
-func (v *looper) Len() int64 {
+func (v *looper) Size() int64 {
 	return v.n
 }
