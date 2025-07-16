@@ -73,21 +73,21 @@ func TestInterruptPrio(t *testing.T) {
 			}
 			blocker.Store(true)
 
-			rdpHandler := rcp.Handler(rcp.IntrRDP)
-			rcp.SetHandler(rcp.IntrRDP, blockingHandler)
-			t.Cleanup(func() {
-				_, err = sc64.SetConfig(summercart64.CfgButtonMode, summercart64.ButtonModeDisabled)
-				if err != nil {
-					t.Fatal(err)
-				}
-				rcp.SetHandler(rcp.IntrRDP, rdpHandler)
-			})
-
 			// generate single 5 second blocking low prio interrupt
 			t.Log("Press SummerCart64 button in the next 5 seconds")
+
+			rdpHandler := rcp.Handler(rcp.IntrRDP)
+			rcp.SetHandler(rcp.IntrRDP, blockingHandler)
+
 			start := time.Now()
 			rdp.RDP.Push(rdp.SyncFull)
 			note.Wait(5 * time.Second)
+
+			_, err = sc64.SetConfig(summercart64.CfgButtonMode, summercart64.ButtonModeDisabled)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rcp.SetHandler(rcp.IntrRDP, rdpHandler)
 
 			if blocker.Load() == true {
 				t.Fatal("no button press detected")
