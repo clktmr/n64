@@ -10,7 +10,7 @@ import (
 func regs() *registers { return cpu.MMIO[registers](0x13ff_0000) }
 
 const token = 0x49533634
-const bufferSize = 512 // actually 64*1024 - 0x20, but ISViewer.buf will allocate this
+const bufferSize = 64*1024 - 0x20
 
 type registers struct {
 	token    periph.U32
@@ -33,10 +33,29 @@ type registers struct {
 func DefaultWrite(fd int, p []byte) int {
 	written := len(p)
 	for len(p) > 0 {
-		n := len(p)
-		if n > bufferSize {
-			n = bufferSize
+		if regs().token.LoadSafe() == token {
+			// transfer in progess, wait it to finish
+			var rstart, retries uint32
+			for {
+				r := regs().readPtr.LoadSafe()
+				w := regs().writePtr.LoadSafe()
+				if r == w {
+					break
+				} else if r == rstart {
+					retries++
+				} else {
+					rstart = r
+				}
+				// Max retries observed with SC64 was 40
+				if retries > 500 {
+					// Fail silently if we make no progress
+					return written
+				}
+			}
+			regs().token.StoreSafe(0x0)
 		}
+
+		n := min(len(p), bufferSize)
 
 		for i := 0; i < n/4; i++ {
 			pi := 4 * i
@@ -60,11 +79,6 @@ func DefaultWrite(fd int, p []byte) int {
 		regs().writePtr.StoreSafe(uint32(n))
 		regs().token.StoreSafe(token)
 
-		for regs().readPtr.LoadSafe() != regs().writePtr.LoadSafe() {
-			// wait
-		}
-
-		regs().token.StoreSafe(0x0)
 		p = p[n:]
 	}
 
