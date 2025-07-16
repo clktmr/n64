@@ -40,29 +40,42 @@ func TestResampling(t *testing.T) {
 	sfxAlarm, _ := testdata.Open("sfx_alarm_loop3.pcm_s16be")
 	sfxCannon, _ := testdata.Open("sfx_wpn_cannon2.pcm_s16be")
 	sfxMachinegun, _ := testdata.Open("sfx_wpn_machinegun_loop1.pcm_s16be")
-	mixer.Play(0, &mixer.Source{mixer.Loop(sfxAlarm.(io.ReadSeeker)), 16000})
-	mixer.Play(1, &mixer.Source{mixer.Loop(sfxCannon.(io.ReadSeeker)), 44100})
-	mixer.Play(2, &mixer.Source{mixer.Loop(sfxMachinegun.(io.ReadSeeker)), 8000})
+	sourceAlarm := mixer.NewSource(mixer.Loop(sfxAlarm.(io.ReadSeeker)), 16000)
+	sourceCannon := mixer.NewSource(mixer.Loop(sfxCannon.(io.ReadSeeker)), 44100)
+	sourceMachinegun := mixer.NewSource(mixer.Loop(sfxMachinegun.(io.ReadSeeker)), 8000)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() { audio.Buffer.ReadFrom(mixer.Output); wg.Done() }()
 
-	t.Log("Press A if you hear an alarm, an explosion and a machinegun in a loop.")
+	t.Log("Hold C buttons to enable audio sources:")
+	t.Log(joybus.ButtonCLeft, "= alarm,", joybus.ButtonCDown, "= explosion,", joybus.ButtonCRight, "= machinegun")
 	t.Log("Press any other button otherwise.")
 	var states [4]controller.Controller
 	for {
 		controller.Poll(&states)
-		pressed := states[0].Pressed()
-		if pressed != 0 {
-			if pressed&joybus.ButtonB != 0 {
-				t.Error("User pressed", pressed)
-				break
-			} else if pressed&joybus.ButtonA != 0 {
-				break
-			}
+		switch {
+		case states[0].Pressed()&joybus.ButtonCLeft != 0:
+			mixer.SetSource(0, sourceAlarm)
+		case states[0].Released()&joybus.ButtonCLeft != 0:
+			mixer.SetSource(0, nil)
+		case states[0].Pressed()&joybus.ButtonCDown != 0:
+			mixer.SetSource(1, sourceCannon)
+		case states[0].Released()&joybus.ButtonCDown != 0:
+			mixer.SetSource(1, nil)
+		case states[0].Pressed()&joybus.ButtonCRight != 0:
+			mixer.SetSource(2, sourceMachinegun)
+		case states[0].Released()&joybus.ButtonCRight != 0:
+			mixer.SetSource(2, nil)
+		case states[0].Pressed()&joybus.ButtonReset != 0:
+			goto end
 		}
+		s := sourceMachinegun
+		s.SetVolume(1.0, (float32(states[0].X())/85.0/2.0)+0.5)
+		pitch := 8000 * ((float32(states[0].Y()) / 85.0) + 1.0)
+		s.SetSampleRate(uint(min(max(0, pitch), 128000)))
 	}
+end:
 	audio.Stop()
 	wg.Wait()
 }
@@ -78,8 +91,8 @@ func TestMixing(t *testing.T) {
 		cosinus[i] = int16(math.Cos(2*math.Pi*float64(i)/16) * float64(math.MaxInt16/2))
 	}
 	for i := range 16 {
-		expected[i<<1] = sinus[i] + cosinus[i]   // left channel
-		expected[i<<1+1] = sinus[i] + cosinus[i] // right channel
+		expected[i<<1] = (sinus[i] + cosinus[i]) >> 1   // left channel
+		expected[i<<1+1] = (sinus[i] + cosinus[i]) >> 1 // right channel
 	}
 
 	sinusBuf := cpu.MakePaddedSliceAligned[byte](64, 16)
@@ -98,17 +111,16 @@ func TestMixing(t *testing.T) {
 
 	mixer.SetSampleRate(8000)
 
-	mixer.Play(0, &mixer.Source{mixer.Loop(bytes.NewReader(sinusBuf)), 8000})
-	mixer.Play(1, &mixer.Source{mixer.Loop(bytes.NewReader(cosinusBuf)), 8000})
+	mixer.SetSource(0, mixer.NewSource(mixer.Loop(bytes.NewReader(sinusBuf)), 8000))
+	mixer.SetSource(1, mixer.NewSource(mixer.Loop(bytes.NewReader(cosinusBuf)), 8000))
 
-	resultBuf := cpu.MakePaddedSliceAligned[byte](8192+4, 16)
+	resultBuf := cpu.MakePaddedSliceAligned[byte](8192, 16)
 	_, err = io.ReadFull(mixer.Output, resultBuf)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	resultBuf = resultBuf[len(resultBuf)-(64+4):] // read from end to minimize one-tap filter effect
-	resultBuf = resultBuf[4 : 64+4]               // mixer has a latency of one sample, skip it
+	resultBuf = resultBuf[len(resultBuf)-64:] // read from end to minimize one-tap filter effect
 	_, err = binary.Decode(resultBuf, binary.BigEndian, &result)
 	if err != nil {
 		t.Fatal(err)

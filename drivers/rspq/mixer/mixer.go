@@ -6,6 +6,7 @@ import (
 	"io"
 	"structs"
 	"sync"
+	"sync/atomic"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/drivers/cartfs"
@@ -33,33 +34,31 @@ const (
 const MaxChannels = 32
 
 var (
-	mtx sync.Mutex
+	mtx   sync.Mutex
+	state = cpu.NewPadded[settings, cpu.Align16]()
 
-	sampleRate = 48000
+	sampleRate = uint(48000)
 	volume     = float32(1.0)
-	settings   = cpu.NewPadded[Settings, cpu.Align16]()
 	inputs     = [MaxChannels]struct {
 		buf []byte
 		src *Source
 	}{}
 )
 
-type Settings struct {
+type settings struct {
 	_ structs.HostLayout
 
 	lvol, rvol [MaxChannels]int1_15
-	channels   [MaxChannels]Channel
-}
+	channels   [MaxChannels]struct {
+		_ structs.HostLayout
 
-type Channel struct {
-	_ structs.HostLayout
-
-	pos      uint20_12    // Current position within the waveform (in bytes)
-	step     uint20_12    // Step between samples (in bytes) to playback at the correct frequency
-	len      uint20_12    // Length of the waveform (in bytes)
-	loop_len uint20_12    // Length of the loop in the waveform (in bytes)
-	ptr      cpu.Addr     // Pointer to the waveform
-	flags    channelFlags // Misc flags (see CH_FLAGS_*)
+		pos      uint20_12    // Current position within the waveform (in bytes)
+		step     uint20_12    // Step between samples (in bytes) to playback at the correct frequency
+		len      uint20_12    // Length of the waveform (in bytes)
+		loop_len uint20_12    // Length of the loop in the waveform (in bytes)
+		ptr      cpu.Addr     // Pointer to the waveform
+		flags    channelFlags // Misc flags (see CH_FLAGS_*)
+	}
 }
 
 type channelFlags uint32
@@ -73,6 +72,44 @@ const (
 )
 
 const bps = 1 // 2 bytes per samples
+
+// Source represents an audio source. It's safe for concurrent use.
+type Source struct {
+	rs      io.ReadSeeker
+	hz, vol atomic.Uint32
+}
+
+func NewSource(rs io.ReadSeeker, samplerate uint) *Source {
+	s := &Source{rs: rs}
+	s.SetSampleRate(samplerate)
+	s.SetVolume(1.0, 0.5)
+	return s
+}
+
+// SetSampleRate sets the playback speed.
+func (v *Source) SetSampleRate(hz uint) {
+	v.hz.Store(uint32(uint20_12U(hz)))
+}
+
+// SetVolume sets the volume and panning of this channel. Both will be clamped
+// between zero and one.
+func (v *Source) SetVolume(vol, pan float32) {
+	vol = min(max(0.0, vol), 1.0)
+	pan = min(max(0.0, pan), 1.0)
+	lvol := uint32(int1_15F(vol * (1.0 - pan)))
+	rvol := uint32(int1_15F(vol * pan))
+	v.vol.Store(lvol<<16 | rvol)
+}
+
+func (v *Source) step() uint20_12 {
+	step := uint20_12(v.hz.Load()).Div(uint20_12U(sampleRate))
+	return step << bps
+}
+
+func (v *Source) volume() (lvol, rvol int1_15) {
+	vol := v.vol.Load()
+	return int1_15(vol >> 16), int1_15(vol)
+}
 
 func Init() {
 	inputs = [MaxChannels]struct {
@@ -91,47 +128,28 @@ func Init() {
 	rspMixerId = rspq.Register(uc)
 }
 
-func SetSampleRate(hz int) {
+// SetSampleRate sets the sample rate of the mixers output. All inputs will be
+// resampled to this frequency.
+func SetSampleRate(hz uint) {
 	mtx.Lock()
 	defer mtx.Unlock()
 	sampleRate = hz
 }
 
-// exec queues an [cmdExec] command to the rspq.
-func exec(volume float32, channels int, dst []byte) {
-	debug.Assert(cpu.PhysicalAddressSlice(dst)&0xf == 0, "buffer alignment")
-	debug.Assert(cpu.PhysicalAddress(settings.Value())&0xf == 0, "settings alignment")
-
-	settings.Writeback()
-	settings.Invalidate()
-
-	rspq.Write(cmdExec|rspq.Command(rspMixerId>>24),
-		uint32(uint16(volume*0xffff)),
-		uint32((len(dst)>>2)<<16|channels),
-		uint32(cpu.PhysicalAddressSlice(dst)),
-		uint32(cpu.PhysicalAddress(settings.Value())))
-}
-
-// Play connects the audio source src to channel.
-func Play(channel int, src *Source) {
+// SetSource connects the audio source to the channel. Set src to nil to disable
+// this channel.
+func SetSource(channel int, src *Source) {
+	// TODO make this non-blocking
 	mtx.Lock()
 	defer mtx.Unlock()
 
-	s := settings.Value()
+	s := state.Value()
 	ch := &s.channels[channel]
-	s.lvol[channel] = int1_15F(1.0)
-	s.rvol[channel] = int1_15F(1.0)
 	ch.pos = 0
-	ch.step = uint20_12F(float32(src.SampleRate)/float32(sampleRate)) << bps
+	ch.len = 0
 	ch.flags = channelFlags(bps) | ch16bit
 
 	inputs[channel].src = src
-}
-
-func Stop(channel int) {
-	mtx.Lock()
-	defer mtx.Unlock()
-	inputs[channel].src = nil
 }
 
 var Output = &Reader{}
@@ -140,8 +158,19 @@ type Reader struct{}
 
 const loopOverread = 64
 
-func resampledSize(inputHz, outputHz, outputLen int) int {
-	return (outputLen*inputHz + outputHz - 1) / outputHz
+// exec queues an [cmdExec] command to the rspq.
+func exec(volume float32, channels int, dst []byte) {
+	debug.Assert(cpu.PhysicalAddressSlice(dst)&0xf == 0, "buffer alignment")
+	debug.Assert(cpu.PhysicalAddress(state.Value())&0xf == 0, "settings alignment")
+
+	state.Writeback()
+	state.Invalidate()
+
+	rspq.Write(cmdExec|rspq.Command(rspMixerId>>24),
+		uint32(uint16(volume*0xffff)),
+		uint32((len(dst)>>2)<<16|channels),
+		uint32(cpu.PhysicalAddressSlice(dst)),
+		uint32(cpu.PhysicalAddress(state.Value())))
 }
 
 func (b *Reader) Read(p []byte) (n int, err error) {
@@ -150,20 +179,33 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 
 	numChannels := 0
 	for i, input := range inputs {
-		ch := &settings.Value().channels[i]
+		state := state.Value()
+		ch := &state.channels[i]
 
 		if input.src == nil {
 			ch.len = 0
 			continue
 		}
 
-		inputLen := resampledSize(input.src.SampleRate, sampleRate, len(p)>>1)
+		state.lvol[i], state.rvol[i] = input.src.volume()
+		ch.step = input.src.step()
+		outputLen := uint20_12U(uint(len(p) >> 2))
+		inputLen := ch.step.Mul(outputLen).Ceil()
 
-		if l, ok := input.src.ReadSeeker.(*looper); ok {
-			// Check if we must loop in the rsp
+		// seek back unread bytes and align down to cacheline
+		seek := -int64(ch.len.Floor() - ch.pos.Floor()&^(cpu.CacheLineSize-1))
+		_, err := input.src.rs.Seek(seek, io.SeekCurrent)
+		if err != nil {
+			panic(err)
+		}
+		// only keep position relative to current cacheline
+		ch.pos &= (cpu.CacheLineSize-1)<<12 | (1<<12 - 1)
+
+		if l, ok := input.src.rs.(*looper); ok {
+			// Check if we can loop in the rsp
 			if l.Size() <= int64(inputLen) {
 				input.buf = inputsBuf.Alloc(int(l.Size() + loopOverread))
-				_, err := io.ReadFull(input.src, input.buf) // TODO read only once
+				_, err := io.ReadFull(input.src.rs, input.buf) // TODO read only once
 				if err != nil {
 					panic(err)
 				}
@@ -176,18 +218,9 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 			}
 		}
 
-		input.buf = inputsBuf.Alloc(inputLen + cpu.CacheLineSize)
+		input.buf = inputsBuf.Alloc(int(inputLen + cpu.CacheLineSize))
 
-		// seek back unread bytes and align down to cacheline
-		seek := -int64(ch.len.Floor() - ch.pos.Floor()&^(cpu.CacheLineSize-1))
-		_, err := input.src.Seek(seek, io.SeekCurrent)
-		if err != nil {
-			panic(err)
-		}
-		// only keep position relative to current cacheline
-		ch.pos &= (cpu.CacheLineSize-1)<<12 | (1<<12 - 1)
-
-		nn, err := io.ReadFull(input.src, input.buf)
+		nn, err := io.ReadFull(input.src.rs, input.buf)
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			inputs[i].src = nil
 			inputs[i].buf = nil
@@ -214,11 +247,6 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 	inputsBuf.Free()
 
 	return len(p), nil
-}
-
-type Source struct {
-	io.ReadSeeker
-	SampleRate int
 }
 
 type buffer struct {
