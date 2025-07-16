@@ -93,7 +93,7 @@ func dmaSync(_ uintptr, job dmaJob) {
 }
 
 var (
-	condPool    [32]rtos.Cond
+	condPool    [64]rtos.Cond
 	condPoolIdx atomic.Int32
 )
 
