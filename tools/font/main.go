@@ -129,11 +129,15 @@ func Main(args []string) {
 	// Draw the font file
 	spacingFixed := fixed.Int26_6(*spacing * (1 << 6))
 	lineHeight := face.Metrics().Height.Mul(spacingFixed).Ceil()
-	drawer.Dot = fixed.Point26_6{}
+
+	// One pixel pads allows us to use clamping to draw larger background
+	const pad = 1
+	drawer.Dot = fixed.P(pad, pad)
 
 	var missing []byte
 	for s := rune(*start); s <= rune(*end); s++ {
 		bounds, adv, hasGlyph := face.GlyphBounds(s)
+		bounds.Max = bounds.Max.Add(fixed.P(pad, pad))
 
 		// Use a common "missing" glyph
 		if !hasGlyph && missing != nil {
@@ -148,8 +152,8 @@ func Main(args []string) {
 
 		// Check if we need to wrap
 		if bounds.Add(nextDot).Max.X.Ceil() >= dim {
-			drawer.Dot.Y += fixed.I(lineHeight)
-			drawer.Dot.X = fixed.I(0)
+			drawer.Dot.Y += fixed.I(lineHeight + pad)
+			drawer.Dot.X = fixed.I(pad)
 			nextDot = drawer.Dot
 			nextDot.X -= fixed.I(bounds.Min.X.Floor())
 			nextDot.Y -= fixed.I(bounds.Min.Y.Floor())
@@ -163,8 +167,8 @@ func Main(args []string) {
 
 		positions = append(positions, byte(drawer.Dot.X.Round()))
 		positions = append(positions, byte(drawer.Dot.Y.Round()))
-		positions = append(positions, byte(bounds.Min.X.Floor()))
-		positions = append(positions, byte(bounds.Min.Y.Floor()))
+		positions = append(positions, byte(bounds.Min.X.Floor()-pad))
+		positions = append(positions, byte(bounds.Min.Y.Floor()-pad))
 		positions = append(positions, byte(bounds.Max.X.Ceil()))
 		positions = append(positions, byte(bounds.Max.Y.Ceil()))
 		positions = append(positions, byte(adv.Round()))
@@ -178,7 +182,7 @@ func Main(args []string) {
 		drawer.Dot = fixed.P(bounds.Max.X.Ceil(), bounds.Min.Y.Floor())
 	}
 
-	lastLine := drawer.Dot.Y.Ceil() + lineHeight
+	lastLine := drawer.Dot.Y.Ceil() + lineHeight + pad
 	shrinkedFontMap := fontMap.SubImage(image.Rect(0, 0, dim, lastLine))
 
 	// Save the font map image to disk

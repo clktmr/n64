@@ -167,6 +167,12 @@ var (
 		M1: rdp.BlenderPMColorCombiner,
 		B1: rdp.BlenderBZero,
 	}
+	blendOverEnv = rdp.BlendMode{ // dst = cc_alpha*cc + (1-cc_alpha)*env
+		P1: rdp.BlenderPMColorCombiner,
+		A1: rdp.BlenderAColorCombinerAlpha,
+		M1: rdp.BlenderPMBlendColor,
+		B1: rdp.BlenderBOneMinusAlphaA,
+	}
 )
 
 func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
@@ -251,7 +257,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 	blendmode := &blendOver
 	if bg != nil {
 		rdp.RDP.SetBlendColor(bg)
-		blendmode = &blendSrc
+		blendmode = &blendOverEnv
 	}
 
 	rdp.RDP.SetOtherModes(
@@ -302,7 +308,13 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 		}
 
 		glyphRectSS := glyphRect.Sub(origin).Add(pos)
-		drawRect := glyphRectSS.Intersect(clip)
+		var drawRect image.Rectangle
+		if bg != nil {
+			cellRect := image.Rect(0, int(font.Height-font.Ascent), adv, int(-font.Ascent))
+			drawRect = cellRect.Add(pos).Intersect(clip)
+		} else {
+			drawRect = glyphRectSS.Intersect(clip)
+		}
 		if !drawRect.Empty() {
 			tex, ok := img.(*texture.Texture)
 			debug.Assert(ok, "fontmap format")
