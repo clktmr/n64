@@ -623,7 +623,7 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 
 	cmd := 0xe4<<56 | command(r.Max.X)<<46 | command(r.Max.Y)<<34
 	cmd |= command(tileIdx)<<24 | command(r.Min.X)<<14 | command(r.Min.Y)<<2
-	cmd2 := command(p.X<<53) | command(p.Y<<37)
+	cmd2 := command(p.X&0x7ff)<<53 | command(p.Y&0x7ff)<<37
 	cmd2 |= command(((0x8000/scale.X)>>5)<<16 | (0x8000/scale.Y)>>5)
 	dl.Push(cmd, cmd2)
 }
