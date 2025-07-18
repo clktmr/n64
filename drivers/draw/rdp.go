@@ -254,14 +254,16 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 
 	rdp.RDP.SetPrimitiveColor(fg)
 
-	blendmode := &blendOver
-	if bg != nil {
+	var blendmode *rdp.BlendMode
+	mode := rdp.ForceBlend | rdp.BiLerp0
+	if bg == nil {
+		mode |= rdp.ImageRead
+		blendmode = &blendOver
+	} else {
 		rdp.RDP.SetBlendColor(bg)
 		blendmode = &blendOverEnv
 	}
-
-	rdp.RDP.SetOtherModes(
-		rdp.ForceBlend|rdp.ImageRead|rdp.BiLerp0,
+	rdp.RDP.SetOtherModes(mode,
 		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
 	)
 
@@ -289,49 +291,76 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 
 	outofbounds := false
 	var oldtex *texture.Texture
+	// process characters in batches for better cache efficiency
+	var batch [8]struct {
+		rune      rune
+		img       image.Image
+		glyphRect image.Rectangle
+		origin    image.Point
+		adv       int
+	}
 	for len(str) > 0 {
-		rune, size := utf8.DecodeRune(str)
-		str = str[size:]
-		if rune == '\n' {
-			pos.X = r.Min.X
-			pos.Y += int(font.Height)
-			outofbounds = false
-			continue
-		}
-		if outofbounds {
-			continue
-		}
-
-		img, glyphRect, origin, adv := font.GlyphMap(rune)
-		if img == nil {
-			continue
-		}
-
-		glyphRectSS := glyphRect.Sub(origin).Add(pos)
-		var drawRect image.Rectangle
-		if bg != nil {
-			cellRect := image.Rect(0, int(font.Height-font.Ascent), adv, int(-font.Ascent))
-			drawRect = cellRect.Add(pos).Intersect(clip)
-		} else {
-			drawRect = glyphRectSS.Intersect(clip)
-		}
-		if !drawRect.Empty() {
-			tex, ok := img.(*texture.Texture)
-			debug.Assert(ok, "fontmap format")
-			if tex != oldtex {
-				rdp.RDP.SetTextureImage(tex)
-				oldtex = tex
+		i := 0
+		ppos := pos
+		for i = range batch {
+			v := &batch[i]
+			size := 0
+			v.rune, size = utf8.DecodeRune(str)
+			str = str[size:]
+			if v.rune == '\n' {
+				ppos.X = r.Min.X
+				ppos.Y += int(font.Height)
+				outofbounds = false
+				continue
+			}
+			if outofbounds {
+				v.img = nil
+				continue
 			}
 
-			sp := glyphRect.Min.Add(drawRect.Min.Sub(glyphRectSS.Min))
-
-			rdp.RDP.LoadTile(loadIdx, glyphRect)
-			rdp.RDP.TextureRectangle(drawRect, sp, image.Point{1, 1}, drawIdx)
-		} else if glyphRectSS.Min.X > clip.Max.X {
-			outofbounds = true // skip rest of line
+			v.img, v.glyphRect, v.origin, v.adv = font.GlyphMap(v.rune)
+			ppos.X += v.adv
+			if ppos.X > clip.Max.X {
+				outofbounds = true // skip rest of line
+			}
+			if len(str) == 0 {
+				break
+			}
 		}
 
-		pos.X += adv
+		for i := range i + 1 {
+			v := &batch[i]
+			if v.rune == '\n' {
+				pos.X = r.Min.X
+				pos.Y += int(font.Height)
+				continue
+			}
+			if v.img == nil {
+				continue
+			}
+			glyphRectSS := v.glyphRect.Sub(v.origin).Add(pos)
+			var drawRect image.Rectangle
+			if bg != nil {
+				cellRect := image.Rect(0, int(font.Height-font.Ascent), v.adv, int(-font.Ascent))
+				drawRect = cellRect.Add(pos).Intersect(clip)
+			} else {
+				drawRect = glyphRectSS.Intersect(clip)
+			}
+			if !drawRect.Empty() {
+				tex, ok := v.img.(*texture.Texture)
+				debug.Assert(ok, "fontmap format")
+				if tex != oldtex {
+					rdp.RDP.SetTextureImage(tex)
+					oldtex = tex
+				}
+
+				sp := v.glyphRect.Min.Add(drawRect.Min.Sub(glyphRectSS.Min))
+
+				rdp.RDP.LoadTile(loadIdx, v.glyphRect)
+				rdp.RDP.TextureRectangle(drawRect, sp, image.Point{1, 1}, drawIdx)
+			}
+			pos.X += v.adv
+		}
 	}
 
 	return pos
