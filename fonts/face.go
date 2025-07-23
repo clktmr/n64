@@ -6,6 +6,7 @@ package fonts
 import (
 	"image"
 
+	"github.com/clktmr/n64/rcp/fixed"
 	"github.com/embeddedgo/display/font/subfont"
 )
 
@@ -17,6 +18,12 @@ import (
 // texture image.
 type GlyphMap interface {
 	GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin image.Point, advance int)
+}
+
+type Glyph struct {
+	Origin  fixed.PointU8
+	Rect    fixed.RectangleU8
+	Advance fixed.UInt8
 }
 
 // Face is a [subfont.Face] which implements the [GlyphMap] optimization.

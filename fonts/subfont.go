@@ -2,6 +2,7 @@ package fonts
 
 import (
 	"bytes"
+	"encoding/binary"
 	"image"
 	"path"
 	"strconv"
@@ -14,68 +15,48 @@ import (
 
 // SubfontData implements [subfont.Data].
 type SubfontData struct {
-	height, ascent int
-	positions      []byte
-	fontMap        *texture.Texture
-	glyphs         []glyphData
-}
-
-type glyphData struct {
-	img     *texture.Texture
-	origin  image.Point
-	advance int
+	fontMap *texture.Texture
+	glyphs  []Glyph
 }
 
 func (p *SubfontData) Advance(i int) int {
-	return int(p.positions[7*i+6])
+	return int(p.glyphs[i].Advance)
 }
 
 func (p *SubfontData) Glyph(i int) (img image.Image, origin image.Point, advance int) {
 	g := &p.glyphs[i]
-	img, origin, advance = g.img, g.origin, g.advance
+	r := image.Rect(int(g.Rect.Min.X), int(g.Rect.Min.Y), int(g.Rect.Max.X), int(g.Rect.Max.Y))
+	img = p.fontMap.SubImage(r)
+	origin = image.Pt(int(g.Origin.X), int(g.Origin.Y))
+	advance = int(g.Advance)
 	return
 }
 
 //go:nosplit
 func (p *SubfontData) GlyphMap(i int) (img image.Image, r image.Rectangle, origin image.Point, advance int) {
 	g := &p.glyphs[i]
-	img, r, origin, advance = p.fontMap, g.img.Bounds(), g.origin, g.advance
-	return
-}
-
-func (p *SubfontData) glyph(i int) (img *texture.Texture, origin image.Point, advance int) {
-	base := 7 * i
-	advance = int(p.positions[base+6])
-	origin = image.Pt(
-		int(p.positions[base+0]), int(p.positions[base+1]),
-	)
-	rect := image.Rect(
-		int(p.positions[base+2]), int(p.positions[base+3]),
-		int(p.positions[base+4]), int(p.positions[base+5]),
-	)
-	img = p.fontMap.SubImage(rect)
+	img = p.fontMap
+	r = image.Rect(int(g.Rect.Min.X), int(g.Rect.Min.Y), int(g.Rect.Max.X), int(g.Rect.Max.Y))
+	origin = image.Pt(int(g.Origin.X), int(g.Origin.Y))
+	advance = int(g.Advance)
 	return
 }
 
 // Returns data for a subfont from an image.
-func NewSubfontData(pos, tex []byte, height, ascent int) *SubfontData {
-	f := &SubfontData{
-		height:    height,
-		ascent:    ascent,
-		positions: pos,
-	}
+func NewSubfontData(pos, tex []byte) *SubfontData {
+	f := &SubfontData{}
 
-	fontMapReader := bytes.NewReader(tex)
-	fontMap, err := texture.Load(fontMapReader)
+	fontMap, err := texture.Load(bytes.NewReader(tex))
 	if err != nil {
 		panic(err)
 	}
 	f.fontMap = fontMap
 
-	f.glyphs = make([]glyphData, len(pos)/7)
-	for i := range f.glyphs {
-		g := &f.glyphs[i]
-		g.img, g.origin, g.advance = f.glyph(i)
+	// TODO perf: use unsafe to cast pos from []byte to []Glyph
+	f.glyphs = make([]Glyph, len(pos)/7)
+	err = binary.Read(bytes.NewReader(pos), binary.BigEndian, &f.glyphs)
+	if err != nil {
+		panic(err)
 	}
 
 	return f
@@ -141,6 +122,6 @@ func (l *Loader) loadSubfont(name string, first, last rune) *subfont.Subfont {
 		First:  first,
 		Last:   last,
 		Offset: 0,
-		Data:   NewSubfontData(sfPos, sfTex, l.Height, l.Ascent),
+		Data:   NewSubfontData(sfPos, sfTex),
 	}
 }
