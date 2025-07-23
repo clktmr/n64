@@ -23,9 +23,13 @@ obcaecat cupiditat non proident, sunt in
 culpa qui officia deserunt mollit anim
 id est laborum.`)
 
-func BenchmarkDrawText(b *testing.B) {
-	gomono := gomono12.NewFace()
+var gomono = gomono12.NewFace()
 
+func init() {
+	gomono.Glyph('A')
+}
+
+func BenchmarkDrawText(b *testing.B) {
 	fb := video.Framebuffer()
 
 	white := color.NRGBA{0xff, 0xff, 0xff, 0xff}
