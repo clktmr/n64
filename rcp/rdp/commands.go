@@ -315,9 +315,10 @@ func (dl *DisplayList) SetTile(ts TileDescriptor) (loadIdx, drawIdx uint8) {
 // must be set prior via SetTextureImage().
 func (dl *DisplayList) LoadTile(idx uint8, r image.Rectangle) {
 	if idx == tile4bpp {
+		// TODO Review. Not exactly sure why this works, but it does.
 		r.Min.X &^= 0x1
-		r.Max.X = (r.Max.X + 1) &^ 0x1
 		dl.SetTileSize(0, r)
+		r.Max.X = (r.Max.X + 1) &^ 0x1
 		r.Min.X >>= 1
 		r.Max.X >>= 1
 	}
