@@ -128,7 +128,7 @@ func Main(args []string) {
 
 	// Draw the font file
 	spacingFixed := fixed.Int26_6(*spacing * (1 << 6))
-	lineHeight := face.Metrics().Height.Mul(spacingFixed).Ceil()
+	rowHeight := 0
 
 	// One pixel pads allows us to use clamping to draw larger background
 	const pad = 1
@@ -152,11 +152,12 @@ func Main(args []string) {
 
 		// Check if we need to wrap
 		if bounds.Add(nextDot).Max.X.Ceil() >= dim {
-			drawer.Dot.Y += fixed.I(lineHeight + pad)
+			drawer.Dot.Y += fixed.I(rowHeight + pad)
 			drawer.Dot.X = fixed.I(pad)
 			nextDot = drawer.Dot
 			nextDot.X -= fixed.I(bounds.Min.X.Floor())
 			nextDot.Y -= fixed.I(bounds.Min.Y.Floor())
+			rowHeight = 0
 		}
 		if bounds.Add(nextDot).Max.Y.Ceil() >= dim {
 			log.Fatalln("Too many glyphs to fit into font image map")
@@ -180,9 +181,10 @@ func Main(args []string) {
 		// Actual drawing
 		drawer.DrawString(string(s))
 		drawer.Dot = fixed.P(bounds.Max.X.Ceil(), bounds.Min.Y.Floor())
+		rowHeight = max(rowHeight, (bounds.Max.Y - bounds.Min.Y).Ceil())
 	}
 
-	lastLine := drawer.Dot.Y.Ceil() + lineHeight + pad
+	lastLine := drawer.Dot.Y.Ceil() + rowHeight + pad
 	shrinkedFontMap := fontMap.SubImage(image.Rect(0, 0, dim, lastLine))
 
 	// Save the font map image to disk
@@ -250,7 +252,7 @@ func Main(args []string) {
 	}{
 		Name:    fmt.Sprintf("%s %g", name, *size),
 		Package: pkgname,
-		Height:  lineHeight,
+		Height:  face.Metrics().Height.Mul(spacingFixed).Ceil(),
 		Ascent:  face.Metrics().Ascent.Round(),
 	})
 	if err != nil {
