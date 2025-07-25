@@ -47,6 +47,8 @@ func init() {
 	cpu.WritebackSlice(highpri.buffers[0])
 	cpu.WritebackSlice(highpri.buffers[1])
 	cpu.WritebackSlice(dummyOverlayState[:])
+
+	Reset()
 }
 
 func Reset() {
