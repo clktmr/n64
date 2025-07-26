@@ -102,12 +102,17 @@ func Main(args []string) {
 	flags.Usage = usage
 	flags.Parse(args[1:])
 
-	if flags.NArg() == 1 {
+	switch flags.NArg() {
+	default:
+		if !run.IsSet() {
+			log.Fatalln("too many arguments")
+		}
+		log.Println("WARN: Discarding additional args:", flags.Args()[1:])
+		fallthrough
+	case 1:
 		infile = flags.Arg(0)
-	} else {
-		log.Println("too many arguments")
-		flags.Usage()
-		os.Exit(1)
+	case 0:
+		log.Fatalln("missing elffile arg")
 	}
 
 	outfile, _ := strings.CutSuffix(infile, ".elf")
