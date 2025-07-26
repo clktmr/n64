@@ -3,6 +3,7 @@ package console
 import (
 	"bytes"
 	"image"
+	"image/color"
 
 	"github.com/clktmr/n64/drivers/controller"
 	"github.com/clktmr/n64/drivers/draw"
@@ -36,7 +37,7 @@ func (v *Console) Update(input controller.Controller) {
 	case pressed&joybus.ButtonCDown != 0:
 		v.scroll.Y -= 1
 	case pressed&joybus.ButtonCLeft != 0:
-		v.scroll.X += int(font.Advance(0))
+		v.scroll.X = min(0, v.scroll.X+int(font.Advance(0)))
 	case pressed&joybus.ButtonCRight != 0:
 		v.scroll.X -= int(font.Advance(0))
 	}
@@ -48,7 +49,7 @@ func (v *Console) Draw() {
 	if fb == nil {
 		return
 	}
-	bounds := fb.Bounds()
+	bounds := fb.Bounds().Inset(20)
 
 	height := 0
 	b := v.buf.Bytes()
@@ -73,10 +74,14 @@ func (v *Console) Draw() {
 			height += int(font.Height)
 		}
 	}
+	if len(lines) > 0 && lines[0] == '\n' {
+		lines = lines[1:]
+	}
 
 	v.scroll.Y = min(max(0, skipped), lineCnt-maxLines)
 
-	bounds.Min = bounds.Min.Add(v.scroll)
-	draw.Src.Draw(fb, fb.Bounds(), image.Black, image.Point{})
-	draw.DrawText(fb, bounds, font, image.Point{X: v.scroll.X}, image.White, image.Black, lines)
+	bounds.Min.X += v.scroll.X
+	pt := bounds.Min.Add(image.Pt(0, int(font.Ascent)))
+	draw.Src.Draw(fb, fb.Bounds(), &image.Uniform{color.NRGBA{B: 0xff, A: 0xff}}, image.Point{})
+	draw.DrawText(fb, bounds, font, pt, image.White, nil, lines)
 }
