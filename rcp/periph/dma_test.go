@@ -11,7 +11,10 @@ import (
 	"github.com/clktmr/n64/drivers/carts/isviewer"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/periph"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 // Used as a reference implementation, should have the same behaviour as
 // periph.Device.

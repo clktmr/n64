@@ -1,4 +1,4 @@
-package runtime_test
+package rcp_test
 
 import (
 	"embedded/rtos"

@@ -7,7 +7,10 @@ import (
 	"github.com/clktmr/n64/drivers/rspq"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func TestWrite(t *testing.T) {
 	rspq.Reset()

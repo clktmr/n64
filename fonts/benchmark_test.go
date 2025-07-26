@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	"github.com/clktmr/n64/fonts/gomono12"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 const lorem = `Lorem ipsum dolor sit amet, consectetur adipisici elit, sed
 eiusmod tempor incidunt ut labore et dolore magna aliqua. Ut enim ad

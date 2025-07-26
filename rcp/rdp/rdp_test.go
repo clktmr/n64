@@ -8,7 +8,10 @@ import (
 
 	"github.com/clktmr/n64/rcp/rdp"
 	"github.com/clktmr/n64/rcp/texture"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func TestFillRect(t *testing.T) {
 	testcolor := color.NRGBA{R: 0, G: 0x37, B: 0x77, A: 0xff}

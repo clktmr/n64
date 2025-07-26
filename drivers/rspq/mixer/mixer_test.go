@@ -17,15 +17,18 @@ import (
 	"github.com/clktmr/n64/rcp/audio"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/serial/joybus"
+	n64testing "github.com/clktmr/n64/testing"
 )
 
 var (
-	//go:embed sfx_alarm_loop3.pcm_s16be
-	//go:embed sfx_wpn_cannon2.pcm_s16be
-	//go:embed sfx_wpn_machinegun_loop1.pcm_s16be
+	//go:embed testdata/sfx_alarm_loop3.pcm_s16be
+	//go:embed testdata/sfx_wpn_cannon2.pcm_s16be
+	//go:embed testdata/sfx_wpn_machinegun_loop1.pcm_s16be
 	_testdata embed.FS
 	testdata  cartfs.FS = cartfs.Embed(_testdata)
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func TestResampling(t *testing.T) {
 	if testing.Short() {
@@ -37,9 +40,9 @@ func TestResampling(t *testing.T) {
 
 	audio.Start(48000)
 	mixer.SetSampleRate(48000)
-	sfxAlarm, _ := testdata.Open("sfx_alarm_loop3.pcm_s16be")
-	sfxCannon, _ := testdata.Open("sfx_wpn_cannon2.pcm_s16be")
-	sfxMachinegun, _ := testdata.Open("sfx_wpn_machinegun_loop1.pcm_s16be")
+	sfxAlarm, _ := testdata.Open("testdata/sfx_alarm_loop3.pcm_s16be")
+	sfxCannon, _ := testdata.Open("testdata/sfx_wpn_cannon2.pcm_s16be")
+	sfxMachinegun, _ := testdata.Open("testdata/sfx_wpn_machinegun_loop1.pcm_s16be")
 	sourceAlarm := mixer.NewSource(mixer.Loop(sfxAlarm.(io.ReadSeeker)), 16000)
 	sourceCannon := mixer.NewSource(mixer.Loop(sfxCannon.(io.ReadSeeker)), 44100)
 	sourceMachinegun := mixer.NewSource(mixer.Loop(sfxMachinegun.(io.ReadSeeker)), 8000)

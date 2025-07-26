@@ -8,7 +8,10 @@ import (
 
 	"github.com/clktmr/n64/drivers/carts/summercart64"
 	"github.com/clktmr/n64/rcp/cpu"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func mustSC64(t *testing.T) (sc64 *summercart64.Cart) {
 	sc64 = summercart64.Probe()

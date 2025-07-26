@@ -180,6 +180,7 @@ func runROM(cmdpath, rompath string) {
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
+	setSysProcAttr(cmd)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -212,7 +213,7 @@ func runROM(cmdpath, rompath string) {
 				// give panic() time to print the stacktrace
 				time.Sleep(500 * time.Millisecond)
 				stdout.Close()
-				err := cmd.Process.Kill()
+				err := kill(cmd)
 				if err != nil {
 					log.Fatalln(err)
 				}

@@ -10,7 +10,10 @@ import (
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
 	"github.com/clktmr/n64/rcp/rsp/ucode"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func TestDMA(t *testing.T) {
 	testdata := cpu.MakePaddedSlice[byte](80)

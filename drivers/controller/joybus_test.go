@@ -8,7 +8,10 @@ import (
 	"github.com/clktmr/n64/drivers/controller"
 	"github.com/clktmr/n64/drivers/controller/pakfs"
 	"github.com/clktmr/n64/rcp/serial/joybus"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func TestControllerState(t *testing.T) {
 	if testing.Short() {

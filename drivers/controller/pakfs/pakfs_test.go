@@ -1,3 +1,5 @@
+//go:build !n64
+
 package pakfs
 
 // TODO add tests for file system with multiple banks

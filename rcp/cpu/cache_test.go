@@ -7,7 +7,10 @@ import (
 	"unsafe"
 
 	"github.com/clktmr/n64/rcp/cpu"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func assertPadded[T cpu.Paddable](t *testing.T, slice []T, length int, align uintptr) {
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(slice)))

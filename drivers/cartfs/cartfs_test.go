@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"github.com/clktmr/n64/drivers/cartfs"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 //go:embed concurrency.txt
 var _embed1 embed.FS

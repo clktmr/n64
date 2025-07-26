@@ -12,7 +12,10 @@ import (
 	n64draw "github.com/clktmr/n64/drivers/draw"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 //go:embed testdata/gradient.png
 var pngN64LogoSmall []byte

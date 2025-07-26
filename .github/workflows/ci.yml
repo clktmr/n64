@@ -47,18 +47,17 @@ jobs:
         run: |
           go install ./tools/n64go
 
-      - name: Build testing ROM
+      - name: Build testing binaries
         run: |
-          go build -tags n64,debug -o test.elf ./test
-          n64go rom test.elf
+          go test -c -tags n64,debug ./rcp/... ./drivers/...
         env:
           GOENV: go.env
 
-      - name: Upload testing ROM
+      - name: Upload testing binaries
         uses: actions/upload-artifact@v4
         with:
           name: testing-ROM-${{ github.sha }}
-          path: test.*
+          path: ./*.elf
 
   run:
     needs: build
@@ -106,18 +105,26 @@ jobs:
           go-version: ${{ env.go-version }}
           cache: true
 
+      - name: Cache embeddedgo build
+        id: embeddedgo-build
+        uses: actions/cache@v4
+        with:
+          path: ~/sdk
+          key: ${{ env.embeddedgo-version }}-${{ steps.gotip-version.outputs.SHA }}
+
+      - name: Install Embedded Go
+        run: |
+          go install -v github.com/embeddedgo/dl/${{ env.embeddedgo-version }}@latest
+          ${{ env.embeddedgo-version }} version || ${{ env.embeddedgo-version }} download
+
       - name: Install n64go tool
         run: go install ./tools/n64go
 
-      - name: Download testing ROM
-        uses: actions/download-artifact@v4
-        with:
-          name: testing-ROM-${{ github.sha }}
-
       - name: Run testing ROM
         run: |
-          n64go rom -run="xvfb-run ares \
-                  --setting Input/Driver=None \
-                  --setting Video/Driver=None \
-                  --setting Audio/Driver=None" \
-                  test.elf
+          export PATH="$GITHUB_WORKSPACE/.github/workflows/:$PATH"
+          go test -p 1 -tags n64,debug ./drivers/... ./rcp/...
+        env:
+          GOENV: go.env
+          GOFLAGS: >
+            '-exec=n64go rom -run=ares_headless.sh' '-toolexec=n64go toolexec' '-tags=n64' '-trimpath'

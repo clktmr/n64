@@ -82,11 +82,13 @@ implementation to read embedded files from the cartridge via DMA instead.
 
 The `go test` command does currently not work reliably for several reasons:
 
- - The build might fail because if missing machine import
+ - The build might fail because of missing machine import
  - The tests might fail if they try to access testdata directory
 
-This will probably be solved in the future. In the meantime fall back to writing
-a dedicated test application like in `test/main.go`.
+This will probably be solved in the future. In the meantime fall back to
+providing a TestMain for each package that should run tests on the Nintendo 64.
+Package `github.com/clktmr/n64/testing` provides a reusable TestMain
+implementation for that purpose.
 
 ### cgo
 

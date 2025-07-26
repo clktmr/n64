@@ -7,7 +7,10 @@ import (
 
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
+	n64testing "github.com/clktmr/n64/testing"
 )
+
+func TestMain(m *testing.M) { n64testing.TestMain(m) }
 
 func TestReadWriteIO(t *testing.T) {
 	testdata := []byte("Hello everybody, I'm Bonzo!")

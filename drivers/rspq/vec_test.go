@@ -20,7 +20,7 @@ var (
 	// rsp_vec microcode from libdragon's examples
 	// Version: 3feaaadf0 (RSPQ_DEBUG enabled)
 	//
-	//go:embed rsp_vec.ucode
+	//go:embed testdata/rsp_vec.ucode
 	_rspVecFiles embed.FS
 	rspVecFiles  cartfs.FS = cartfs.Embed(_rspVecFiles)
 	rspVecId     uint32
@@ -113,7 +113,7 @@ var mat = mat4{
 func TestVecUCode(t *testing.T) {
 	rspq.Reset()
 
-	r, err := rspVecFiles.Open("rsp_vec.ucode")
+	r, err := rspVecFiles.Open("testdata/rsp_vec.ucode")
 	if err != nil {
 		panic(err)
 	}
