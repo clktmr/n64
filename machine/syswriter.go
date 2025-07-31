@@ -61,6 +61,12 @@ func DefaultWrite(fd int, p []byte) int {
 		regs().token.StoreSafe(token)
 
 		for regs().readPtr.LoadSafe() != regs().writePtr.LoadSafe() {
+			if regs().writePtr.LoadSafe() != uint32(n) {
+				// Abort wait loop and discard bytes if the
+				// write ptr wasn't set. There is probably no
+				// isviewer available.
+				break
+			}
 			// wait
 		}
 
