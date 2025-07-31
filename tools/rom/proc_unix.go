@@ -12,5 +12,8 @@ func kill(cmd *exec.Cmd) error {
 }
 
 func setSysProcAttr(cmd *exec.Cmd) {
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Pdeathsig: syscall.SIGTERM,
+		Setpgid:   true,
+	}
 }

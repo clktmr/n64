@@ -178,9 +178,14 @@ func runROM(cmdpath, rompath string) {
 	}
 	args = append(args, rompath)
 	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stdin = os.Stdin
 	cmd.Stderr = os.Stderr
 	setSysProcAttr(cmd)
+
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		log.Fatal("open stdin:", err)
+	}
+	go func() { io.Copy(stdin, os.Stdin) }()
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
