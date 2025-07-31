@@ -14,7 +14,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	_ "embed"
@@ -197,6 +199,20 @@ func runROM(cmdpath, rompath string) {
 		log.Fatal("start command:", err)
 	}
 
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		for {
+			sig := <-sigs
+			switch sig := sig.(type) {
+			case syscall.Signal:
+				killGroup(cmd, sig)
+			default:
+				log.Println("Ignoring signal:", sig)
+			}
+		}
+	}()
+
 	scanner := bufio.NewScanner(stdout)
 	exiting := false
 	code := 0
@@ -218,7 +234,7 @@ func runROM(cmdpath, rompath string) {
 				// give panic() time to print the stacktrace
 				time.Sleep(500 * time.Millisecond)
 				stdout.Close()
-				err := kill(cmd)
+				err := killGroup(cmd, syscall.SIGTERM)
 				if err != nil {
 					log.Fatalln(err)
 				}

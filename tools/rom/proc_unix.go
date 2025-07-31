@@ -7,8 +7,8 @@ import (
 	"syscall"
 )
 
-func kill(cmd *exec.Cmd) error {
-	return syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+func killGroup(cmd *exec.Cmd, sig syscall.Signal) error {
+	return syscall.Kill(-cmd.Process.Pid, sig)
 }
 
 func setSysProcAttr(cmd *exec.Cmd) {
