@@ -6,6 +6,7 @@ package rom
 
 import (
 	"bufio"
+	"context"
 	"debug/elf"
 	"errors"
 	"flag"
@@ -14,13 +15,13 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"os/signal"
 	"strings"
-	"syscall"
+	"sync"
 	"time"
 
 	_ "embed"
 
+	"github.com/aymanbagabas/go-pty"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -179,76 +180,55 @@ func runROM(cmdpath, rompath string) {
 		log.Fatal("run:", err)
 	}
 	args = append(args, rompath)
-	cmd := exec.Command(args[0], args[1:]...)
-	cmd.Stderr = os.Stderr
-	setSysProcAttr(cmd)
 
-	stdin, err := cmd.StdinPipe()
+	pty, err := pty.New()
 	if err != nil {
-		log.Fatal("open stdin:", err)
-	}
-	go func() { io.Copy(stdin, os.Stdin) }()
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Fatal("open stdout:", err)
+		log.Fatal("create pty:", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := pty.CommandContext(ctx, args[0], args[1:]...)
 	err = cmd.Start()
 	if err != nil {
 		log.Fatal("start command:", err)
 	}
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	code := 0
+
+	// copy stdin
+	go func() { io.Copy(pty, os.Stdin) }()
+
+	// copy and parse stdout
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
-		for {
-			sig := <-sigs
-			switch sig := sig.(type) {
-			case syscall.Signal:
-				killGroup(cmd, sig)
-			default:
-				log.Println("Ignoring signal:", sig)
+		defer wg.Done()
+		scanner := bufio.NewScanner(io.TeeReader(pty, os.Stdout))
+		for scanner.Scan() {
+			line := scanner.Text()
+			switch {
+			case strings.HasPrefix(line, "fatal error:"), strings.HasPrefix(line, "panic:"):
+				fallthrough
+			case line == "FAIL":
+				code = 1
+				fallthrough
+			case line == "PASS":
+				// give panic() time to print the stacktrace
+				time.AfterFunc(500*time.Millisecond, cancel)
 			}
 		}
 	}()
 
-	scanner := bufio.NewScanner(stdout)
-	exiting := false
-	code := 0
-	for scanner.Scan() {
-		log.Println(scanner.Text())
-		if exiting {
-			continue
-		}
-		line := scanner.Text()
-		switch {
-		case strings.HasPrefix(line, "fatal error:"), strings.HasPrefix(line, "panic:"):
-			fallthrough
-		case line == "FAIL":
-			code = 1
-			fallthrough
-		case line == "PASS":
-			exiting = true
-			go func() {
-				// give panic() time to print the stacktrace
-				time.Sleep(500 * time.Millisecond)
-				stdout.Close()
-				err := killGroup(cmd, syscall.SIGTERM)
-				if err != nil {
-					log.Fatalln(err)
-				}
-			}()
-		}
-	}
 	err = cmd.Wait()
-	if !exiting { // ignore error if we killed cmd ourself
-		if err, ok := err.(*exec.ExitError); ok {
-			os.Exit(err.ExitCode())
-		}
-		if err != nil {
-			log.Fatal("finish command:", err)
-		}
+	pty.Close()
+	wg.Wait()
+	if ctx.Err() == context.Canceled { // ignore error if we killed cmd ourself
+		os.Exit(code)
 	}
-	os.Exit(code)
+	if err, ok := err.(*exec.ExitError); ok {
+		os.Exit(err.ExitCode())
+	}
+	if err != nil {
+		log.Fatal("finish command:", err)
+	}
 }
