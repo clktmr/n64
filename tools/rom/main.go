@@ -22,7 +22,7 @@ import (
 	_ "embed"
 
 	"github.com/aymanbagabas/go-pty"
-	"github.com/kballard/go-shellquote"
+	"github.com/buildkite/shellwords"
 )
 
 const usageString = `ELF to n64 ROM converter.
@@ -175,7 +175,7 @@ func Main(args []string) {
 }
 
 func runROM(cmdpath, rompath string) {
-	args, err := shellquote.Split(cmdpath)
+	args, err := shellwords.Split(cmdpath)
 	if err != nil {
 		log.Fatal("run:", err)
 	}
