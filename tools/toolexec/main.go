@@ -145,10 +145,10 @@ func postLink() {
 
 	// Open output elf file for modifying
 	elfFile, err := os.OpenFile(*linkOutfilePath, os.O_RDWR, 0666)
-	defer elfFile.Close()
 	if err != nil {
 		log.Fatalln("open elf:", err)
 	}
+	defer elfFile.Close()
 	elfFile64, err := readElf64(elfFile)
 	if err != nil {
 		log.Fatalln("read elf:", err)
@@ -156,10 +156,10 @@ func postLink() {
 
 	// Go through all dependencies in importcfg and collect cartfs images
 	importcfgFile, err := os.Open(*linkImportcfgPath)
-	defer importcfgFile.Close()
 	if err != nil {
 		log.Fatalln("open importcfg:", err)
 	}
+	defer importcfgFile.Close()
 
 	cartfses := bytes.NewBuffer(nil)
 	offsets := make(map[string]uint32)
