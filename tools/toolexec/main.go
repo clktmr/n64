@@ -33,6 +33,7 @@ func Main(args []string) {
 	cmdargs := args[2:]
 
 	tool := filepath.Base(cmdname)
+	tool = strings.TrimSuffix(tool, filepath.Ext(tool))
 	switch tool {
 	case "link":
 		cmdargs = preLink(cmdargs)
