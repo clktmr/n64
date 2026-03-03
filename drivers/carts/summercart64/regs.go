@@ -10,9 +10,12 @@ import (
 
 const bufferSize = 512
 
-// It's up to us to choose a location in the ROM. This puts it at the end of a
-// 64MB cartridge.
-var usbBuf = periph.NewDevice(0x1400_0000-bufferSize, bufferSize)
+var (
+	// It's up to us to choose a location in the ROM. This puts it at the
+	// end of a 64MB cartridge.
+	usbBuf    = periph.NewDevice(0x1400_0000-bufferSize, bufferSize)
+	sdcardBuf = periph.NewDevice(0x1ffe_0000, 8*1024)
+)
 
 type registers struct {
 	status     periph.R32[status]

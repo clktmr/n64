@@ -7,6 +7,7 @@ toolchain go1.24.5
 require (
 	github.com/aymanbagabas/go-pty v0.2.2
 	github.com/buildkite/shellwords v1.0.0
+	github.com/diskfs/go-diskfs v1.4.2
 	github.com/embeddedgo/display v1.1.0
 	github.com/embeddedgo/fs v0.1.0
 	github.com/ericpauley/go-quantize v0.0.0-20200331213906-ae555eb2afa4
@@ -19,6 +20,7 @@ require (
 
 require (
 	github.com/creack/pty v1.1.24 // indirect
+	github.com/elliotwutingfeng/asciiset v0.0.0-20230602022725-51bbb787efab // indirect
 	github.com/u-root/u-root v0.11.0 // indirect
 	golang.org/x/crypto v0.17.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect

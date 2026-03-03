@@ -42,6 +42,7 @@ func (v *Cart) Read(p []byte) (n int, err error) {
 		return 0, err
 	}
 
+	// TODO check if the sdcardBuf can be used, which is outside the rom
 	writeEnable, err := v.SetConfig(CfgROMWriteEnable, 1)
 	if err != nil {
 		return 0, err
@@ -105,7 +106,7 @@ func execCommand(cmdId command, data0 uint32, data1 uint32) (result0 uint32, res
 	result1 = regs().data1.Load()
 
 	if status&statusError != 0 {
-		err = errCodes[result0]
+		err = Error(result0)
 	}
 
 	return
