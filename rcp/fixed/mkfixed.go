@@ -21,21 +21,16 @@ func (x {{ .Name }}) Floor() int             { return int(x >> {{ .Frac }}) }
 func (x {{ .Name }}) Ceil() int              { return int({{ .MulType }}(x) + (1<<{{ .Frac }} - 1) >> {{ .Frac }}) }
 func (x {{ .Name }}) Mul(y {{ .Name }}) {{ .Name }} { return {{ .Name }}(({{ .MulType }}(x)*{{ .MulType }}(y))>>{{ .Frac }}) }
 func (x {{ .Name }}) Div(y {{ .Name }}) {{ .Name }} { return {{ .Name }}({{ .MulType }}(x)<<{{ .Frac }}/{{ .MulType }}(y)) }
-
-func (x {{ .Name }}) String() string {
-	const shift, mask = {{ .Frac }}, 1<<{{ .Frac }} - 1
-	return fmt.Sprintf("%d:%0{{ .Digits }}d", {{ .MulType }}(x>>shift), {{ .MulType }}(x&mask))
-}
+func (x {{ .Name }}) String() string { return asString(int64(x), {{ .Frac }}, {{ .IntDigits }}, {{ .FracDigits }}) }
 `
 
 type fixedType struct {
-	Name, BaseType, MulType string
-	Frac, Digits            uint
+	Name, MulType               string
+	Frac, FracDigits, IntDigits uint
 }
 
 func fromDecl(name, basetype string) (f fixedType) {
 	f.Name = name
-	f.BaseType = basetype
 	switch basetype {
 	case "int32":
 		f.MulType = "int64"
@@ -78,7 +73,8 @@ func fromDecl(name, basetype string) (f fixedType) {
 	if f.Frac+intbits != width {
 		log.Fatalln("must use all bits")
 	}
-	f.Digits = digits(f.Frac)
+	f.FracDigits = digits(f.Frac)
+	f.IntDigits = digits(intbits)
 	return
 }
 
@@ -104,7 +100,6 @@ func main() {
 	}
 
 	fmt.Fprintln(source, "package fixed")
-	fmt.Fprintln(source, "import \"fmt\"")
 
 	err = tmpl.Execute(source, fromDecl(os.Args[1], os.Args[2]))
 	if err != nil {

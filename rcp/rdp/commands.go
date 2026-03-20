@@ -1,9 +1,9 @@
 package rdp
 
 import (
-	"fmt"
 	"image"
 	"image/color"
+	"strconv"
 	"time"
 	"unsafe"
 
@@ -74,7 +74,7 @@ func (c command) String() string {
 	default:
 		name = "Noop"
 	}
-	return fmt.Sprintf("%s 0x%x", name, uint64(c))
+	return name + " 0x" + strconv.FormatUint(uint64(c), 16)
 }
 
 const (

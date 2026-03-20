@@ -1,7 +1,11 @@
 // Package fixed provides fixed-point arithmetic types used by the RCP.
 package fixed
 
-import "golang.org/x/exp/constraints"
+import (
+	"strconv"
+
+	"golang.org/x/exp/constraints"
+)
 
 //go:generate go run mkfixed.go UInt14_2 uint16
 type UInt14_2 uint16
@@ -130,4 +134,29 @@ func (r Rectangle[T]) In(s Rectangle[T]) bool {
 	// does not require that r.Max.In(s).
 	return s.Min.X <= r.Min.X && r.Max.X <= s.Max.X &&
 		s.Min.Y <= r.Min.Y && r.Max.Y <= s.Max.Y
+}
+
+func asString(x, frac int64, ip, fp uint8) string {
+	var mask = int64(1<<frac - 1)
+
+	s := make([]byte, 0, 2+ip+fp)
+	if x < 0 {
+		s = append(s, '-')
+		x = -x
+	}
+
+	s = strconv.AppendUint(s, uint64(x>>frac), 10)
+	s = append(s, ':')
+	ss := strconv.AppendUint(s, uint64(x&mask), 10)
+
+	fracstart := len(s)
+	fracend := len(ss)
+	padlen := int(fp) - (fracend - fracstart)
+	s = s[:len(s)+int(fp)]
+	copy(s[fracstart+padlen:fracend+padlen], s[fracstart:fracend])
+	for i := range s[fracstart : fracstart+padlen] {
+		s[fracstart+i] = '0'
+	}
+
+	return string(s)
 }
