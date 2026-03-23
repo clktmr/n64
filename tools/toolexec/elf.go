@@ -81,36 +81,38 @@ func readElf64(r io.ReaderAt) (*elfFile64, error) {
 	return ef64, nil
 }
 
-func (p *elfFile64) Write(w io.WriterAt) error {
+func (p *elfFile64) Write(w io.WriterAt) (int64, error) {
 	ow := io.NewOffsetWriter(w, 0)
 	err := binary.Write(ow, p.ByteOrder, p.FileHeader)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	ow = io.NewOffsetWriter(w, int64(p.FileHeader.Phoff))
 	err = binary.Write(ow, p.ByteOrder, p.ProgHeaders)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	ow = io.NewOffsetWriter(w, int64(p.FileHeader.Shoff))
 	err = binary.Write(ow, p.ByteOrder, p.SectionHeaders)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
+	eof := int64(p.FileHeader.Shoff) + int64(p.FileHeader.Shnum)*int64(p.FileHeader.Shentsize)
 	for i, section := range p.SectionHeaders {
 		if section.Type == uint32(elf.SHT_NULL) || section.Type == uint32(elf.SHT_NOBITS) {
 			continue
 		}
 		sr := bytes.NewReader(p.Sections[i])
 		ow := io.NewOffsetWriter(w, int64(section.Off))
-		_, err = io.Copy(ow, sr)
+		n, err := io.Copy(ow, sr)
 		if err != nil {
-			return err
+			return eof, err
 		}
+		eof = max(eof, int64(section.Off)+n)
 	}
 
-	return err
+	return eof, err
 }
 
 func alignUp(addr uint64, align uint64) uint64 {
@@ -118,13 +120,18 @@ func alignUp(addr uint64, align uint64) uint64 {
 }
 
 func (p *elfFile64) recalculateOffsets() {
+	seek := uint64(p.FileHeader.Ehsize)
+
 	// Remove ProgHeaders instead of recalculating their offsets, we won't
 	// need them.
 	p.FileHeader.Phnum = 0
+	p.FileHeader.Phentsize = 0
+	p.FileHeader.Phoff = 0
 	p.ProgHeaders = []elf.Prog64{}
-
-	seek := uint64(p.FileHeader.Ehsize)
 	seek += uint64(p.FileHeader.Phentsize) * uint64(p.FileHeader.Phnum)
+
+	// Update SectionHeaders offset and each section's offset
+	p.FileHeader.Shoff = seek
 	seek += uint64(p.FileHeader.Shentsize) * uint64(p.FileHeader.Shnum)
 	seek = alignUp(seek, 4096)
 	for i, section := range p.SectionHeaders {
@@ -147,7 +154,6 @@ func (p *elfFile64) AddProgSection(name string, align uint64, data []byte) (addr
 		p.Sections[shstrtab] = append(p.Sections[shstrtab], []byte(name)...)
 		p.Sections[shstrtab] = append(p.Sections[shstrtab], 0)
 		p.SectionHeaders[shstrtab].Size = uint64(len(p.Sections[shstrtab]))
-		p.SectionNames[name] = len(p.Sections) - 1
 	}
 
 	for _, section := range p.SectionHeaders {
@@ -167,6 +173,7 @@ func (p *elfFile64) AddProgSection(name string, align uint64, data []byte) (addr
 		Addralign: align,
 	})
 	p.Sections = append(p.Sections, data)
+	p.SectionNames[name] = len(p.Sections) - 1
 	p.FileHeader.Shnum += 1
 
 	p.recalculateOffsets()

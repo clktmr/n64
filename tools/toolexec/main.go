@@ -243,7 +243,11 @@ func postLink() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	err = elfFile64.Write(elfFile)
+	eof, err := elfFile64.Write(elfFile)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	err = elfFile.Truncate(eof)
 	if err != nil {
 		log.Fatalln(err)
 	}

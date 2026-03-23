@@ -132,7 +132,7 @@ func (a *archive) AddEntry(name string, r io.ReadSeeker) error {
 
 	n, err := fmt.Fprintf(a.f, entryHeader, truncateToRune(name, 16), 0, 0, 0, 0, size)
 	if err != nil || n != entryLen {
-		fmt.Errorf("writing entry header: %w", err)
+		return fmt.Errorf("writing entry header: %w", err)
 	}
 	n1, _ := io.CopyN(a.f, r, size)
 	if n1 != size {
