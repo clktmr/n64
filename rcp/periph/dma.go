@@ -28,7 +28,7 @@ func (job *dmaJob) initiate() bool {
 	if job.buf == nil {
 		return false
 	}
-	head, tail := job.split(job.buf, job.cart)
+	head, tail := job.split()
 	dmaBuf, headBuf, tailBuf := job.buf[head:tail], job.buf[:head], job.buf[tail:]
 
 	n := uint32(len(dmaBuf) - 1)
@@ -60,7 +60,7 @@ func (job *dmaJob) initiate() bool {
 func (job *dmaJob) finish() {
 	rcp.DisableInterrupts(rcp.IntrPeriph)
 	if job.buf != nil {
-		head, tail := job.split(job.buf, job.cart)
+		head, tail := job.split()
 		if job.dir == dmaLoad {
 			// Do the IO after the DMA because it might invalidate parts of
 			// head and tail.
@@ -74,10 +74,11 @@ func (job *dmaJob) finish() {
 	}
 }
 
-// split returns two positions which split p in three parts. The slice
-// p[head:tail] is safe for DMA, p[:head] and p[tail:] must fallback to mmio.
-func (job *dmaJob) split(p []byte, addr cpu.Addr) (head, tail int) {
-	head, tail = cpu.Pads(p)
+// split returns two positions which split job.buf in three parts. The slice
+// job.buf[head:tail] is safe for DMA, job.buf[:head] and job.buf[tail:] must
+// fallback to mmio.
+func (job *dmaJob) split() (head, tail int) {
+	head, tail = cpu.Pads(job.buf)
 
 	// If DMA length isn't 2 byte aligned, fallback to mmio for last byte.
 	if (tail-head)&0x1 != 0 {
@@ -86,7 +87,7 @@ func (job *dmaJob) split(p []byte, addr cpu.Addr) (head, tail int) {
 
 	// If DMA start address isn't 2 byte aligned there is no way to use DMA
 	// at all, fallback to mmio for the whole transfer.
-	if (addr+cpu.Addr(head))&0x1 != 0 {
+	if (job.cart+cpu.Addr(head))&0x1 != 0 {
 		head = 0
 		tail = 0
 	}
