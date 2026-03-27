@@ -16,8 +16,8 @@ const (
 )
 
 type dmaJob struct {
-	cart cpu.Addr
 	buf  []byte
+	cart cpu.Addr
 	dir  dmaDirection
 	done *rtos.Cond
 }

@@ -61,7 +61,7 @@ func (v *Device) ReadAt(p []byte, off int64) (n int, err error) {
 	}
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
-	dmaSync(addr, dmaJob{v.addr + cpu.Addr(off), p, dmaLoad, v.done})
+	dmaSync(addr, dmaJob{p, v.addr + cpu.Addr(off), dmaLoad, v.done})
 	n = len(p)
 
 	return
@@ -78,7 +78,7 @@ func (v *Device) WriteAt(p []byte, off int64) (n int, err error) {
 	}
 
 	addr := uintptr(unsafe.Pointer(unsafe.SliceData(p)))
-	dmaSync(addr, dmaJob{v.addr + cpu.Addr(off), p, dmaStore, v.done})
+	dmaSync(addr, dmaJob{p, v.addr + cpu.Addr(off), dmaStore, v.done})
 	n = len(p)
 
 	return
