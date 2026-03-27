@@ -4,8 +4,6 @@ import (
 	"embedded/rtos"
 	"errors"
 	"time"
-
-	_ "unsafe"
 )
 
 // Write writes data from p to the USB port.
@@ -105,30 +103,4 @@ func execCommand(cmdId command, data0 uint32, data1 uint32) (result0 uint32, res
 	}
 
 	return
-}
-
-var btn, cmd, usb, aux rtos.Cond
-
-//go:linkname handler IRQ4_Handler
-//go:interrupthandler
-func handler() {
-	status := regs().status.LoadSafe()
-	irqClear := irq(0)
-	if status&statusBtnIrqPending != 0 {
-		btn.Signal()
-		irqClear |= irqBtnClear
-	}
-	if status&statusCmdIrqPending != 0 {
-		cmd.Signal()
-		irqClear |= irqCmdClear
-	}
-	if status&statusUSBIrqPending != 0 {
-		usb.Signal()
-		irqClear |= irqUSBClear
-	}
-	if status&statusAUXIrqPending != 0 {
-		aux.Signal()
-		irqClear |= irqAUXClear
-	}
-	regs().irq.StoreSafe(irqClear)
 }

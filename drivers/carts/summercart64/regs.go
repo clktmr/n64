@@ -5,10 +5,13 @@ package summercart64
 
 import (
 	"embedded/rtos"
+	"sync/atomic"
 
 	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/periph"
+
+	_ "unsafe"
 )
 
 var (
@@ -151,11 +154,39 @@ func (v *Cart) SaveStorage() *periph.Device {
 	return &v.saveStorage
 }
 
-// ClearInterrupt clears a pending interrupt raised by the cart. Call this from
-// the handler if your application implements a custom one for
-// [github.com/clktmr/n64/rcp.IrqCart].
-//
-//go:nosplit
-func (v *Cart) ClearInterrupt() {
-	regs().identifier.StoreSafe(0)
+var (
+	cmd, usb   rtos.Cond
+	btnHandler atomic.Value
+)
+
+// SetBtnHandler sets the callback for the button interrupt. The function will
+// be invoked from interrupt context and must not allocate or park the
+// goroutine. Use at least the go:nosplit and go:nowritebarrierrec pragmas.
+func SetBtnHandler(fn func()) {
+	btnHandler.Store(fn)
+}
+
+//go:linkname handler IRQ4_Handler
+//go:interrupthandler
+func handler() {
+	status := regs().status.LoadSafe()
+	irqClear := irq(0)
+	if status&statusBtnIrqPending != 0 {
+		irqClear |= irqBtnClear
+		if h, ok := btnHandler.Load().(func()); ok {
+			h()
+		}
+	}
+	if status&statusCmdIrqPending != 0 {
+		cmd.Signal()
+		irqClear |= irqCmdClear
+	}
+	if status&statusUSBIrqPending != 0 {
+		usb.Signal()
+		irqClear |= irqUSBClear
+	}
+	if status&statusAUXIrqPending != 0 {
+		irqClear |= irqAUXClear
+	}
+	regs().irq.StoreSafe(irqClear)
 }

@@ -17,14 +17,13 @@ var blocker atomic.Bool
 var sc64 *summercart64.Cart
 var note rtos.Cond
 
-//go:linkname cartHandler IRQ4_Handler
-//go:interrupthandler
-func cartHandler() {
+//go:nosplit
+//go:nowritebarrierrec
+func cartBtnHandler() {
 	if sc64 == nil {
 		panic("sc64 not initialized")
 	}
 	blocker.Store(false)
-	sc64.ClearInterrupt()
 }
 
 //go:nosplit
@@ -39,6 +38,7 @@ func blockingHandler() {
 }
 
 func TestInterruptPrio(t *testing.T) {
+	summercart64.SetBtnHandler(cartBtnHandler)
 	sc64 = summercart64.Probe()
 	if testing.Short() {
 		t.Skip("skipping in short mode")
@@ -57,7 +57,10 @@ func TestInterruptPrio(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			rcp.IrqCart.Enable(tc.prio, 0)
+			err := rcp.IrqCart.Enable(tc.prio, 0)
+			if err != nil {
+				t.Fatal("enable cart irq: ", err)
+			}
 
 			_, prio, err := rcp.IrqCart.Status(0)
 			if err != nil {
