@@ -4,17 +4,16 @@
 package summercart64
 
 import (
+	"embedded/rtos"
+
+	"github.com/clktmr/n64/rcp"
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/periph"
 )
 
-const bufferSize = 512
-
 var (
-	// It's up to us to choose a location in the ROM. This puts it at the
-	// end of a 64MB cartridge.
-	usbBuf    = periph.NewDevice(0x1400_0000-bufferSize, bufferSize)
-	sdcardBuf = periph.NewDevice(0x1ffe_0000, 8*1024)
+	usbBuf    = periph.NewDevice(0x1ffe_0000, 512)
+	sdcardBuf = periph.NewDevice(0x1ffe_0200, 15*512)
 )
 
 type registers struct {
@@ -23,6 +22,8 @@ type registers struct {
 	data1      periph.U32
 	identifier periph.U32
 	key        periph.U32
+	irq        periph.R32[irq]
+	aux        periph.U32
 }
 
 func regs() *registers { return cpu.MMIO[registers](0x1fff_0000) }
@@ -30,10 +31,20 @@ func regs() *registers { return cpu.MMIO[registers](0x1fff_0000) }
 type status uint32
 
 const (
-	statusBusy       status = 1 << 31
-	statusError      status = 1 << 30
-	statusIrqPending status = 1 << 29
-	statusCmdIdMask  status = 0xff
+	statusBusy          status = 1 << 31
+	statusError         status = 1 << 30
+	statusBtnIrqPending status = 1 << 29
+	statusBtnIrqMask    status = 1 << 28
+	statusCmdIrqPending status = 1 << 27
+	statusCmdIrqMask    status = 1 << 26
+	statusUSBIrqPending status = 1 << 25
+	statusUSBIrqMask    status = 1 << 24
+	statusAUXIrqPending status = 1 << 23
+	statusAUXIrqMask    status = 1 << 22
+
+	statusCmdIrqRequest status = 1 << 8
+
+	statusCmdIdMask status = 0xff
 )
 
 type command status
@@ -64,6 +75,20 @@ const (
 	cmdDiagnosticGet    command = '%'
 )
 
+type irq uint32
+
+const (
+	irqBtnClear irq = 1 << 31
+	irqCmdClear irq = 1 << 30
+	irqUSBClear irq = 1 << 29
+	irqAUXClear irq = 1 << 28
+
+	irqUSBDisable irq = 1 << 11
+	irqUSBEnable  irq = 1 << 10
+	irqAUXDisable irq = 1 << 9
+	irqAUXEnable  irq = 1 << 8
+)
+
 const (
 	SaveNone = iota
 	SaveEEPROM4k
@@ -92,8 +117,7 @@ type Cart struct {
 	saveStorage periph.Device
 }
 
-// Probe returns the [Cart] if a SummerCart64 was detected and enables write
-// access to the ROM.
+// Probe initializes and returns the [Cart] if a SummerCart64 was detected.
 func Probe() *Cart {
 	// sc64 magic unlock sequence
 	regs().key.Store(0x0)
@@ -101,23 +125,20 @@ func Probe() *Cart {
 	regs().key.Store(0x4f434b5f)
 
 	if regs().identifier.Load() == 0x53437632 { // SummerCart64 V2
+		err := rcp.IrqCart.Enable(rtos.IntPrioMid, 0)
+		if err != nil {
+			panic(err)
+		}
+		regs().irq.Store(irqUSBEnable)
 		s := &Cart{}
 		if st, err := s.Config(CfgSaveType); err == nil {
 			params := saveStorageParams[st]
 			s.saveStorage = *periph.NewDevice(params.addr, params.size)
 		}
 
-		_, _ = s.SetConfig(CfgROMWriteEnable, 1)
-
 		return s
 	}
 	return nil
-}
-
-// Close disables the Cart by setting the ROM to read-only.
-func (v *Cart) Close() (err error) {
-	_, err = v.SetConfig(CfgROMWriteEnable, 0)
-	return
 }
 
 // Returns the current storage for save files, configured by savetype. Returns a

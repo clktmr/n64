@@ -76,7 +76,7 @@ func (v *SDCard) ReadAt(p []byte, off int64) (n int, err error) {
 
 	startOffset := off & sdSectorMask
 	for n < len(p) {
-		sectorCnt := min(((len(p)-n)>>9)+1, 16)
+		sectorCnt := min(((len(p)-n)>>9)+1, sdcardBuf.Size()/sdSectorSize)
 		_, _, err = execCommand(cmdSDRead, uint32(sdcardBuf.Addr()), uint32(sectorCnt))
 		if err != nil {
 			return
@@ -87,7 +87,9 @@ func (v *SDCard) ReadAt(p []byte, off int64) (n int, err error) {
 		nn, err = sdcardBuf.ReadAt(p[n:stop], startOffset)
 		n += nn
 		startOffset = 0 // reset, only for first iteration needed
-		if err != nil && err != io.EOF {
+		if err == io.EOF {
+			err = nil
+		} else if err != nil {
 			return
 		}
 

@@ -3,8 +3,9 @@ package summercart64
 import (
 	"embedded/rtos"
 	"errors"
-	"runtime"
 	"time"
+
+	_ "unsafe"
 )
 
 // Write writes data from p to the USB port.
@@ -37,41 +38,36 @@ func (v *Cart) Write(p []byte) (n int, err error) {
 
 // Read reads pending data from the USB port into p.
 func (v *Cart) Read(p []byte) (n int, err error) {
-	msgtype, length, err := execCommand(cmdUSBReadStatus, 0, 0)
-	if msgtype == 0 || err != nil {
-		return 0, err
+	var length uint32
+	for usb.Wait(-1) {
+		_, length, err = execCommand(cmdUSBReadStatus, 0, 0)
+		if err != nil {
+			return
+		}
+		if length > 0 {
+			break
+		}
 	}
 
-	// TODO check if the sdcardBuf can be used, which is outside the rom
-	writeEnable, err := v.SetConfig(CfgROMWriteEnable, 1)
-	if err != nil {
-		return 0, err
-	}
-
-	pending := min(len(p), int(length), bufferSize)
+	pending := min(len(p), int(length), usbBuf.Size())
 	_, _, err = execCommand(cmdUSBRead, uint32(usbBuf.Addr()), uint32(pending))
 	if err != nil {
-		return 0, err
+		return
 	}
 
 	err = waitUSB(cmdUSBReadStatus)
 	if err != nil {
-		return 0, err
+		return
 	}
 
-	n, err1 := usbBuf.ReadAt(p[:pending], 0)
-
-	_, err = v.SetConfig(CfgROMWriteEnable, writeEnable)
-	if err != nil {
-		return 0, err
-	}
+	n, err = usbBuf.ReadAt(p[:pending], 0)
 
 	// sc64 adds null terminator as EOL, replace with newline
 	if p[n-1] == 0 {
 		p[n-1] = '\n'
 	}
 
-	return n, err1
+	return
 }
 
 func waitUSB(cmd command) error {
@@ -87,7 +83,6 @@ func waitUSB(cmd command) error {
 		if rtos.Nanotime()-start > time.Second {
 			return errors.New("usb timeout")
 		}
-		runtime.Gosched()
 	}
 	return nil
 }
@@ -95,19 +90,45 @@ func waitUSB(cmd command) error {
 func execCommand(cmdId command, data0 uint32, data1 uint32) (result0 uint32, result1 uint32, err error) {
 	regs().data0.Store(data0)
 	regs().data1.Store(data1)
-	regs().status.Store(status(cmdId))
+	regs().status.Store(status(cmdId) | statusCmdIrqRequest)
 
-	status := statusBusy
-	for status&statusBusy != 0 {
-		status = regs().status.Load()
+	if !cmd.Wait(1 * time.Second) {
+		err = errors.New("command timeout")
+		return
 	}
 
 	result0 = regs().data0.Load()
 	result1 = regs().data1.Load()
 
-	if status&statusError != 0 {
+	if regs().status.Load()&statusError != 0 {
 		err = Error(result0)
 	}
 
 	return
+}
+
+var btn, cmd, usb, aux rtos.Cond
+
+//go:linkname handler IRQ4_Handler
+//go:interrupthandler
+func handler() {
+	status := regs().status.LoadSafe()
+	irqClear := irq(0)
+	if status&statusBtnIrqPending != 0 {
+		btn.Signal()
+		irqClear |= irqBtnClear
+	}
+	if status&statusCmdIrqPending != 0 {
+		cmd.Signal()
+		irqClear |= irqCmdClear
+	}
+	if status&statusUSBIrqPending != 0 {
+		usb.Signal()
+		irqClear |= irqUSBClear
+	}
+	if status&statusAUXIrqPending != 0 {
+		aux.Signal()
+		irqClear |= irqAUXClear
+	}
+	regs().irq.StoreSafe(irqClear)
 }
