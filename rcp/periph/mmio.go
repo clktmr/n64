@@ -21,13 +21,19 @@ type U32 struct{ R32[uint32] }
 
 // Store writes the value to the register. If the PI bus is currently busy via
 // MMIO or DMA the goroutine is parked until the value was written.
-func (r *R32[T]) Store(val T) {
+func (r *R32[T]) Store(v T) {
+	if dmaState.CompareAndSwap(dmaIdle, dmaIO) {
+		(*r32[T])(unsafe.Pointer(r)).Store(v)
+		dmaState.Store(dmaIdle)
+		return
+	}
+
 	bufid, p, done := getBuf()
 	_ = p[3]
-	p[0] = byte(val >> 24)
-	p[1] = byte(val >> 16)
-	p[2] = byte(val >> 8)
-	p[3] = byte(val)
+	p[0] = byte(v >> 24)
+	p[1] = byte(v >> 16)
+	p[2] = byte(v >> 8)
+	p[3] = byte(v)
 	dma(dmaJob{p[:], cpu.PhysicalAddress(r), dmaStore, done})
 	if !done.Wait(1 * time.Second) {
 		panic("dma timeout")
@@ -38,6 +44,12 @@ func (r *R32[T]) Store(val T) {
 // Load reads the value from the register. If the PI bus is currently busy via
 // MMIO or DMA the goroutine is parked until the value was read.
 func (r *R32[T]) Load() (v T) {
+	if dmaState.CompareAndSwap(dmaIdle, dmaIO) {
+		v = (*r32[T])(unsafe.Pointer(r)).Load()
+		dmaState.Store(dmaIdle)
+		return
+	}
+
 	bufid, p, done := getBuf()
 	dma(dmaJob{p[:], cpu.PhysicalAddress(r), dmaLoad, done})
 	if !done.Wait(1 * time.Second) {
