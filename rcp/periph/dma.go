@@ -52,13 +52,11 @@ func (job *dmaJob) initiate() bool {
 		regs().writeLen.Store(n)
 	}
 
-	rcp.EnableInterrupts(rcp.IntrPeriph)
 	return true
 }
 
 // finish does remaining mmio and wakeups any waiter on the job's note.
 func (job *dmaJob) finish() {
-	rcp.DisableInterrupts(rcp.IntrPeriph)
 	if job.buf != nil {
 		head, tail := job.split()
 		if job.dir == dmaLoad {
@@ -95,11 +93,17 @@ func (job *dmaJob) split() (head, tail int) {
 	return
 }
 
-var dmaQueue rcp.IntrQueue[dmaJob]
+const (
+	dmaIdle       = 0
+	dmaInitiating = 1 // A goroutine is processing dmaQueue and might initiate a transfer
+	dmaActive     = 2 // DMA transfer is ongoing and interrupt handler will run
+	dmaIO         = 3 // PI bus is busy with mmio, dma must wait
+)
 
-// If true: No PI interrupts scheduled, dmaQueue can be read.
-// If false: A PI interrupt will trigger and read the dmaQueue.
-var dmaActive atomic.Bool // TODO rename dmaQueueLock, make spinlock
+var (
+	dmaState atomic.Int64
+	dmaQueue rcp.IntrQueue[dmaJob]
+)
 
 func init() {
 	regs().status.Store(clearInterrupt)
@@ -110,7 +114,11 @@ func init() {
 //go:nowritebarrierrec
 func handler() {
 	regs().status.Store(clearInterrupt)
-	dmaActive.Store(false)
+	rcp.DisableInterrupts(rcp.IntrPeriph)
+	oldState := dmaState.Swap(dmaIdle)
+	if oldState != dmaActive {
+		panic("corrupted dma state")
+	}
 
 	job, ok := dmaQueue.Pop()
 	if !ok {
@@ -131,28 +139,34 @@ next:
 		goto next
 	}
 
-	dmaActive.Store(true)
+	dmaState.Store(dmaActive)
+	rcp.EnableInterrupts(rcp.IntrPeriph)
 }
 
 // dma enqueues a DMA transfer for async execution by the hardware.
 func dma(v dmaJob) {
 	dmaQueue.Push(v)
-	// might preempt here, but that's ok
-	if !dmaActive.Swap(true) {
-		// initially trigger dma queue
-		for {
-			job, ok := dmaQueue.Peek()
-			if !ok {
-				dmaActive.Store(false)
-				return
+
+	for {
+		if dmaState.CompareAndSwap(dmaIdle, dmaInitiating) {
+			// initially trigger dma queue
+			for {
+				job, ok := dmaQueue.Peek()
+				if !ok {
+					dmaState.Store(dmaIdle)
+					return
+				}
+				if activated := job.initiate(); activated {
+					dmaState.Store(dmaActive)
+					rcp.EnableInterrupts(rcp.IntrPeriph)
+					return
+				}
+				job.finish()
+				dmaQueue.Pop()
 			}
-			if activated := job.initiate(); activated {
-				return
-			}
-			job.finish()
-			dmaQueue.Pop()
+		}
+		if dmaState.Load() == dmaActive {
+			return
 		}
 	}
-
-	return
 }

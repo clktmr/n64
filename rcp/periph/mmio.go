@@ -53,11 +53,11 @@ func (r *R32[T]) Load() (v T) {
 //
 //go:nosplit
 func (r *R32[T]) StoreSafe(v T) {
-	for !dmaActive.CompareAndSwap(false, true) {
+	for !dmaState.CompareAndSwap(dmaIdle, dmaIO) {
 		// wait
 	}
 	(*r32[T])(unsafe.Pointer(r)).Store(v)
-	dmaActive.Store(false)
+	dmaState.Store(dmaIdle)
 }
 
 // LoadSafe is the same as [R32.Load] but instead of parking the goroutine it
@@ -65,11 +65,11 @@ func (r *R32[T]) StoreSafe(v T) {
 //
 //go:nosplit
 func (r *R32[T]) LoadSafe() (v T) {
-	for !dmaActive.CompareAndSwap(false, true) {
+	for !dmaState.CompareAndSwap(dmaIdle, dmaIO) {
 		// wait
 	}
 	v = (*r32[T])(unsafe.Pointer(r)).Load()
-	dmaActive.Store(false)
+	dmaState.Store(dmaIdle)
 	return
 }
 
