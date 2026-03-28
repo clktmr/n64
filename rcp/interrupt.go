@@ -18,8 +18,14 @@ var handlers = [6]func(){}
 
 func init() {
 	DisableInterrupts(^interruptFlag(0))
-	IrqRcp.Enable(rtos.IntPrioLow, 0)
-	IrqPrenmi.Enable(rtos.IntPrioLow, 0)
+	err := IrqRcp.Enable(rtos.IntPrioLow, 0)
+	if err != nil {
+		panic(err)
+	}
+	err = IrqPrenmi.Enable(rtos.IntPrioLow, 0)
+	if err != nil {
+		panic(err)
+	}
 }
 
 //go:linkname rcpHandler IRQ3_Handler

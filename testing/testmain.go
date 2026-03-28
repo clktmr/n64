@@ -35,7 +35,10 @@ func TestMain(m *testing.M) {
 	guiconsole := console.NewConsole()
 
 	fs := termfs.NewLight("termfs", nil, io.MultiWriter(cart, guiconsole))
-	rtos.Mount(fs, "/dev/console")
+	err = rtos.Mount(fs, "/dev/console")
+	if err != nil {
+		panic(err)
+	}
 	os.Stdout, err = os.OpenFile("/dev/console", syscall.O_WRONLY, 0)
 	if err != nil {
 		panic(err)
