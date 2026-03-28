@@ -75,22 +75,10 @@ func (r Rectangle[T]) Sub(p Point[T]) Rectangle[T] {
 // Intersect returns the largest rectangle contained by both r and s. If the two
 // rectangles do not overlap then the zero rectangle will be returned.
 func (r Rectangle[T]) Intersect(s Rectangle[T]) Rectangle[T] {
-	if r.Min.X < s.Min.X {
-		r.Min.X = s.Min.X
-	}
-	if r.Min.Y < s.Min.Y {
-		r.Min.Y = s.Min.Y
-	}
-	if r.Max.X > s.Max.X {
-		r.Max.X = s.Max.X
-	}
-	if r.Max.Y > s.Max.Y {
-		r.Max.Y = s.Max.Y
-	}
-	// Letting r0 and s0 be the values of r and s at the time that the method
-	// is called, this next line is equivalent to:
-	//
-	// if max(r0.Min.X, s0.Min.X) >= min(r0.Max.X, s0.Max.X) || likewiseForY { etc }
+	r.Min.X = max(r.Min.X, s.Min.X)
+	r.Min.Y = max(r.Min.Y, s.Min.Y)
+	r.Max.X = min(r.Max.X, s.Max.X)
+	r.Max.Y = min(r.Max.Y, s.Max.Y)
 	if r.Empty() {
 		return Rectangle[T]{}
 	}
@@ -105,18 +93,10 @@ func (r Rectangle[T]) Union(s Rectangle[T]) Rectangle[T] {
 	if s.Empty() {
 		return r
 	}
-	if r.Min.X > s.Min.X {
-		r.Min.X = s.Min.X
-	}
-	if r.Min.Y > s.Min.Y {
-		r.Min.Y = s.Min.Y
-	}
-	if r.Max.X < s.Max.X {
-		r.Max.X = s.Max.X
-	}
-	if r.Max.Y < s.Max.Y {
-		r.Max.Y = s.Max.Y
-	}
+	r.Min.X = min(r.Min.X, s.Min.X)
+	r.Min.Y = min(r.Min.Y, s.Min.Y)
+	r.Max.X = max(r.Max.X, s.Max.X)
+	r.Max.Y = max(r.Max.Y, s.Max.Y)
 	return r
 }
 
