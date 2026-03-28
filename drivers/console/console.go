@@ -83,5 +83,5 @@ func (v *Console) Draw() {
 	bounds.Min.X += v.scroll.X
 	pt := bounds.Min.Add(image.Pt(0, int(font.Ascent)))
 	draw.Src.Draw(fb, fb.Bounds(), &image.Uniform{color.NRGBA{B: 0xff, A: 0xff}}, image.Point{})
-	draw.DrawText(fb, bounds, font, pt, image.White, nil, lines)
+	draw.DrawText(fb, bounds, font, pt, color.NRGBA{0xff, 0xff, 0xff, 0xff}, color.NRGBA{}, lines)
 }

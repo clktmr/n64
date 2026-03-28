@@ -68,9 +68,9 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 		case nil:
 			_, isAlpha := srcImg.Image.(*image.Alpha)
 			if isAlpha {
-				drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.RGBA{0xff, 0xff, 0xff, 0xff}, op)
+				drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.NRGBA{0xff, 0xff, 0xff, 0xff}, op)
 			} else {
-				drawColorImage(r, srcImg, sp, image.Point{1, 1}, nil, op)
+				drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.NRGBA{}, op)
 			}
 			return
 		}
@@ -80,28 +80,36 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 			// fill
 			switch op {
 			case draw.Src:
-				drawUniformSrc(r, srcImg.C, nil)
+				c := color.RGBAModel.Convert(srcImg.C).(color.RGBA)
+				drawUniformSrc(r, c, color.RGBA{A: 0xff})
 				return
 			case draw.Over:
-				drawUniformOver(r, srcImg.C, color.Opaque)
+				c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
+				drawUniformOver(r, c, color.NRGBA{A: 0xff})
 				return
 			}
 		case *image.Uniform:
 			switch op {
 			case draw.Src:
-				drawUniformSrc(r, srcImg.C, maskImg.C)
+				c := color.RGBAModel.Convert(srcImg.C).(color.RGBA)
+				m := color.RGBAModel.Convert(maskImg.C).(color.RGBA)
+				drawUniformSrc(r, c, m)
 				return
 			case draw.Over:
-				drawUniformOver(r, srcImg.C, maskImg.C)
+				c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
+				m := color.NRGBAModel.Convert(maskImg.C).(color.NRGBA)
+				drawUniformOver(r, c, m)
 				return
 			}
 		case *texture.Texture:
-			drawColorImage(r, maskImg, mp, image.Point{1, 1}, srcImg.C, op)
+			c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
+			drawColorImage(r, maskImg, mp, image.Point{1, 1}, c, op)
 			return
 		case *images.Magnifier:
 			maskAlpha, ok := maskImg.Image.(*texture.Texture)
 			debug.Assert(ok, "rdp unsupported magnifier format")
-			drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, srcImg.C, op)
+			c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
+			drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, c, op)
 			return
 		}
 	}
@@ -109,17 +117,13 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 	debug.Assert(false, "rdp unsupported format")
 }
 
-func drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Color) {
-	if mask != nil {
-		rf, gf, bf, af := fill.RGBA()
-		_, _, _, ma := mask.RGBA()
-		m := uint32(ma)
-		fill = color.RGBA{
-			uint8((rf * m) >> 24),
-			uint8((gf * m) >> 24),
-			uint8((bf * m) >> 24),
-			uint8((af * m) >> 24),
-		}
+func drawUniformSrc(r image.Rectangle, fill, mask color.RGBA) {
+	if mask.A != 0xff {
+		ma := uint16(mask.A) + 1
+		fill.R = uint8((uint16(fill.R) * ma) >> 8)
+		fill.G = uint8((uint16(fill.G) * ma) >> 8)
+		fill.B = uint8((uint16(fill.B) * ma) >> 8)
+		fill.A = uint8((uint16(fill.A) * ma) >> 8)
 	}
 	rdp.RDP.SetFillColor(fill)
 	rdp.RDP.SetOtherModes(
@@ -128,7 +132,7 @@ func drawUniformSrc(r image.Rectangle, fill color.Color, mask color.Color) {
 	rdp.RDP.FillRectangle(r)
 }
 
-func drawUniformOver(r image.Rectangle, fill color.Color, mask color.Color) {
+func drawUniformOver(r image.Rectangle, fill, mask color.NRGBA) {
 	// CycleTypeFill doesn't support blending, use CycleTypeOne instead.
 	// Assuming fill is not premultiplied alpha, the following operation is
 	// required by draw.Over:
@@ -175,12 +179,12 @@ var (
 	}
 )
 
-func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.Color, op draw.Op) {
+func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.NRGBA, op draw.Op) {
 	var modeflags rdp.ModeFlags
 	colorSource := rdp.CombineTex0
 	alphaSource := rdp.CombineTex0
 
-	if fill != nil {
+	if fill.A != 0x0 {
 		rdp.RDP.SetPrimitiveColor(fill)
 		colorSource = rdp.CombinePrimitive
 	}
@@ -247,7 +251,7 @@ func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scal
 // Draws text str inside r, beginning at p. Returns the next p.
 // Fore- and background colors fg and bg don't support alpha. If a nil
 // background color is passed, it will be transparent.
-func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.Color, str []byte) image.Point {
+func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.NRGBA, str []byte) image.Point {
 	if dst, _ := dst.(*texture.Texture); true {
 		setFramebuffer(dst)
 	}
@@ -256,7 +260,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 
 	var blendmode *rdp.BlendMode
 	mode := rdp.ForceBlend | rdp.BiLerp0
-	if bg == nil {
+	if bg.A == 0x0 {
 		mode |= rdp.ImageRead
 		blendmode = &blendOver
 	} else {
@@ -340,7 +344,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 			}
 			glyphRectSS := v.glyphRect.Sub(v.origin).Add(pos)
 			var drawRect image.Rectangle
-			if bg != nil {
+			if bg.A != 0x0 {
 				cellRect := image.Rect(0, int(font.Height-font.Ascent), v.adv, int(-font.Ascent))
 				drawRect = cellRect.Add(pos).Intersect(clip)
 			} else {

@@ -117,10 +117,8 @@ type DisplayList struct {
 type state struct {
 	combineMode      CombineMode
 	otherModes       ModeFlags
-	fillColor        color.RGBA
-	blendColor       color.NRGBA
-	primitiveColor   color.NRGBA
-	environmentColor color.NRGBA
+	fill             color.RGBA
+	blend, prim, env color.NRGBA
 
 	scissorSet, scissorReal image.Rectangle
 	interlace               InterlaceFrame
@@ -522,62 +520,59 @@ func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
 }
 
 // Sets the color for subsequent FillRectangle() calls.
-func (dl *DisplayList) SetFillColor(c color.Color) {
-	cRGBA := asRGBA(c)
-	if cRGBA == dl.fillColor {
+func (dl *DisplayList) SetFillColor(c color.RGBA) {
+	if c == dl.fill {
 		return
 	}
-	dl.fillColor = cRGBA
+	dl.fill = c
 
-	r, g, b, a := uint32(dl.fillColor.R), uint32(dl.fillColor.G), uint32(dl.fillColor.B), uint32(dl.fillColor.A)
+	r, g, b, a := uint32(dl.fill.R), uint32(dl.fill.G), uint32(dl.fill.B), uint32(dl.fill.A)
 	var ci uint32
-	if dl.bpp == texture.BPP32 {
+	switch dl.bpp {
+	case texture.BPP32:
 		ci = (r << 24) | (g << 16) | (b << 8) | a
-	} else if dl.bpp == texture.BPP16 {
+	case texture.BPP16:
 		ci = ((r >> 3) << 11) | ((g >> 3) << 6) | ((b >> 3) << 1) | (a >> 15)
 		ci |= ci << 16
-	} else if dl.bpp == texture.BPP8 {
+	case texture.BPP8:
 		ci = (a << 24) | (a << 16) | (a << 8) | a
-	} else {
+	default:
 		debug.Assert(false, "fill color unavailable for 4-bit framebuffer")
 	}
 	dl.Push(SyncPipe, command(0xf7<<56)|command(ci))
 }
 
-func (dl *DisplayList) SetBlendColor(c color.Color) {
-	cNRGBA := asNRGBA(c)
-	if cNRGBA == dl.blendColor {
+func (dl *DisplayList) SetBlendColor(c color.NRGBA) {
+	if c == dl.blend {
 		return
 	}
-	dl.blendColor = cNRGBA
+	dl.blend = c
 
 	dl.Push(SyncPipe, 0xf9<<56|
-		command(dl.blendColor.R)<<24|command(dl.blendColor.G)<<16|
-		command(dl.blendColor.B)<<8|command(dl.blendColor.A))
+		command(dl.blend.R)<<24|command(dl.blend.G)<<16|
+		command(dl.blend.B)<<8|command(dl.blend.A))
 }
 
-func (dl *DisplayList) SetPrimitiveColor(c color.Color) {
-	cNRGBA := asNRGBA(c)
-	if cNRGBA == dl.primitiveColor {
+func (dl *DisplayList) SetPrimitiveColor(c color.NRGBA) {
+	if c == dl.prim {
 		return
 	}
-	dl.primitiveColor = cNRGBA
+	dl.prim = c
 
 	dl.Push(0xfa<<56 |
-		command(dl.primitiveColor.R)<<24 | command(dl.primitiveColor.G)<<16 |
-		command(dl.primitiveColor.B)<<8 | command(dl.primitiveColor.A))
+		command(dl.prim.R)<<24 | command(dl.prim.G)<<16 |
+		command(dl.prim.B)<<8 | command(dl.prim.A))
 }
 
-func (dl *DisplayList) SetEnvironmentColor(c color.Color) {
-	cNRGBA := asNRGBA(c)
-	if cNRGBA == dl.environmentColor {
+func (dl *DisplayList) SetEnvironmentColor(c color.NRGBA) {
+	if c == dl.env {
 		return
 	}
-	dl.environmentColor = cNRGBA
+	dl.env = c
 
 	dl.Push(SyncPipe, 0xfb<<56|
-		command(dl.environmentColor.R)<<24|command(dl.environmentColor.G)<<16|
-		command(dl.environmentColor.B)<<8|command(dl.environmentColor.A))
+		command(dl.env.R)<<24|command(dl.env.G)<<16|
+		command(dl.env.B)<<8|command(dl.env.A))
 }
 
 func (dl *DisplayList) SetCombineMode(m CombineMode) {
@@ -651,43 +646,4 @@ func MaxTileSize(format texture.Format) image.Rectangle {
 	}
 
 	return image.Rect(0, 0, x, y)
-}
-
-// Little unsafe helper to avoid heap allocation from calls to RGBA().
-//
-//go:noescape
-//go:linkname asRGBA github.com/clktmr/n64/rcp/rdp._asRGBA
-func asRGBA(c color.Color) (ret color.RGBA)
-func _asRGBA(c color.Color) (ret color.RGBA) {
-	if c, ok := c.(color.RGBA); ok {
-		return c
-	}
-	r, g, b, a := c.RGBA()
-	ret.R = uint8(r >> 8)
-	ret.G = uint8(g >> 8)
-	ret.B = uint8(b >> 8)
-	ret.A = uint8(a >> 8)
-	return
-}
-
-// Little unsafe helper to avoid heap allocation from calls to RGBA().
-//
-//go:noescape
-//go:linkname asNRGBA github.com/clktmr/n64/rcp/rdp._asNRGBA
-func asNRGBA(c color.Color) (ret color.NRGBA)
-func _asNRGBA(c color.Color) (ret color.NRGBA) {
-	if c, ok := c.(color.NRGBA); ok {
-		return c
-	}
-	r, g, b, a := c.RGBA()
-	if a == 0xffff {
-		return color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), 0xff}
-	}
-	if a == 0 {
-		return color.NRGBA{0, 0, 0, 0}
-	}
-	r = (r * 0xffff) / a
-	g = (g * 0xffff) / a
-	b = (b * 0xffff) / a
-	return color.NRGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), uint8(a >> 8)}
 }
