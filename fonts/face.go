@@ -7,17 +7,18 @@ import (
 	"image"
 
 	"github.com/clktmr/n64/rcp/fixed"
+	"github.com/clktmr/n64/rcp/texture"
 	"github.com/embeddedgo/display/font/subfont"
 )
 
-// GlyphMap returns an image containing all glyphs of a [Subfont] and a rect
+// GlyphMap returns a texture containing all glyphs of a [Subfont] and a rect
 // describing subimage that represents the glyph. All images returned by
 // GlyphMap are guaranteed to have the same format/type.
 // This interface is an optimization for the [subfont.Data] interface. Subfonts
 // can implement this for optimization, to avoid frequent changes in the RDP's
 // texture image.
 type GlyphMap interface {
-	GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin image.Point, advance int)
+	GlyphMap(r rune) (img *texture.Texture, rect image.Rectangle, origin image.Point, advance int)
 }
 
 type Glyph struct {
@@ -36,7 +37,7 @@ type Face struct {
 // and vertical advance in pixels.
 //
 //go:nosplit
-func (f *Face) GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin image.Point, advance int) {
+func (f *Face) GlyphMap(r rune) (tex *texture.Texture, rect image.Rectangle, origin image.Point, advance int) {
 	sf := getSubfont(f, r)
 	if sf == nil {
 		// try to use rune(0) to render unsupported codepoints
@@ -46,12 +47,8 @@ func (f *Face) GlyphMap(r rune) (img image.Image, rect image.Rectangle, origin i
 			return
 		}
 	}
-	if sfd, ok := sf.Data.(*SubfontData); ok {
-		return sfd.GlyphMap(int(r - sf.First))
-	}
-	img, origin, advance = sf.Data.Glyph(int(r - sf.First))
-	rect = img.Bounds()
-	return
+
+	return sf.Data.(*SubfontData).GlyphMap(int(r - sf.First))
 }
 
 //go:nosplit

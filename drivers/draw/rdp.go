@@ -278,12 +278,10 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 		},
 	})
 
-	img, _, _, _ := font.GlyphMap(0)
-	if img == nil {
+	tex, _, _, _ := font.GlyphMap(0)
+	if tex == nil {
 		return p
 	}
-	tex, ok := img.(*texture.Texture)
-	debug.Assert(ok, "fontmap format")
 	loadIdx, drawIdx := rdp.RDP.SetTile(rdp.TileDescriptor{
 		Format: tex.Format(),
 		Addr:   0x0,
@@ -298,7 +296,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 	// process characters in batches for better cache efficiency
 	var batch [8]struct {
 		rune      rune
-		img       image.Image
+		tex       *texture.Texture
 		glyphRect image.Rectangle
 		origin    image.Point
 		adv       int
@@ -318,11 +316,11 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 				continue
 			}
 			if outofbounds {
-				v.img = nil
+				v.tex = nil
 				continue
 			}
 
-			v.img, v.glyphRect, v.origin, v.adv = font.GlyphMap(v.rune)
+			v.tex, v.glyphRect, v.origin, v.adv = font.GlyphMap(v.rune)
 			ppos.X += v.adv
 			if ppos.X > clip.Max.X {
 				outofbounds = true // skip rest of line
@@ -339,7 +337,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 				pos.Y += int(font.Height)
 				continue
 			}
-			if v.img == nil {
+			if v.tex == nil {
 				continue
 			}
 			glyphRectSS := v.glyphRect.Sub(v.origin).Add(pos)
@@ -351,11 +349,9 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 				drawRect = glyphRectSS.Intersect(clip)
 			}
 			if !drawRect.Empty() {
-				tex, ok := v.img.(*texture.Texture)
-				debug.Assert(ok, "fontmap format")
-				if tex != oldtex {
-					rdp.RDP.SetTextureImage(tex)
-					oldtex = tex
+				if v.tex != oldtex {
+					rdp.RDP.SetTextureImage(v.tex)
+					oldtex = v.tex
 				}
 
 				sp := v.glyphRect.Min.Add(drawRect.Min.Sub(glyphRectSS.Min))
