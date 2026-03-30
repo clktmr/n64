@@ -120,9 +120,6 @@ type state struct {
 	fill             color.RGBA
 	blend, prim, env color.NRGBA
 
-	scissorSet, scissorReal image.Rectangle
-	interlace               InterlaceFrame
-
 	// framebuffer info
 	addr cpu.Addr
 	size image.Point
@@ -153,6 +150,7 @@ func (dl *DisplayList) Flush() {
 
 //go:nosplit
 func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
+	bufend := dl.start + uintptr(len(dl.buf[0].commands)<<3)
 	for _, cmd := range cmds {
 		// unsafe.Pointer is used for performance
 		ptr := cpu.Uncached((*command)(unsafe.Pointer(dl.end)))
@@ -160,7 +158,7 @@ func (dl *DisplayList) Push(cmds ...command) { // TODO unexport
 
 		dl.end += 8
 
-		if int(dl.end-dl.start) == len(dl.buf[0].commands)<<3 {
+		if dl.end == bufend {
 			regs().end.Store(cpu.PAddr(dl.end))
 			dl.bufIdx = 1 - dl.bufIdx
 			dl.start = uintptr(unsafe.Pointer(&dl.buf[dl.bufIdx].commands))
@@ -483,8 +481,6 @@ func (dl *DisplayList) SetOtherModes(
 	}
 	dl.otherModes = m
 
-	dl.SetScissor(dl.scissorSet, dl.interlace)
-
 	cmd := 0xef00_000f_0000_0000 | m
 	dl.Push(SyncPipe, command(cmd))
 }
@@ -501,17 +497,11 @@ const (
 // Everything outside `r` is skipped when rendering. Additionally odd or even
 // lines can be skipped to render interlaced frames.
 func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
-	dl.scissorSet = r
+	r = r.Intersect(image.Rectangle{Max: dl.size})
 
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
 		r.Max = r.Max.Sub(image.Point{1, 0})
 	}
-
-	if r == dl.scissorReal && il == dl.interlace {
-		return
-	}
-	dl.scissorReal = r
-	dl.interlace = il
 
 	cmd := 0xed<<56 | command(il)
 	cmd |= command(r.Min.X<<46) | command(r.Min.Y<<34) | command(r.Max.X<<14) | command(r.Max.Y<<2)
@@ -609,9 +599,17 @@ func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 
 // Draws a textured rectangle.
 func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale image.Point, tileIdx uint8) {
-	full := r
-	r = r.Intersect(image.Rectangle{Max: dl.size})
-	p = p.Add(r.Min.Sub(full.Min))
+	if r.Min.X < 0 {
+		p.X -= r.Min.X
+		r.Min.X = 0
+	}
+	if r.Min.Y < 0 {
+		p.Y -= r.Min.Y
+		r.Min.Y = 0
+	}
+	if r.Empty() {
+		return
+	}
 
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
 		r.Max = r.Max.Sub(image.Point{1, 1})

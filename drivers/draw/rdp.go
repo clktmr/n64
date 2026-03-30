@@ -55,12 +55,12 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 		setFramebuffer(dst)
 	}
 
-	// Readjust r if we draw to a viewport/subimage of the framebuffer
-	r = r.Bounds().Sub(dst.Bounds().Min)
-
 	if !r.Overlaps(dst.Bounds()) {
 		return
 	}
+
+	// Readjust r if we draw to a viewport/subimage of the framebuffer
+	r = r.Sub(dst.Bounds().Min)
 
 	switch srcImg := src.(type) {
 	case *texture.Texture:
@@ -233,12 +233,14 @@ func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scal
 	bounds := src.Bounds().Intersect(r.Sub(r.Min.Sub(p)))
 	bounds = bounds.Sub(src.Bounds().Min)        // draw area in src image space
 	origin := r.Min.Add(src.Bounds().Min).Sub(p) // draw origin in screen space
+	scissor := r.Intersect(src.Bounds().Add(r.Min.Sub(p)))
+	rdp.RDP.SetScissor(scissor, rdp.InterlaceNone)
 
 	// iterate tile over the whole drawing area
 	var pt image.Point
 	for pt.X = bounds.Min.X; pt.X < bounds.Max.X; pt.X += step.Dx() {
 		for pt.Y = bounds.Min.Y; pt.Y < bounds.Max.Y; pt.Y += step.Dy() {
-			tile := step.Add(pt).Intersect(bounds)
+			tile := step.Add(pt)
 
 			debug.Assert(!tile.Empty(), "drawing empty tile")
 
@@ -289,7 +291,8 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 	})
 
 	pos := p
-	clip := r.Intersect(dst.Bounds())
+	scissor := r.Intersect(dst.Bounds())
+	rdp.RDP.SetScissor(scissor, rdp.InterlaceNone)
 
 	outofbounds := false
 	var oldtex *texture.Texture
@@ -322,7 +325,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 
 			v.tex, v.glyphRect, v.origin, v.adv = font.GlyphMap(v.rune)
 			ppos.X += v.adv
-			if ppos.X > clip.Max.X {
+			if ppos.X > scissor.Max.X {
 				outofbounds = true // skip rest of line
 			}
 			if len(str) == 0 {
@@ -340,25 +343,25 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 			if v.tex == nil {
 				continue
 			}
-			glyphRectSS := v.glyphRect.Sub(v.origin).Add(pos)
+
 			var drawRect image.Rectangle
+			var sp image.Point
 			if bg.A != 0x0 {
-				cellRect := image.Rect(0, int(font.Height-font.Ascent), v.adv, int(-font.Ascent))
-				drawRect = cellRect.Add(pos).Intersect(clip)
+				glyphRect := image.Rect(0, int(font.Height-font.Ascent), v.adv, int(-font.Ascent))
+				drawRect = glyphRect.Add(pos)
+				sp = glyphRect.Min.Add(v.origin)
 			} else {
-				drawRect = glyphRectSS.Intersect(clip)
+				drawRect = v.glyphRect.Add(pos.Sub(v.origin))
+				sp = v.glyphRect.Min
 			}
-			if !drawRect.Empty() {
-				if v.tex != oldtex {
-					rdp.RDP.SetTextureImage(v.tex)
-					oldtex = v.tex
-				}
 
-				sp := v.glyphRect.Min.Add(drawRect.Min.Sub(glyphRectSS.Min))
-
-				rdp.RDP.LoadTile(loadIdx, v.glyphRect)
-				rdp.RDP.TextureRectangle(drawRect, sp, image.Point{1, 1}, drawIdx)
+			if v.tex != oldtex {
+				rdp.RDP.SetTextureImage(v.tex)
+				oldtex = v.tex
 			}
+			rdp.RDP.LoadTile(loadIdx, v.glyphRect)
+			rdp.RDP.TextureRectangle(drawRect, sp, image.Point{1, 1}, drawIdx)
+
 			pos.X += v.adv
 		}
 	}
