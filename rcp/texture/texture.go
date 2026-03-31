@@ -106,6 +106,10 @@ func (p *Texture) Format() Format { return p.format }
 // Palette returns the color palette texture for formats CI4 and CI8.
 func (p *Texture) Palette() *Texture { return p.palette }
 
+// Bounds returns the texture's coordinate boundaries. Although already
+// implemented by [draw.Image], this avoids interface calls.
+func (p *Texture) Bounds() image.Rectangle { return *p.rect }
+
 // SetOrigin moves the coordinate system of the texture to origin. Useful if
 // subimages are used as viewports and should have their origin in (0, 0).
 func (p *Texture) SetOrigin(origin image.Point) { *p.rect = p.rect.Sub(p.rect.Min.Sub(origin)) }

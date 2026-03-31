@@ -24,10 +24,10 @@ func (op SW) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.P
 }
 
 func (op SW) DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point) {
-	if tex, ok := src.(texture.Texture); ok {
+	if tex, ok := src.(*texture.Texture); ok {
 		src = tex.Image
 	}
-	if tex, ok := mask.(texture.Texture); ok {
+	if tex, ok := mask.(*texture.Texture); ok {
 		mask = tex.Image
 	}
 	draw.DrawMask(dst, r, src, sp, mask, mp, draw.Op(op))
