@@ -51,15 +51,13 @@ func Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, op
 }
 
 func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
-	if dst, _ := dst.(*texture.Texture); true {
-		setFramebuffer(dst)
-	}
+	setFramebuffer(dst.(*texture.Texture))
 
 	if !r.Overlaps(dst.Bounds()) {
 		return
 	}
 
-	// Readjust r if we draw to a viewport/subimage of the framebuffer
+	// Move r into framebuffer's coordinate space
 	r = r.Sub(dst.Bounds().Min)
 
 	switch srcImg := src.(type) {
@@ -129,6 +127,7 @@ func drawUniformSrc(r image.Rectangle, fill, mask color.RGBA) {
 	rdp.RDP.SetOtherModes(
 		0, rdp.CycleTypeFill, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, rdp.BlendMode{},
 	)
+	rdp.RDP.SetScissor(r, rdp.InterlaceNone)
 	rdp.RDP.FillRectangle(r)
 }
 
@@ -155,6 +154,7 @@ func drawUniformOver(r image.Rectangle, fill, mask color.NRGBA) {
 		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendOver,
 	)
 
+	rdp.RDP.SetScissor(r, rdp.InterlaceNone)
 	rdp.RDP.FillRectangle(r)
 }
 
@@ -227,25 +227,26 @@ func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scal
 	loadIdx, drawIdx := rdp.RDP.SetTile(rdp.TileDescriptor{
 		Format: src.Format(),
 		Addr:   0x0,
-		Line:   uint16(src.Format().TMEMWords(step.Dx() / scale.X)),
+		Line:   uint16(src.Format().TMEMWords(step.X / scale.X)),
 	})
 
-	bounds := src.Bounds().Intersect(r.Sub(r.Min.Sub(p)))
-	bounds = bounds.Sub(src.Bounds().Min)        // draw area in src image space
-	origin := r.Min.Add(src.Bounds().Min).Sub(p) // draw origin in screen space
-	scissor := r.Intersect(src.Bounds().Add(r.Min.Sub(p)))
+	trans := r.Min.Sub(p)
+	scissor := r.Intersect(src.Bounds().Add(trans))
 	rdp.RDP.SetScissor(scissor, rdp.InterlaceNone)
+
+	trans = trans.Add(src.Bounds().Min) // texture image space to screen space
+	bounds := scissor.Sub(trans)        // draw area in texture image space
 
 	// iterate tile over the whole drawing area
 	var pt image.Point
-	for pt.X = bounds.Min.X; pt.X < bounds.Max.X; pt.X += step.Dx() {
-		for pt.Y = bounds.Min.Y; pt.Y < bounds.Max.Y; pt.Y += step.Dy() {
-			tile := step.Add(pt)
+	for pt.X = bounds.Min.X; pt.X < bounds.Max.X; pt.X += step.X {
+		for pt.Y = bounds.Min.Y; pt.Y < bounds.Max.Y; pt.Y += step.Y {
+			tile := image.Rectangle{pt, pt.Add(step)}
 
 			debug.Assert(!tile.Empty(), "drawing empty tile")
 
 			rdp.RDP.LoadTile(loadIdx, tile)
-			rdp.RDP.TextureRectangle(tile.Add(origin), tile.Min, scale, drawIdx)
+			rdp.RDP.TextureRectangle(tile.Add(trans), tile.Min, scale, drawIdx)
 		}
 	}
 }

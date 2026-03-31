@@ -497,7 +497,8 @@ const (
 // Everything outside `r` is skipped when rendering. Additionally odd or even
 // lines can be skipped to render interlaced frames.
 func (dl *DisplayList) SetScissor(r image.Rectangle, il InterlaceFrame) {
-	r = r.Intersect(image.Rectangle{Max: dl.size})
+	r.Min.X, r.Min.Y = max(r.Min.X, 0), max(r.Min.Y, 0)
+	r.Max.X, r.Max.Y = min(r.Max.X, dl.size.X), min(r.Max.Y, dl.size.Y)
 
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
 		r.Max = r.Max.Sub(image.Point{1, 0})
@@ -586,7 +587,7 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 
 // Draws a rectangle filled with the color set by SetFillColor().
 func (dl *DisplayList) FillRectangle(r image.Rectangle) {
-	r = r.Intersect(image.Rectangle{Max: dl.size})
+	r.Min.X, r.Min.Y = max(r.Min.X, 0), max(r.Min.Y, 0)
 
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
 		r.Max = r.Max.Sub(image.Point{1, 1})
@@ -622,9 +623,9 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 	dl.Push(cmd, cmd2)
 }
 
-// MaxTileSize returns the largest tile that fits into TMEM for the given
+// MaxTileSize returns the largest tile size that fits into TMEM for the given
 // bitdepth.
-func MaxTileSize(format texture.Format) image.Rectangle {
+func MaxTileSize(format texture.Format) image.Point {
 	var x, y int
 	switch format.Depth() {
 	case texture.BPP4:
@@ -643,5 +644,5 @@ func MaxTileSize(format texture.Format) image.Rectangle {
 		y >>= 1
 	}
 
-	return image.Rect(0, 0, x, y)
+	return image.Point{x, y}
 }
