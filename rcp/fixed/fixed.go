@@ -2,6 +2,7 @@
 package fixed
 
 import (
+	"image"
 	"strconv"
 
 	"golang.org/x/exp/constraints"
@@ -19,8 +20,11 @@ type Int6_10 int16
 type Fixed[T any] interface {
 	constraints.Integer
 
+	// TODO These had a bad effect on inlining in go1.24, probably better to
+	// use codegen for Point and Rectangle too.
 	Mul(T) T
 	Div(T) T
+	Floor() int
 }
 
 type Point[T Fixed[T]] struct {
@@ -45,6 +49,10 @@ func (p Point[T]) Mul(k T) Point[T] {
 // Div returns the vector p/k.
 func (p Point[T]) Div(k T) Point[T] {
 	return Point[T]{p.X.Div(k), p.Y.Div(k)}
+}
+
+func Pt[T Fixed[T]](p Point[T]) image.Point {
+	return image.Point{p.X.Floor(), p.Y.Floor()}
 }
 
 // Rectangle is a fixed-point coordinate rectangle. The Min bound is inclusive
@@ -75,6 +83,7 @@ func (r Rectangle[T]) Sub(p Point[T]) Rectangle[T] {
 // Intersect returns the largest rectangle contained by both r and s. If the two
 // rectangles do not overlap then the zero rectangle will be returned.
 func (r Rectangle[T]) Intersect(s Rectangle[T]) Rectangle[T] {
+	// TODO min/max had worse performance when Intersect gets inlined
 	r.Min.X = max(r.Min.X, s.Min.X)
 	r.Min.Y = max(r.Min.Y, s.Min.Y)
 	r.Max.X = min(r.Max.X, s.Max.X)
@@ -114,6 +123,10 @@ func (r Rectangle[T]) In(s Rectangle[T]) bool {
 	// does not require that r.Max.In(s).
 	return s.Min.X <= r.Min.X && r.Max.X <= s.Max.X &&
 		s.Min.Y <= r.Min.Y && r.Max.Y <= s.Max.Y
+}
+
+func Rect[T Fixed[T]](p Rectangle[T]) image.Rectangle {
+	return image.Rectangle{Pt(p.Min), Pt(p.Max)}
 }
 
 func asString(x, frac int64, ip, fp uint8) string {
