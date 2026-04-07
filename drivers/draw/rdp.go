@@ -281,7 +281,7 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 		},
 	})
 
-	tex, _, _, _ := font.GlyphMap(0)
+	tex, _ := font.GlyphMap(0)
 	if tex == nil {
 		return p
 	}
@@ -299,11 +299,9 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 	var oldtex *texture.Texture
 	// process characters in batches for better cache efficiency
 	var batch [8]struct {
-		rune      rune
-		tex       *texture.Texture
-		glyphRect image.Rectangle
-		origin    image.Point
-		adv       int
+		rune  rune
+		tex   *texture.Texture
+		glyph *fonts.Glyph
 	}
 	for len(str) > 0 {
 		i := 0
@@ -324,8 +322,8 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 				continue
 			}
 
-			v.tex, v.glyphRect, v.origin, v.adv = font.GlyphMap(v.rune)
-			ppos.X += v.adv
+			v.tex, v.glyph = font.GlyphMap(v.rune)
+			ppos.X += int(v.glyph.Advance)
 			if ppos.X > scissor.Max.X {
 				outofbounds = true // skip rest of line
 			}
@@ -348,22 +346,22 @@ func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Poin
 			var drawRect image.Rectangle
 			var sp image.Point
 			if bg.A != 0x0 {
-				glyphRect := image.Rect(0, int(font.Height-font.Ascent), v.adv, int(-font.Ascent))
+				glyphRect := image.Rect(0, int(font.Height-font.Ascent), int(v.glyph.Advance), int(-font.Ascent))
 				drawRect = glyphRect.Add(pos)
-				sp = glyphRect.Min.Add(v.origin)
+				sp = glyphRect.Min.Add(v.glyph.Origin.Pt())
 			} else {
-				drawRect = v.glyphRect.Add(pos.Sub(v.origin))
-				sp = v.glyphRect.Min
+				drawRect = v.glyph.Rect.Rect().Add(pos.Sub(v.glyph.Origin.Pt()))
+				sp = v.glyph.Rect.Min.Pt()
 			}
 
 			if v.tex != oldtex {
 				rdp.RDP.SetTextureImage(v.tex)
 				oldtex = v.tex
 			}
-			rdp.RDP.LoadTile(loadIdx, v.glyphRect)
+			rdp.RDP.LoadTile(loadIdx, v.glyph.Rect.Rect())
 			rdp.RDP.TextureRectangle(drawRect, sp, image.Point{1, 1}, drawIdx)
 
-			pos.X += v.adv
+			pos.X += int(v.glyph.Advance)
 		}
 	}
 

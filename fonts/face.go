@@ -4,8 +4,6 @@
 package fonts
 
 import (
-	"image"
-
 	"github.com/clktmr/n64/rcp/fixed"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/embeddedgo/display/font/subfont"
@@ -18,7 +16,7 @@ import (
 // can implement this for optimization, to avoid frequent changes in the RDP's
 // texture image.
 type GlyphMap interface {
-	GlyphMap(r rune) (img *texture.Texture, rect image.Rectangle, origin image.Point, advance int)
+	GlyphMap(r rune) (img *texture.Texture, g *Glyph)
 }
 
 type Glyph struct {
@@ -37,7 +35,7 @@ type Face struct {
 // and vertical advance in pixels.
 //
 //go:nosplit
-func (f *Face) GlyphMap(r rune) (tex *texture.Texture, rect image.Rectangle, origin image.Point, advance int) {
+func (f *Face) GlyphMap(r rune) (tex *texture.Texture, g *Glyph) {
 	sf := getSubfont(f, r)
 	if sf == nil {
 		// try to use rune(0) to render unsupported codepoints
