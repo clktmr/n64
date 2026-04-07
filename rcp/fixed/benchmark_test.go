@@ -19,73 +19,48 @@ func bLoop(b *testing.B, fn func()) {
 	}
 }
 
-func BenchmarkAddImage(b *testing.B) {
-	var r image.Rectangle
-	r.Min.X = 2
-	r.Min.Y = 1
-
-	bLoop(b, func() {
-		r = r.Add(r.Min)
-		r = r.Add(r.Min)
-		r = r.Add(r.Min)
-		r = r.Add(r.Min)
-	})
-}
-
 func BenchmarkAdd(b *testing.B) {
-	b.Run("UInt8", benchmarkAdd[fixed.UInt8])
-	b.Run("UInt14_2", benchmarkAdd[fixed.UInt14_2])
-	b.Run("UInt64", benchmarkAdd[fixed.UInt64])
-}
-
-func benchmarkAdd[T fixed.Fixed[T]](b *testing.B) {
-	var r fixed.Rectangle[T]
-	r.Min.X = 2
-	r.Min.Y = 1
-
-	bLoop(b, func() {
-		r = r.Add(r.Min)
-		r = r.Add(r.Min)
-		r = r.Add(r.Min)
-		r = r.Add(r.Min)
+	b.Run("image.Rectangle", func(b *testing.B) {
+		r := image.Rect(1, 1, 1, 1)
+		p := image.Pt(1, 1)
+		bLoop(b, func() { r = r.Add(p); r = r.Add(p); r = r.Add(p); r = r.Add(p) })
 	})
-}
-
-func BenchmarkIntersectImage(b *testing.B) {
-	var r1, r2 image.Rectangle
-
-	bLoop(b, func() {
-		r1 = r1.Intersect(r2)
-		r1 = r1.Intersect(r2)
-		r1 = r1.Intersect(r2)
-		r1 = r1.Intersect(r2)
+	b.Run("RectangleU8", func(b *testing.B) {
+		r := fixed.RectU8U(1, 1, 1, 1)
+		p := fixed.PtU8U(1, 1)
+		bLoop(b, func() { r = r.Add(p); r = r.Add(p); r = r.Add(p); r = r.Add(p) })
+	})
+	b.Run("RectangleU14_2", func(b *testing.B) {
+		r := fixed.RectU14_2U(1, 1, 1, 1)
+		p := fixed.PtU14_2U(1, 1)
+		bLoop(b, func() { r = r.Add(p); r = r.Add(p); r = r.Add(p); r = r.Add(p) })
 	})
 }
 
 func BenchmarkIntersect(b *testing.B) {
-	b.Run("UInt8", benchmarkIntersect[fixed.UInt8])
-	b.Run("UInt14_2", benchmarkIntersect[fixed.UInt14_2])
-	b.Run("UInt64", benchmarkIntersect[fixed.UInt64])
-}
-
-func benchmarkIntersect[T fixed.Fixed[T]](b *testing.B) {
-	var r1, r2 fixed.Rectangle[T]
-
-	bLoop(b, func() {
-		r1 = r1.Intersect(r2)
-		r1 = r1.Intersect(r2)
-		r1 = r1.Intersect(r2)
-		r1 = r1.Intersect(r2)
+	b.Run("image.Rectangle", func(b *testing.B) {
+		r := image.Rect(1, 1, 1, 1)
+		bLoop(b, func() { r = r.Intersect(r); r = r.Intersect(r); r = r.Intersect(r); r = r.Intersect(r) })
+	})
+	b.Run("RectangleU8", func(b *testing.B) {
+		r := fixed.RectU8U(1, 1, 1, 1)
+		bLoop(b, func() { r = r.Intersect(r); r = r.Intersect(r); r = r.Intersect(r); r = r.Intersect(r) })
+	})
+	b.Run("RectangleU14_2", func(b *testing.B) {
+		r := fixed.RectU14_2U(1, 1, 1, 1)
+		bLoop(b, func() { r = r.Intersect(r); r = r.Intersect(r); r = r.Intersect(r); r = r.Intersect(r) })
 	})
 }
 
 func BenchmarkRect(b *testing.B) {
-	var r1 fixed.Rectangle[fixed.UInt8]
-
-	bLoop(b, func() {
-		fixed.Rect(r1)
-		fixed.Rect(r1)
-		fixed.Rect(r1)
-		fixed.Rect(r1)
+	var r2 image.Rectangle
+	b.Run("RectangleU8", func(b *testing.B) {
+		r := fixed.RectU8U(1, 1, 1, 1)
+		bLoop(b, func() { r2 = r.Rect() })
 	})
+	b.Run("RectangleU14_2", func(b *testing.B) {
+		r := fixed.RectU14_2U(1, 1, 1, 1)
+		bLoop(b, func() { r2 = r.Rect() })
+	})
+	_ = r2
 }

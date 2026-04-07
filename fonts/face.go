@@ -24,7 +24,7 @@ type GlyphMap interface {
 type Glyph struct {
 	Origin  fixed.PointU8
 	Rect    fixed.RectangleU8
-	Advance fixed.UInt8
+	Advance uint8
 }
 
 // Face is a [subfont.Face] which implements the [GlyphMap] optimization.
