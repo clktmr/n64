@@ -17,8 +17,9 @@ type Point11_5 struct {
 	X, Y Int11_5
 }
 
-func Pt11_5U(x, y int) Point11_5     { return Point11_5{Int11_5U(x), Int11_5U(y)} }
-func Pt11_5F(x, y float32) Point11_5 { return Point11_5{Int11_5F(x), Int11_5F(y)} }
+func Pt11_5U(x, y int) Point11_5      { return Point11_5{Int11_5U(x), Int11_5U(y)} }
+func Pt11_5F(x, y float32) Point11_5  { return Point11_5{Int11_5F(x), Int11_5F(y)} }
+func Pt11_5P(p image.Point) Point11_5 { return Point11_5{Int11_5U(p.X), Int11_5U(p.Y)} }
 
 func (p Point11_5) Add(q Point11_5) Point11_5 { return Point11_5{p.X + q.X, p.Y + q.Y} }
 func (p Point11_5) Sub(q Point11_5) Point11_5 { return Point11_5{p.X - q.X, p.Y - q.Y} }
@@ -36,6 +37,10 @@ func Rect11_5U(x0, y0, x1, y1 int) Rectangle11_5 {
 
 func Rect11_5F(x0, y0, x1, y1 float32) Rectangle11_5 {
 	return Rectangle11_5{Pt11_5F(x0, y0), Pt11_5F(x1, y1)}
+}
+
+func Rect11_5R(r image.Rectangle) Rectangle11_5 {
+	return Rectangle11_5{Pt11_5P(r.Min), Pt11_5P(r.Max)}
 }
 
 func (r Rectangle11_5) Add(p Point11_5) Rectangle11_5 {

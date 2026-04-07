@@ -17,8 +17,9 @@ type Point6_10 struct {
 	X, Y Int6_10
 }
 
-func Pt6_10U(x, y int) Point6_10     { return Point6_10{Int6_10U(x), Int6_10U(y)} }
-func Pt6_10F(x, y float32) Point6_10 { return Point6_10{Int6_10F(x), Int6_10F(y)} }
+func Pt6_10U(x, y int) Point6_10      { return Point6_10{Int6_10U(x), Int6_10U(y)} }
+func Pt6_10F(x, y float32) Point6_10  { return Point6_10{Int6_10F(x), Int6_10F(y)} }
+func Pt6_10P(p image.Point) Point6_10 { return Point6_10{Int6_10U(p.X), Int6_10U(p.Y)} }
 
 func (p Point6_10) Add(q Point6_10) Point6_10 { return Point6_10{p.X + q.X, p.Y + q.Y} }
 func (p Point6_10) Sub(q Point6_10) Point6_10 { return Point6_10{p.X - q.X, p.Y - q.Y} }
@@ -36,6 +37,10 @@ func Rect6_10U(x0, y0, x1, y1 int) Rectangle6_10 {
 
 func Rect6_10F(x0, y0, x1, y1 float32) Rectangle6_10 {
 	return Rectangle6_10{Pt6_10F(x0, y0), Pt6_10F(x1, y1)}
+}
+
+func Rect6_10R(r image.Rectangle) Rectangle6_10 {
+	return Rectangle6_10{Pt6_10P(r.Min), Pt6_10P(r.Max)}
 }
 
 func (r Rectangle6_10) Add(p Point6_10) Rectangle6_10 {

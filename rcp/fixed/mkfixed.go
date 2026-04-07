@@ -39,8 +39,9 @@ type {{ $P }} struct{
 	X, Y {{ $I }}
 }
 
-func Pt{{ .Suffix }}U(x, y int) {{ $P }}     { return {{ $P }}{ {{ $castU }}(x), {{ $castU }}(y)} }
-func Pt{{ .Suffix }}F(x, y float32) {{ $P }} { return {{ $P }}{ {{ $castF }}(x), {{ $castF }}(y)} }
+func Pt{{ .Suffix }}U(x, y int) {{ $P }}      { return {{ $P }}{ {{ $castU }}(x), {{ $castU }}(y)} }
+func Pt{{ .Suffix }}F(x, y float32) {{ $P }}  { return {{ $P }}{ {{ $castF }}(x), {{ $castF }}(y)} }
+func Pt{{ .Suffix }}P(p image.Point) {{ $P }} { return {{ $P }}{ {{ $castU }}(p.X), {{ $castU }}(p.Y)} }
 
 func (p {{ $P }}) Add(q {{ $P }}) {{ $P }} { return {{ $P }}{p.X + q.X, p.Y + q.Y} }
 func (p {{ $P }}) Sub(q {{ $P }}) {{ $P }} { return {{ $P }}{p.X - q.X, p.Y - q.Y} }
@@ -59,6 +60,10 @@ func Rect{{ .Suffix }}U(x0, y0, x1, y1 int)     {{ $R }} {
 
 func Rect{{ .Suffix }}F(x0, y0, x1, y1 float32) {{ $R }} {
 	return {{ $R }}{ Pt{{ .Suffix }}F(x0, y0), Pt{{ .Suffix }}F(x1, y1)}
+}
+
+func Rect{{ .Suffix }}R(r image.Rectangle) {{ $R }} {
+	return {{ $R }}{ Pt{{ .Suffix }}P(r.Min), Pt{{ .Suffix }}P(r.Max)}
 }
 
 func (r {{ $R }}) Add(p {{ $P }}) {{ $R }} {

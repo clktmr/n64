@@ -6,8 +6,9 @@ type PointU8 struct {
 	X, Y uint8
 }
 
-func PtU8U(x, y int) PointU8     { return PointU8{uint8(x), uint8(y)} }
-func PtU8F(x, y float32) PointU8 { return PointU8{uint8(x), uint8(y)} }
+func PtU8U(x, y int) PointU8      { return PointU8{uint8(x), uint8(y)} }
+func PtU8F(x, y float32) PointU8  { return PointU8{uint8(x), uint8(y)} }
+func PtU8P(p image.Point) PointU8 { return PointU8{uint8(p.X), uint8(p.Y)} }
 
 func (p PointU8) Add(q PointU8) PointU8 { return PointU8{p.X + q.X, p.Y + q.Y} }
 func (p PointU8) Sub(q PointU8) PointU8 { return PointU8{p.X - q.X, p.Y - q.Y} }
@@ -25,6 +26,10 @@ func RectU8U(x0, y0, x1, y1 int) RectangleU8 {
 
 func RectU8F(x0, y0, x1, y1 float32) RectangleU8 {
 	return RectangleU8{PtU8F(x0, y0), PtU8F(x1, y1)}
+}
+
+func RectU8R(r image.Rectangle) RectangleU8 {
+	return RectangleU8{PtU8P(r.Min), PtU8P(r.Max)}
 }
 
 func (r RectangleU8) Add(p PointU8) RectangleU8 {

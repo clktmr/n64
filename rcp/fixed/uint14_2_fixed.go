@@ -17,8 +17,9 @@ type PointU14_2 struct {
 	X, Y UInt14_2
 }
 
-func PtU14_2U(x, y int) PointU14_2     { return PointU14_2{UInt14_2U(x), UInt14_2U(y)} }
-func PtU14_2F(x, y float32) PointU14_2 { return PointU14_2{UInt14_2F(x), UInt14_2F(y)} }
+func PtU14_2U(x, y int) PointU14_2      { return PointU14_2{UInt14_2U(x), UInt14_2U(y)} }
+func PtU14_2F(x, y float32) PointU14_2  { return PointU14_2{UInt14_2F(x), UInt14_2F(y)} }
+func PtU14_2P(p image.Point) PointU14_2 { return PointU14_2{UInt14_2U(p.X), UInt14_2U(p.Y)} }
 
 func (p PointU14_2) Add(q PointU14_2) PointU14_2 { return PointU14_2{p.X + q.X, p.Y + q.Y} }
 func (p PointU14_2) Sub(q PointU14_2) PointU14_2 { return PointU14_2{p.X - q.X, p.Y - q.Y} }
@@ -36,6 +37,10 @@ func RectU14_2U(x0, y0, x1, y1 int) RectangleU14_2 {
 
 func RectU14_2F(x0, y0, x1, y1 float32) RectangleU14_2 {
 	return RectangleU14_2{PtU14_2F(x0, y0), PtU14_2F(x1, y1)}
+}
+
+func RectU14_2R(r image.Rectangle) RectangleU14_2 {
+	return RectangleU14_2{PtU14_2P(r.Min), PtU14_2P(r.Max)}
 }
 
 func (r RectangleU14_2) Add(p PointU14_2) RectangleU14_2 {
