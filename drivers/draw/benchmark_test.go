@@ -3,6 +3,7 @@ package draw_test
 import (
 	"image"
 	"image/color"
+	idraw "image/draw"
 	"testing"
 
 	"github.com/clktmr/n64/drivers/draw"
@@ -37,5 +38,20 @@ func BenchmarkDrawText(b *testing.B) {
 
 	for b.Loop() {
 		draw.DrawText(fb, fb.Bounds(), gomono, image.Point{0, int(gomono.Ascent)}, white, black, lorem)
+	}
+}
+
+func BenchmarkTextImageDraw(b *testing.B) {
+	fb := video.Framebuffer()
+
+	white := color.NRGBA{0xff, 0xff, 0xff, 0xff}
+	black := color.NRGBA{0x0, 0x0, 0x0, 0xff}
+
+	src := draw.NewTextImage(gomono, fb.Bounds().Dx(), white, black)
+	src.WriteString(string(lorem))
+	src.Optimize()
+
+	for b.Loop() {
+		src.Draw(fb, fb.Bounds(), image.Pt(0, 0), idraw.Src)
 	}
 }

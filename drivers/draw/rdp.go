@@ -15,10 +15,7 @@ import (
 	"github.com/embeddedgo/display/images"
 )
 
-// HW provides hardware accelerated drawing capabilities.
-//
-// Besides implementing [draw.Drawer], it provides additional functions for
-// drawing text efficiently.
+// HW provides RDP accelerated Porter-Duff operators.
 type HW draw.Op
 
 const (
@@ -72,6 +69,9 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 			}
 			return
 		}
+	case *TextImage:
+		srcImg.Draw(dst.(*texture.Texture), r, sp, op)
+		return
 	case *image.Uniform:
 		switch maskImg := mask.(type) {
 		case nil:
