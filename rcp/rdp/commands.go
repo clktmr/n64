@@ -346,6 +346,12 @@ func (dl *DisplayList) SetTileSize(idx uint8, r image.Rectangle) {
 // Mode flags for the SetOtherModes() command.
 type ModeFlags uint64
 
+func (m ModeFlags) CycleType() CycleType     { return CycleType(m) & (0x3 << 52) }
+func (m ModeFlags) RGBDither() RGBDither     { return RGBDither(m) & (0x3 << 38) }
+func (m ModeFlags) AlphaDither() AlphaDither { return AlphaDither(m) & (0x3 << 36) }
+func (m ModeFlags) ZMode() ZMode             { return ZMode(m) & (0x3 << 10) }
+func (m ModeFlags) CvgDest() CvgDest         { return CvgDest(m) & (0x3 << 8) }
+
 const (
 	AlphaCompare ModeFlags = 1 << iota
 	DitherAlpha
@@ -420,6 +426,10 @@ const (
 	CvgDestSave
 )
 
+func OtherModes(m ModeFlags, ct CycleType, cDith RGBDither, aDith AlphaDither, zMode ZMode, cvgDest CvgDest, blend BlendMode) ModeFlags {
+	return m | ModeFlags(ct) | ModeFlags(cDith) | ModeFlags(aDith) | ModeFlags(zMode) | ModeFlags(cvgDest) | ModeFlags(blend)
+}
+
 type BlenderPM uint64
 
 const (
@@ -447,34 +457,25 @@ const (
 	BlenderBZero
 )
 
-type BlendMode struct {
-	P1, P2 BlenderPM
-	M1, M2 BlenderPM
-	A1, A2 BlenderA
-	B1, B2 BlenderB
+type BlendMode uint64
+
+func BlendMode1Cycle(P1, M1 BlenderPM, A1 BlenderA, B1 BlenderB) BlendMode {
+	return BlendMode2Cycle(P1, M1, A1, B1, 0, 0, 0, 0)
 }
 
-func (c *BlendMode) modeFlags() ModeFlags {
-	return (ModeFlags(c.B2<<16) | ModeFlags(c.B1<<18) |
-		ModeFlags(c.M2<<20) | ModeFlags(c.M1<<22) |
-		ModeFlags(c.A2<<24) | ModeFlags(c.A1<<26) |
-		ModeFlags(c.P2<<28) | ModeFlags(c.P1<<30))
+func BlendMode2Cycle(
+	P1, M1 BlenderPM, A1 BlenderA, B1 BlenderB,
+	P2, M2 BlenderPM, A2 BlenderA, B2 BlenderB,
+) BlendMode {
+	return (BlendMode(B2<<16) | BlendMode(B1<<18) |
+		BlendMode(M2<<20) | BlendMode(M1<<22) |
+		BlendMode(A2<<24) | BlendMode(A1<<26) |
+		BlendMode(P2<<28) | BlendMode(P1<<30))
 }
 
-func (dl *DisplayList) SetOtherModes(
-	flags ModeFlags,
-	ct CycleType,
-	cDith RGBDither,
-	aDith AlphaDither,
-	zMode ZMode,
-	cvgDest CvgDest,
-	blend BlendMode,
-) {
-	debug.Assert(!(ct == CycleTypeCopy && dl.bpp == texture.BPP32), "COPY mode unavailable for 32-bit framebuffer")
-	debug.Assert(!(ct == CycleTypeFill && dl.bpp == texture.BPP4), "FILL mode unavailable for 4-bit framebuffer")
-
-	m := flags | blend.modeFlags()
-	m |= ModeFlags(ct) | ModeFlags(cDith) | ModeFlags(aDith) | ModeFlags(zMode) | ModeFlags(cvgDest)
+func (dl *DisplayList) SetOtherModes(m ModeFlags) {
+	debug.Assert(!(m.CycleType() == CycleTypeCopy && dl.bpp == texture.BPP32), "COPY mode unavailable for 32-bit framebuffer")
+	debug.Assert(!(m.CycleType() == CycleTypeFill && dl.bpp == texture.BPP4), "FILL mode unavailable for 4-bit framebuffer")
 
 	if m == dl.otherModes {
 		return
@@ -572,15 +573,7 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 	}
 	dl.combineMode = m
 
-	cmd := command(0xfc<<56 |
-		m.One.RGB.A<<52 | m.One.RGB.C<<47 |
-		m.One.Alpha.A<<44 | m.One.Alpha.C<<41 |
-		m.Two.RGB.A<<37 | m.Two.RGB.C<<32)
-	cmd |= command(0x0 |
-		m.One.RGB.B<<28 | m.Two.RGB.B<<24 |
-		m.Two.Alpha.A<<21 | m.Two.Alpha.C<<18 |
-		m.One.RGB.D<<15 | m.One.Alpha.B<<12 | m.One.Alpha.D<<9 |
-		m.Two.RGB.D<<6 | m.Two.Alpha.B<<3 | m.Two.Alpha.D)
+	cmd := command(0xfc<<56 | m)
 
 	dl.Push(SyncPipe, cmd)
 }

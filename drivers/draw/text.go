@@ -112,25 +112,23 @@ func (p *TextImage) Optimize() {
 func (p *TextImage) Draw(dst *texture.Texture, r image.Rectangle, sp image.Point, op draw.Op) {
 	rdp.RDP.SetPrimitiveColor(p.fg)
 
-	var blendmode *rdp.BlendMode
+	var blendmode rdp.BlendMode
 	mode := rdp.ForceBlend | rdp.BiLerp0
 	if op == draw.Over {
 		mode |= rdp.ImageRead
-		blendmode = &blendOver
+		blendmode = blendOver()
 	} else {
 		rdp.RDP.SetBlendColor(p.bg)
-		blendmode = &blendOverEnv
+		blendmode = blendOverEnv()
 	}
-	rdp.RDP.SetOtherModes(mode,
-		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, *blendmode,
-	)
+	rdp.RDP.SetOtherModes(rdp.OtherModes(mode,
+		rdp.CycleTypeOne, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, blendmode,
+	))
 
-	rdp.RDP.SetCombineMode(rdp.CombineMode{
-		Two: rdp.CombinePass{
-			RGB:   rdp.CombineParams{0, 0, 0, rdp.CombinePrimitive},
-			Alpha: rdp.CombineParams{0, 0, 0, rdp.CombineTex0},
-		},
-	})
+	rdp.RDP.SetCombineMode(rdp.CombineMode1Cycle(
+		0, 0, 0, rdp.CombinePrimitive,
+		0, 0, 0, rdp.CombineTex0,
+	))
 
 	tex, _ := p.font.GlyphMap(0)
 	if tex == nil {

@@ -1,5 +1,7 @@
 package rdp
 
+type CombineSource uint64
+
 const (
 	CombineCombined CombineSource = iota
 	CombineTex0
@@ -49,7 +51,24 @@ const (
 // values. Color and alpha are calculated separately.
 // If CycleTypeTwo is active two passes can be defined, where the second pass
 // can use the first pass output as it's input.
-type CombineMode struct{ One, Two CombinePass }
-type CombinePass struct{ RGB, Alpha CombineParams }
-type CombineParams struct{ A, B, C, D CombineSource }
-type CombineSource uint64
+type CombineMode uint64
+
+func CombineMode1Cycle(rgbA, rgbB, rgbC, rgbD, alphaA, alphaB, alphaC, alphaD CombineSource) CombineMode {
+	// Calling CombineMode2Cycle would prevent inlining
+	return CombineMode(0 |
+		rgbA<<37 | rgbC<<32 | rgbB<<24 | alphaA<<21 |
+		alphaC<<18 | rgbD<<6 | alphaB<<3 | alphaD,
+	)
+}
+
+func CombineMode2Cycle(
+	rgbA, rgbB, rgbC, rgbD, alphaA, alphaB, alphaC, alphaD CombineSource,
+	rgbA2, rgbB2, rgbC2, rgbD2, alphaA2, alphaB2, alphaC2, alphaD2 CombineSource,
+) CombineMode {
+	return CombineMode(0 |
+		rgbA<<52 | rgbC<<47 | alphaA<<44 | alphaC<<41 |
+		rgbA2<<37 | rgbC2<<32 | rgbB<<28 | rgbB2<<24 |
+		alphaA2<<21 | alphaC2<<18 | rgbD<<15 | alphaB<<12 |
+		alphaD<<9 | rgbD2<<6 | alphaB2<<3 | alphaD2,
+	)
+}

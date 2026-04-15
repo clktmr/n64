@@ -27,10 +27,10 @@ func TestFillRect(t *testing.T) {
 	}
 	dl.SetScissor(bounds, rdp.InterlaceNone)
 	dl.SetFillColor(testcolor)
-	dl.SetOtherModes(
+	dl.SetOtherModes(rdp.OtherModes(
 		rdp.ForceBlend|rdp.AtomicPrimitive,
-		rdp.CycleTypeFill, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, rdp.BlendMode{},
-	)
+		rdp.CycleTypeFill, rdp.RGBDitherNone, rdp.AlphaDitherNone, rdp.ZmodeOpaque, rdp.CvgDestClamp, rdp.BlendMode(0),
+	))
 
 	img.Invalidate()
 
