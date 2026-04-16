@@ -38,12 +38,6 @@ var target *texture.Texture
 func Bounds() image.Rectangle { return target.Bounds() }
 func Flush()                  { rdp.RDP.Flush() }
 
-func setFramebuffer(tex *texture.Texture) {
-	target = tex
-	rdp.RDP.SetColorImage(target)
-	rdp.RDP.SetScissor(image.Rectangle{Max: target.Bounds().Size()}, rdp.InterlaceNone)
-}
-
 func Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, op draw.Op) {
 	DrawMask(dst, r, src, sp, nil, image.Point{}, op)
 }
@@ -54,7 +48,8 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 		goto fallback
 	}
 
-	setFramebuffer(fb)
+	target = fb
+	rdp.RDP.SetColorImage(fb)
 
 	if !r.Overlaps(fb.Bounds()) {
 		return
@@ -63,20 +58,20 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 	// Move r into framebuffer's coordinate space
 	r = r.Sub(fb.Bounds().Min)
 
-	switch srcImg := src.(type) {
+	switch src := src.(type) {
 	case *texture.Texture:
 		switch mask.(type) {
 		case nil:
-			_, isAlpha := srcImg.Image.(*image.Alpha)
+			_, isAlpha := src.Image.(*image.Alpha)
 			if isAlpha {
-				drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.NRGBA{0xff, 0xff, 0xff, 0xff}, op)
+				drawTexture(r, src, sp, image.Point{1, 1}, color.NRGBA{0xff, 0xff, 0xff, 0xff}, op)
 			} else {
-				drawColorImage(r, srcImg, sp, image.Point{1, 1}, color.NRGBA{}, op)
+				drawTexture(r, src, sp, image.Point{1, 1}, color.NRGBA{}, op)
 			}
 			return
 		}
 	case *TextImage:
-		srcImg.Draw(fb, r, sp, op)
+		drawTextImage(fb, r, src, sp, op)
 		return
 	case *image.Uniform:
 		switch maskImg := mask.(type) {
@@ -84,36 +79,36 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 			// fill
 			switch op {
 			case draw.Src:
-				c := color.RGBAModel.Convert(srcImg.C).(color.RGBA)
+				c := color.RGBAModel.Convert(src.C).(color.RGBA)
 				drawUniformSrc(r, c, color.RGBA{A: 0xff})
 				return
 			case draw.Over:
-				c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
+				c := color.NRGBAModel.Convert(src.C).(color.NRGBA)
 				drawUniformOver(r, c, color.NRGBA{A: 0xff})
 				return
 			}
 		case *image.Uniform:
 			switch op {
 			case draw.Src:
-				c := color.RGBAModel.Convert(srcImg.C).(color.RGBA)
+				c := color.RGBAModel.Convert(src.C).(color.RGBA)
 				m := color.RGBAModel.Convert(maskImg.C).(color.RGBA)
 				drawUniformSrc(r, c, m)
 				return
 			case draw.Over:
-				c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
+				c := color.NRGBAModel.Convert(src.C).(color.NRGBA)
 				m := color.NRGBAModel.Convert(maskImg.C).(color.NRGBA)
 				drawUniformOver(r, c, m)
 				return
 			}
 		case *texture.Texture:
-			c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
-			drawColorImage(r, maskImg, mp, image.Point{1, 1}, c, op)
+			c := color.NRGBAModel.Convert(src.C).(color.NRGBA)
+			drawTexture(r, maskImg, mp, image.Point{1, 1}, c, op)
 			return
 		case *images.Magnifier:
 			maskAlpha, ok := maskImg.Image.(*texture.Texture)
 			debug.Assert(ok, "rdp unsupported magnifier format")
-			c := color.NRGBAModel.Convert(srcImg.C).(color.NRGBA)
-			drawColorImage(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, c, op)
+			c := color.NRGBAModel.Convert(src.C).(color.NRGBA)
+			drawTexture(r, maskAlpha, mp, image.Point{maskImg.Sx, maskImg.Sy}, c, op)
 			return
 		}
 	}
@@ -199,7 +194,7 @@ func blendOverEnv() rdp.BlendMode {
 	)
 }
 
-func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.NRGBA, op draw.Op) {
+func drawTexture(r image.Rectangle, src *texture.Texture, p image.Point, scale image.Point, fill color.NRGBA, op draw.Op) {
 	var modeflags rdp.ModeFlags
 	colorSource := rdp.CombineTex0
 	alphaSource := rdp.CombineTex0
@@ -273,9 +268,10 @@ func drawColorImage(r image.Rectangle, src *texture.Texture, p image.Point, scal
 // Fore- and background colors fg and bg don't support alpha. If a nil
 // background color is passed, it will be transparent.
 func DrawText(dst image.Image, r image.Rectangle, font *fonts.Face, p image.Point, fg, bg color.NRGBA, str []byte) image.Point {
-	if dst, _ := dst.(*texture.Texture); true {
-		setFramebuffer(dst)
-	}
+	fb := dst.(*texture.Texture)
+
+	target = fb
+	rdp.RDP.SetColorImage(fb)
 
 	rdp.RDP.SetPrimitiveColor(fg)
 

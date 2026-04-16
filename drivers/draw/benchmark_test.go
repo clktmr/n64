@@ -3,7 +3,6 @@ package draw_test
 import (
 	"image"
 	"image/color"
-	idraw "image/draw"
 	"testing"
 
 	"github.com/clktmr/n64/drivers/draw"
@@ -52,6 +51,6 @@ func BenchmarkTextImageDraw(b *testing.B) {
 	src.Optimize()
 
 	for b.Loop() {
-		src.Draw(fb, fb.Bounds(), image.Pt(0, 0), idraw.Src)
+		draw.Src.Draw(fb, fb.Bounds(), src, image.Pt(0, 0))
 	}
 }

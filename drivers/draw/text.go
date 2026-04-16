@@ -111,8 +111,8 @@ func (p *TextImage) Optimize() {
 	})
 }
 
-func (p *TextImage) Draw(dst *texture.Texture, r image.Rectangle, sp image.Point, op draw.Op) {
-	rdp.RDP.SetPrimitiveColor(p.fg)
+func drawTextImage(dst *texture.Texture, r image.Rectangle, src *TextImage, sp image.Point, op draw.Op) {
+	rdp.RDP.SetPrimitiveColor(src.fg)
 
 	var blendmode rdp.BlendMode
 	mode := rdp.ForceBlend | rdp.BiLerp0
@@ -120,7 +120,7 @@ func (p *TextImage) Draw(dst *texture.Texture, r image.Rectangle, sp image.Point
 		mode |= rdp.ImageRead
 		blendmode = blendOver()
 	} else {
-		rdp.RDP.SetBlendColor(p.bg)
+		rdp.RDP.SetBlendColor(src.bg)
 		blendmode = blendOverEnv()
 	}
 	rdp.RDP.SetOtherModes(rdp.OtherModes(mode,
@@ -132,7 +132,7 @@ func (p *TextImage) Draw(dst *texture.Texture, r image.Rectangle, sp image.Point
 		0, 0, 0, rdp.CombineTex0,
 	))
 
-	tex, _ := p.font.GlyphMap(0)
+	tex, _ := src.font.GlyphMap(0)
 	if tex == nil {
 		return
 	}
@@ -147,9 +147,9 @@ func (p *TextImage) Draw(dst *texture.Texture, r image.Rectangle, sp image.Point
 	rdp.RDP.SetScissor(scissor, rdp.InterlaceNone)
 
 	lasttex, lasttile := -1, -1
-	for _, cmd := range p.cmds {
+	for _, cmd := range src.cmds {
 		if int(cmd.tex) != lasttex {
-			rdp.RDP.SetTextureImage(p.textures[cmd.tex])
+			rdp.RDP.SetTextureImage(src.textures[cmd.tex])
 			lasttex = int(cmd.tex)
 		}
 		if int(cmd.tile) != lasttile {
