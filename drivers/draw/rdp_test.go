@@ -5,11 +5,10 @@ import (
 	_ "embed"
 	"image"
 	"image/color"
-	"image/draw"
 	"image/png"
 	"testing"
 
-	n64draw "github.com/clktmr/n64/drivers/draw"
+	"github.com/clktmr/n64/drivers/draw"
 	"github.com/clktmr/n64/rcp/texture"
 	"github.com/clktmr/n64/rcp/video"
 	n64testing "github.com/clktmr/n64/testing"
@@ -102,11 +101,11 @@ func TestDrawMask(t *testing.T) {
 	imgLarge4.Writeback()
 
 	imgAlpha := texture.NewAlpha(imgN64LogoSmall.Bounds())
-	draw.Src.Draw(imgAlpha, imgAlpha.Bounds(), imgN64LogoSmall, image.Point{})
+	draw.Src.Draw(imgAlpha.Image, imgAlpha.Bounds(), imgN64LogoSmall, image.Point{})
 	imgAlpha.Writeback()
 
 	imgI4 := texture.NewI4(imgN64LogoSmall.Bounds())
-	draw.Src.Draw(imgI4, imgI4.Bounds(), imgN64LogoSmall, image.Point{})
+	draw.Src.Draw(imgI4.Image, imgI4.Bounds(), imgN64LogoSmall, image.Point{})
 	imgI4.Writeback()
 
 	// Define testcases
@@ -153,9 +152,9 @@ func TestDrawMask(t *testing.T) {
 			result.Invalidate()
 
 			// draw
-			n64draw.SW(tc.op).DrawMask(expected, tc.r, tc.src, tc.sp, tc.mask, tc.mp) // expected
-			n64draw.HW(tc.op).DrawMask(result, tc.r, tc.src, tc.sp, tc.mask, tc.mp)   // result
-			n64draw.Flush()
+			tc.op.DrawMask(expected.Image, tc.r, tc.src, tc.sp, tc.mask, tc.mp) // expected
+			tc.op.DrawMask(result, tc.r, tc.src, tc.sp, tc.mask, tc.mp)         // result
+			draw.Flush()
 
 			// compare
 			cumErr := 0

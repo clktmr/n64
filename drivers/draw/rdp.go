@@ -15,20 +15,21 @@ import (
 	"github.com/embeddedgo/display/images"
 )
 
-// HW provides RDP accelerated Porter-Duff operators.
-type HW draw.Op
+// Op is a Porter-Duff compositing operator which facilitates RDP acceleration
+// for images of type [*github.com/clktmr/n64/rcp/texture.Texture].
+type Op draw.Op
 
 const (
-	Over = HW(draw.Over)
-	Src  = HW(draw.Src)
+	Over = Op(draw.Over)
+	Src  = Op(draw.Src)
 )
 
 // Draw implements the [draw.Drawer] interface.
-func (op HW) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point) {
+func (op Op) Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point) {
 	DrawMask(dst, r, src, sp, nil, image.Point{}, draw.Op(op))
 }
 
-func (op HW) DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point) {
+func (op Op) DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point) {
 	DrawMask(dst, r, src, sp, mask, mp, draw.Op(op))
 }
 
@@ -48,14 +49,19 @@ func Draw(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, op
 }
 
 func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point, mask image.Image, mp image.Point, op draw.Op) {
-	setFramebuffer(dst.(*texture.Texture))
+	fb, ok := dst.(*texture.Texture)
+	if !ok {
+		goto fallback
+	}
 
-	if !r.Overlaps(dst.Bounds()) {
+	setFramebuffer(fb)
+
+	if !r.Overlaps(fb.Bounds()) {
 		return
 	}
 
 	// Move r into framebuffer's coordinate space
-	r = r.Sub(dst.Bounds().Min)
+	r = r.Sub(fb.Bounds().Min)
 
 	switch srcImg := src.(type) {
 	case *texture.Texture:
@@ -70,7 +76,7 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 			return
 		}
 	case *TextImage:
-		srcImg.Draw(dst.(*texture.Texture), r, sp, op)
+		srcImg.Draw(fb, r, sp, op)
 		return
 	case *image.Uniform:
 		switch maskImg := mask.(type) {
@@ -112,7 +118,14 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 		}
 	}
 
-	debug.Assert(false, "rdp unsupported format")
+fallback:
+	if tex, ok := src.(*texture.Texture); ok {
+		src = tex.Image
+	}
+	if tex, ok := mask.(*texture.Texture); ok {
+		mask = tex.Image
+	}
+	draw.DrawMask(dst, r, src, sp, mask, mp, draw.Op(op))
 }
 
 func drawUniformSrc(r image.Rectangle, fill, mask color.RGBA) {
