@@ -31,12 +31,13 @@ var _ image.Image = &TextImage{}
 
 func NewTextImage(f *fonts.Face, width int, fg, bg color.Color) *TextImage {
 	return &TextImage{
-		font:  f,
-		width: width,
-		dot:   image.Pt(0, int(f.Ascent)),
-		cmds:  make([]cmd, 0),
-		fg:    color.NRGBAModel.Convert(fg).(color.NRGBA),
-		bg:    color.NRGBAModel.Convert(bg).(color.NRGBA),
+		font:   f,
+		width:  width,
+		height: int(f.Height),
+		dot:    image.Pt(0, int(f.Ascent)),
+		cmds:   make([]cmd, 0),
+		fg:     color.NRGBAModel.Convert(fg).(color.NRGBA),
+		bg:     color.NRGBAModel.Convert(bg).(color.NRGBA),
 	}
 }
 
@@ -58,6 +59,7 @@ func (p *TextImage) WriteString(s string) {
 		if r == '\n' {
 			p.dot.X = 0
 			p.dot.Y += int(p.font.Height)
+			p.height += int(p.font.Height)
 			continue
 		}
 		tex, glyph := p.font.GlyphMap(r)
