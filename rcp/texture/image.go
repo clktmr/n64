@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 
+	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
 )
 
@@ -123,6 +124,7 @@ func (p *imageI4) SubImage(r image.Rectangle) image.Image {
 	if r.Empty() {
 		return &imageI4{}
 	}
+	debug.Assert(r.Min.X&0x1 == 0, "subimage alignment")
 	i := p.PixOffset(r.Min.X, r.Min.Y)
 	return &imageI4{
 		Pix:    p.Pix[i:],
