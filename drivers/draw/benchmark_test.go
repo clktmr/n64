@@ -48,7 +48,6 @@ func BenchmarkTextImageDraw(b *testing.B) {
 
 	src := draw.NewTextImage(gomono, fb.Bounds().Dx(), white, black)
 	src.WriteString(string(lorem))
-	src.Optimize()
 
 	for b.Loop() {
 		draw.Src.Draw(fb, fb.Bounds(), src, image.Pt(0, 0))

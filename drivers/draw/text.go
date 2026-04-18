@@ -74,6 +74,7 @@ func (p *TextImage) WriteString(s string) {
 		lastGlyph := len(p.cmds)
 
 		if unicode.IsSpace(r) {
+			p.sortCommands(lastGlyph, p.lastSpace)
 			p.lastSpace = lastGlyph
 		}
 		if r == '\n' {
@@ -136,11 +137,21 @@ func (p *TextImage) WriteString(s string) {
 	}
 }
 
-// Optimize sorts the internal displaylist to minimize tile loading.
-func (p *TextImage) Optimize() {
+// insertionSortCmpFunc sorts data[:] using insertion sort, assuming data is
+// already sorted up until n.
+func insertionSortCmpFunc[E any](data []E, n int, cmp func(a, b E) int) {
+	for i := n; i < len(data); i++ {
+		for j := i; j > 0 && cmp(data[j], data[j-1]) < 0; j-- {
+			data[j], data[j-1] = data[j-1], data[j]
+		}
+	}
+}
+
+// sortCommands sorts the internal displaylist to minimize tile loading.
+func (p *TextImage) sortCommands(until, sorted int) {
 	// Only sort up to last space, in case we need to wrap the current token
 	// in a later WriteString call.
-	slices.SortFunc(p.cmds[:p.lastSpace], func(a, b cmd) int {
+	insertionSortCmpFunc(p.cmds[:until], sorted, func(a, b cmd) int {
 		if a.tex > b.tex {
 			return 1
 		} else if a.tex < b.tex {
