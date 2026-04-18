@@ -9,6 +9,7 @@ import (
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/fixed"
 	"github.com/clktmr/n64/rcp/texture"
 )
 
@@ -607,7 +608,6 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 		return
 	}
 
-	debug.Assert(r.In(image.Rect(0, 0, 1024, 1024)), "r overflow")
 	debug.Assert(p.In(image.Rect(-512, -512, 512, 512)), "p overflow")
 	debug.Assert(p.In(image.Rect(-2048, -2048, 2048, 2048)), "scale overflow")
 
@@ -615,8 +615,7 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 		r.Max = r.Max.Sub(image.Point{1, 1})
 	}
 
-	cmd := 0xe4<<56 | command(r.Max.X)<<46 | command(r.Max.Y)<<34
-	cmd |= command(tileIdx)<<24 | command(r.Min.X)<<14 | command(r.Min.Y)<<2
+	cmd := 0xe4<<56 | command(tileIdx)<<24 | command(fixed.RectU10_2R(r))
 	cmd2 := command(p.X&0x7ff)<<53 | command(p.Y&0x7ff)<<37
 	cmd2 |= command(((0x8000/scale.X)>>5)<<16 | (0x8000/scale.Y)>>5)
 	dl.Push(cmd, cmd2)
