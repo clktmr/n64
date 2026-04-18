@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"image/draw"
 	"slices"
+	"unicode"
 
 	"github.com/clktmr/n64/fonts"
 	"github.com/clktmr/n64/rcp/fixed"
@@ -25,20 +26,23 @@ type TextImage struct {
 	cmds          []cmd
 	textures      []*texture.Texture
 	fg, bg        color.NRGBA
+
+	lastSpace      int
+	curTokenOrigin image.Point
 }
 
 var _ image.Image = &TextImage{}
 
 func NewTextImage(f *fonts.Face, width int, fg, bg color.Color) *TextImage {
-	return &TextImage{
-		font:   f,
-		width:  width,
-		height: int(f.Height),
-		dot:    image.Pt(0, int(f.Ascent)),
-		cmds:   make([]cmd, 0),
-		fg:     color.NRGBAModel.Convert(fg).(color.NRGBA),
-		bg:     color.NRGBAModel.Convert(bg).(color.NRGBA),
+	p := &TextImage{
+		font:  f,
+		width: width,
+		cmds:  make([]cmd, 0),
+		fg:    color.NRGBAModel.Convert(fg).(color.NRGBA),
+		bg:    color.NRGBAModel.Convert(bg).(color.NRGBA),
 	}
+	p.Reset()
+	return p
 }
 
 func (p *TextImage) ColorModel() color.Model {
@@ -54,17 +58,52 @@ func (p *TextImage) At(x, y int) color.Color {
 	return color.Black // TODO
 }
 
+// Reset removes all text from the image.
+func (p *TextImage) Reset() {
+	p.cmds = p.cmds[:0]
+	p.height = int(p.font.Height)
+	p.dot = image.Pt(0, int(p.font.Ascent))
+	p.curTokenOrigin = p.dot
+	p.lastSpace = 0
+}
+
+// WriteString appends s to the TextImage.
+// Line feeds (\n) are represented as newline.
 func (p *TextImage) WriteString(s string) {
 	for _, r := range s {
+		lastGlyph := len(p.cmds)
+
+		if unicode.IsSpace(r) {
+			p.lastSpace = lastGlyph
+		}
 		if r == '\n' {
-			p.dot.X = 0
-			p.dot.Y += int(p.font.Height)
-			p.height += int(p.font.Height)
+			p.newline()
 			continue
 		}
+		if lastGlyph == p.lastSpace+1 { // first rune of word
+			p.curTokenOrigin = p.dot
+		}
+
 		tex, glyph := p.font.GlyphMap(r)
 		if tex == nil {
 			continue
+		}
+
+		// Check if we need to wrap
+		if p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X) > p.width {
+			if p.lastSpace == lastGlyph { // wrap caused by whitespace
+				p.newline()
+				continue
+			}
+			// walk over the last token and move it to the newline
+			curToken := p.cmds[p.lastSpace:]
+			curTokenAdv := p.dot.X - p.curTokenOrigin.X
+			p.newline()
+			trans := p.curTokenOrigin.Sub(p.dot)
+			for i := range curToken {
+				curToken[i].r = fixed.RectU10_2R(curToken[i].r.Rect().Sub(trans))
+			}
+			p.dot.X += curTokenAdv
 		}
 
 		var glyphRect, drawRect image.Rectangle
@@ -75,6 +114,8 @@ func (p *TextImage) WriteString(s string) {
 			sp = glyphRect.Min.Add(glyph.Origin.Pt())
 		} else {
 			glyphRect = glyph.Rect.Rect()
+			// FIXME drawRect.Min might be negative and overflow in
+			// later RectU10_2 conversion.
 			drawRect = glyphRect.Add(p.dot.Sub(glyph.Origin.Pt()))
 			sp = glyphRect.Min
 		}
@@ -95,8 +136,11 @@ func (p *TextImage) WriteString(s string) {
 	}
 }
 
+// Optimize sorts the internal displaylist to minimize tile loading.
 func (p *TextImage) Optimize() {
-	slices.SortFunc(p.cmds, func(a, b cmd) int {
+	// Only sort up to last space, in case we need to wrap the current token
+	// in a later WriteString call.
+	slices.SortFunc(p.cmds[:p.lastSpace], func(a, b cmd) int {
 		if a.tex > b.tex {
 			return 1
 		} else if a.tex < b.tex {
@@ -109,6 +153,12 @@ func (p *TextImage) Optimize() {
 		}
 		return 0
 	})
+}
+
+func (p *TextImage) newline() {
+	p.dot.X = 0
+	p.dot.Y += int(p.font.Height)
+	p.height += int(p.font.Height)
 }
 
 func drawTextImage(dst *texture.Texture, r image.Rectangle, src *TextImage, sp image.Point, op draw.Op) {
