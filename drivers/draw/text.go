@@ -66,7 +66,7 @@ func (p *TextImage) Reset() {
 	p.height = int(p.font.Height)
 	p.dot = image.Pt(0, int(p.font.Ascent))
 	p.curTokenOrigin = p.dot
-	p.lastSpace = 0
+	p.lastSpace = -1
 }
 
 // WriteString appends s to the TextImage.
@@ -93,7 +93,8 @@ func (p *TextImage) WriteString(s string) {
 		}
 
 		// Check if we need to wrap
-		if p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X) > p.Wrap {
+		if p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X) > p.Wrap &&
+			p.curTokenOrigin.X != 0 {
 			if p.lastSpace == lastGlyph { // wrap caused by whitespace
 				p.newline()
 				continue
