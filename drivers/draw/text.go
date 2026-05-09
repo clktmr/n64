@@ -29,17 +29,19 @@ type TextImage struct {
 
 	lastSpace      int
 	curTokenOrigin image.Point
+
+	Wrap int
 }
 
 var _ image.Image = &TextImage{}
 
-func NewTextImage(f *fonts.Face, width int, fg, bg color.Color) *TextImage {
+func NewTextImage(f *fonts.Face, fg, bg color.Color) *TextImage {
 	p := &TextImage{
-		font:  f,
-		width: width,
-		cmds:  make([]cmd, 0),
-		fg:    color.NRGBAModel.Convert(fg).(color.NRGBA),
-		bg:    color.NRGBAModel.Convert(bg).(color.NRGBA),
+		font: f,
+		Wrap: int(^uint(0) >> 1),
+		cmds: make([]cmd, 0),
+		fg:   color.NRGBAModel.Convert(fg).(color.NRGBA),
+		bg:   color.NRGBAModel.Convert(bg).(color.NRGBA),
 	}
 	p.Reset()
 	return p
@@ -91,7 +93,7 @@ func (p *TextImage) WriteString(s string) {
 		}
 
 		// Check if we need to wrap
-		if p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X) > p.width {
+		if p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X) > p.Wrap {
 			if p.lastSpace == lastGlyph { // wrap caused by whitespace
 				p.newline()
 				continue
@@ -134,6 +136,7 @@ func (p *TextImage) WriteString(s string) {
 		})
 
 		p.dot.X += int(glyph.Advance)
+		p.width = max(p.width, p.dot.X)
 	}
 }
 

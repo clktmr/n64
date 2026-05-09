@@ -46,7 +46,8 @@ func BenchmarkTextImageDraw(b *testing.B) {
 	white := color.NRGBA{0xff, 0xff, 0xff, 0xff}
 	black := color.NRGBA{0x0, 0x0, 0x0, 0xff}
 
-	src := draw.NewTextImage(gomono, fb.Bounds().Dx(), white, black)
+	src := draw.NewTextImage(gomono, white, black)
+	src.Wrap = fb.Bounds().Dx()
 	src.WriteString(string(lorem))
 
 	for b.Loop() {
