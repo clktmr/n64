@@ -41,12 +41,6 @@ const (
 	dmaEnabled statusFlags = 1 << 25 // reflects control register
 )
 
-const (
-	dacRateNTSC = 48681818
-	dacRatePAL  = 49656530
-	dacRateMPAL = 48628322
-)
-
 const dmaAlign = 8
 
 const maxBufLen = 1 << 17
@@ -74,17 +68,7 @@ func init() {
 // which specifies how many samples per second are played back. Per default it's
 // set to 48000 Hz.
 func Start(hz int) {
-	var clockrate int
-	switch machine.VideoType {
-	case machine.VideoNTSC:
-		clockrate = dacRateNTSC
-	case machine.VideoPAL:
-		clockrate = dacRatePAL
-	case machine.VideoMPAL:
-		clockrate = dacRateMPAL
-
-	}
-
+	clockrate := machine.ClockRate()
 	dacrate := ((2 * clockrate / hz) + 1) / 2
 	bitrate := min(dacrate/66, 16)
 

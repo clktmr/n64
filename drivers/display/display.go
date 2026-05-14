@@ -67,6 +67,10 @@ func (p *Display) FPS() float32 {
 	return 1e9 / float32(p.frametime)
 }
 
+func (p *Display) RefreshInterval() time.Duration {
+	return video.RefreshInterval()
+}
+
 func (p *Display) Duration() time.Duration {
 	return p.rendertime
 }

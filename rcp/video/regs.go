@@ -8,6 +8,7 @@ package video
 import (
 	"embedded/mmio"
 	"image"
+	"time"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/machine"
@@ -81,6 +82,8 @@ var (
 	limits     image.Rectangle
 	limitsNTSC = image.Rect(0, 0, 640, 480).Add(image.Point{108, 35})
 	limitsPAL  = image.Rect(0, 0, 640, 576).Add(image.Point{128, 45})
+
+	refreshInterval time.Duration
 )
 
 // Automatically configure video output based on detected console type.
@@ -90,7 +93,6 @@ func Setup(interlace bool) {
 		SetupPAL(interlace, false)
 	case machine.VideoNTSC:
 		SetupNTSC(interlace)
-
 	}
 }
 
@@ -114,6 +116,8 @@ func SetupNTSC(interlace bool) {
 
 	limits = limitsNTSC
 	SetScale(limits)
+
+	updateRefreshInterval()
 
 	regs().vIntr.Store(2)
 	SetFramebuffer(fb)
@@ -149,8 +153,18 @@ func SetupPAL(interlace, pal60 bool) {
 
 	SetScale(limits)
 
+	updateRefreshInterval()
+
 	regs().vIntr.Store(2)
 	SetFramebuffer(fb)
+}
+
+func RefreshInterval() time.Duration { return refreshInterval }
+
+func updateRefreshInterval() {
+	hsync := time.Duration(regs().hSync.Load()&0xffff + 1)
+	vsync := time.Duration(regs().vSync.Load())
+	refreshInterval = (hsync * vsync * time.Second / time.Duration(machine.ClockRate())) >> 1
 }
 
 // Scale returns the rectangle inside the current video standards boundaries

@@ -45,4 +45,20 @@ var (
 
 	// Reports if an expansion pak is installed.
 	PakType pak = *(*pak)(unsafe.Pointer(cpu.KSEG1 | 0x8000_0318))
+
+	clockRate int
 )
+
+func init() {
+	switch VideoType {
+	case VideoPAL:
+		clockRate = 49656530
+	case VideoNTSC:
+		clockRate = 48681818
+	case VideoMPAL:
+		clockRate = 48628322
+	}
+}
+
+// Reports the VI clockrate
+func ClockRate() int { return clockRate }
