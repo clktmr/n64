@@ -88,7 +88,7 @@ var (
 
 // Automatically configure video output based on detected console type.
 func Setup(interlace bool) {
-	switch machine.VideoType {
+	switch machine.VideoType() {
 	case machine.VideoPAL:
 		SetupPAL(interlace, false)
 	case machine.VideoNTSC:

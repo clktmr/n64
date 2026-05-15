@@ -36,21 +36,20 @@ const (
 )
 
 // These variables are set by bootloader (aka IPL3).
-var (
-	// Reports whether the console booted from a power cycle or reset.
-	ResetType reset = *(*reset)(unsafe.Pointer(cpu.KSEG1 | 0x8000_030C))
 
-	// Reports the console's region.
-	VideoType video = *(*video)(unsafe.Pointer(cpu.KSEG1 | 0x8000_0300))
+// Reports whether the console booted from a power cycle or reset.
+func ResetType() reset { return *(*reset)(unsafe.Pointer(cpu.KSEG1 | 0x8000_030C)) }
 
-	// Reports if an expansion pak is installed.
-	PakType pak = *(*pak)(unsafe.Pointer(cpu.KSEG1 | 0x8000_0318))
+// Reports the console's region.
+func VideoType() video { return *(*video)(unsafe.Pointer(cpu.KSEG1 | 0x8000_0300)) }
 
-	clockRate int
-)
+// Reports if an expansion pak is installed.
+func PakType() pak { return *(*pak)(unsafe.Pointer(cpu.KSEG1 | 0x8000_0318)) }
+
+var clockRate int
 
 func init() {
-	switch VideoType {
+	switch VideoType() {
 	case VideoPAL:
 		clockRate = 49656530
 	case VideoNTSC:
