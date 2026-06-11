@@ -100,7 +100,7 @@ func (p *TextImage) WriteString(s string) {
 				continue
 			}
 			// walk over the last token and move it to the newline
-			curToken := p.cmds[p.lastSpace:]
+			curToken := p.cmds[p.lastSpace+1:]
 			curTokenAdv := p.dot.X - p.curTokenOrigin.X
 			p.newline()
 			trans := p.curTokenOrigin.Sub(p.dot)
