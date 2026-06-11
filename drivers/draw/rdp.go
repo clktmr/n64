@@ -70,6 +70,12 @@ func DrawMask(dst draw.Image, r image.Rectangle, src image.Image, sp image.Point
 			}
 			return
 		}
+	case *BorderImage:
+		switch mask.(type) {
+		case nil:
+			drawBorderImage(r, src, sp, op)
+			return
+		}
 	case *TextImage:
 		drawTextImage(fb, r, src, sp, op)
 		return

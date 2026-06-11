@@ -108,6 +108,8 @@ func TestDrawMask(t *testing.T) {
 	draw.Src.Draw(imgI4.Image, imgI4.Bounds(), imgN64LogoSmall, image.Point{})
 	imgI4.Writeback()
 
+	imgBorder := draw.NewBorderImage(bounds.Dx()-48, bounds.Dy()-48, color.NRGBA{R: 0xff, G: 0x7f, B: 0x3f, A: 0x7f}, 4, 8, 12, 16)
+
 	// Define testcases
 	tests := map[string]struct {
 		r    image.Rectangle
@@ -139,6 +141,8 @@ func TestDrawMask(t *testing.T) {
 		"drawSrcI4":            {bounds.Inset(24), imgI4, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawSrcAlpha":         {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Src},
 		"drawOverAlpha":        {bounds.Inset(24), imgAlpha, image.Point{}, nil, image.Point{}, draw.Over},
+		"borderSrc":            {bounds.Inset(24), imgBorder, image.Point{}, nil, image.Point{}, draw.Src},
+		"borderOver":           {bounds.Inset(24), imgBorder, image.Point{}, nil, image.Point{}, draw.Over},
 	}
 
 	// Run all testcases
