@@ -208,8 +208,7 @@ func drawTextImage(dst *texture.Texture, r image.Rectangle, src *TextImage, sp i
 	})
 
 	pos := r.Min.Sub(sp)
-	scissor := r.Intersect(dst.Bounds())
-	rdp.RDP.SetScissor(scissor, rdp.InterlaceNone)
+	rdp.RDP.SetScissor(r, rdp.InterlaceNone)
 
 	lasttex, lasttile := -1, -1
 	for _, cmd := range src.cmds {
