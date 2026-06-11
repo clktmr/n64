@@ -583,14 +583,11 @@ func (dl *DisplayList) SetCombineMode(m CombineMode) {
 func (dl *DisplayList) FillRectangle(r image.Rectangle) {
 	r.Min.X, r.Min.Y = max(r.Min.X, 0), max(r.Min.Y, 0)
 
-	debug.Assert(r.In(image.Rect(0, 0, 1024, 1024)), "r overflow")
-
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
-		r.Max = r.Max.Sub(image.Point{1, 1})
+		r.Max.X, r.Max.Y = max(r.Max.X-1, 0), max(r.Max.Y-1, 0)
 	}
 
-	cmd := 0xf6<<56 | command(r.Max.X<<46) | command(r.Max.Y<<34)
-	cmd |= command(r.Min.X<<14) | command(r.Min.Y<<2)
+	cmd := 0xf6<<56 | command(fixed.RectU10_2R(r))
 	dl.Push(cmd)
 }
 
@@ -612,7 +609,7 @@ func (dl *DisplayList) TextureRectangle(r image.Rectangle, p image.Point, scale 
 	debug.Assert(p.In(image.Rect(-2048, -2048, 2048, 2048)), "scale overflow")
 
 	if dl.otherModes&ModeFlags(CycleTypeCopy|CycleTypeFill) != 0 {
-		r.Max = r.Max.Sub(image.Point{1, 1})
+		r.Max.X, r.Max.Y = max(r.Max.X-1, 0), max(r.Max.Y-1, 0)
 	}
 
 	cmd := 0xe4<<56 | command(tileIdx)<<24 | command(fixed.RectU10_2R(r))
