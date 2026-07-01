@@ -4,15 +4,9 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/clktmr/n64/drivers/carts/summercart64"
-	"github.com/diskfs/go-diskfs/filesystem/fat32"
-	"github.com/diskfs/go-diskfs/partition/mbr"
+	"github.com/clktmr/fat32"
+	"github.com/clktmr/fat32/mbr"
 )
-
-type blockdev struct{ *summercart64.SDCard }
-
-// diskfs wants this implemented, although fat32 doesn't use it
-func (d *blockdev) Seek(offset int64, whence int) (int64, error) { panic("not supported") }
 
 func TestSDCard(t *testing.T) {
 	if testing.Short() {
@@ -34,21 +28,20 @@ func TestSDCard(t *testing.T) {
 	}
 
 	const blockSize = 512
-	disk := &blockdev{sd}
-	table, err := mbr.Read(disk, blockSize, blockSize)
+	table, err := mbr.Read(sd, blockSize, blockSize)
 	if err != nil {
 		t.Fatal(err)
 	}
 	part := table.GetPartitions()[0]
-	sdfs, err := fat32.Read(disk, part.GetSize(), part.GetStart(), blockSize)
+	sdfs, err := fat32.Read(sd, part.GetSize(), part.GetStart(), blockSize)
 	if err != nil {
 		t.Fatal(err)
 	}
-	files, err := sdfs.ReadDir("/")
+	files, err := sdfs.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, v := range files {
-		t.Log(fs.FormatFileInfo(v))
+		t.Log(fs.FormatDirEntry(v))
 	}
 }
