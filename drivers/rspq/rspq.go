@@ -31,14 +31,14 @@ const rspqDataAddress = 32
 var rspqDataSize, rspqTextSize int
 
 const (
-	_                   = 1 << iota
-	sigRdpsyncfull      // Signal used by RDP SYNC_FULL command to notify that an interrupt is pending
-	sigSyncpoint        // Signal used by RSP to notify that a syncpoint was reached
-	sigHighpriRunning   // Signal used to notify that RSP is executing the highpri queue
-	sigHighpriRequested // Signal used to notify that the CPU has requested that the RSP switches to the highpri queue
-	sigBufdoneHigh      // Signal used by RSP to notify that has finished one of the two buffers of the highpri queue
-	sigBufdoneLow       // Signal used by RSP to notify that has finished one of the two buffers of the lowpri queue
-	sigMore             // Signal used by the CPU to notify the RSP that more data has been written in the current queue
+	_                   rsp.Signal = 1 << iota
+	sigRdpsyncfull                 // Signal used by RDP SYNC_FULL command to notify that an interrupt is pending
+	sigSyncpoint                   // Signal used by RSP to notify that a syncpoint was reached
+	sigHighpriRunning              // Signal used to notify that RSP is executing the highpri queue
+	sigHighpriRequested            // Signal used to notify that the CPU has requested that the RSP switches to the highpri queue
+	sigBufdoneHigh                 // Signal used by RSP to notify that has finished one of the two buffers of the highpri queue
+	sigBufdoneLow                  // Signal used by RSP to notify that has finished one of the two buffers of the lowpri queue
+	sigMore                        // Signal used by the CPU to notify the RSP that more data has been written in the current queue
 )
 
 func init() {
@@ -52,6 +52,8 @@ func init() {
 }
 
 func Reset() {
+	rsp.Halt()
+
 	r, err := rspQueueFiles.Open("rsp_queue.ucode")
 	if err != nil {
 		panic(err)
@@ -116,15 +118,67 @@ func (p *context) Append(bufidx int, c Command, args ...uint32) {
 	}
 }
 
+func flush() {
+	rsp.SetSignals(sigMore)
+	rsp.Resume()
+}
+
 // TODO should be implemented in assembly for performance
 func Write(c Command, args ...uint32) {
 	ctx.Append(ctx.bufIdx, c, args...)
-
-	rsp.SetSignals(sigMore)
-	rsp.Resume()
+	flush()
 
 	if ctx.cur+MaxCommandSize > len(ctx.buffers[ctx.bufIdx]) {
 		nextBuffer()
+	}
+}
+
+// HighpriBegin switches to the high-priority context. All subsequent calls to
+// [Write] will append commands to the high-priority queue.
+func HighpriBegin() {
+	debug.Assert(ctx != highpri, "already in highpri mode")
+
+	ctx = highpri
+
+	// If we are continuing in the same highpri buffer (not at the beginning)
+	if ctx.cur > 0 {
+		buffer := cpu.UncachedSlice(ctx.buffers[ctx.bufIdx])
+		debug.Assert(ctx.cur >= 4 && Command(buffer[ctx.cur-3]>>24) == CmdSwapBuffers, "expected highpri epilog")
+
+		// Overwrite the epilog JUMP + SWAP_BUFFERS with JUMP to the next write cursor
+		target := uint32(cpu.PhysicalAddressSlice(ctx.buffers[ctx.bufIdx][ctx.cur:]))
+		buffer[ctx.cur-4] = uint32(CmdJump)<<24 | target
+		buffer[ctx.cur-3] = uint32(CmdJump)<<24 | target
+	}
+
+	// Clear request, set running signals
+	ctx.Append(ctx.bufIdx, CmdWriteStatus, sigHighpriRequested.ClearMask()|sigHighpriRunning.SetMask())
+
+	rsp.SetSignals(sigHighpriRequested)
+	flush()
+}
+
+// HighpriEnd switches back to the low-priority context. Must be preceeded by a
+// call to [HighpriBegin].
+func HighpriEnd() {
+	debug.Assert(ctx == highpri, "not in highpri mode")
+
+	// Append highpri epilog, switching back to lowpri mode
+	nextAddr := cpu.PhysicalAddressSlice(ctx.buffers[ctx.bufIdx][ctx.cur+1:])
+	ctx.Append(ctx.bufIdx, CmdJump, uint32(nextAddr))
+	ctx.Append(ctx.bufIdx, CmdSwapBuffers, lowpriCallSlot, highpriCallSlot, sigHighpriRunning.ClearMask())
+
+	flush()
+	ctx = lowpri
+}
+
+// HighpriSync blocks until the high-priority queue has completed execution.
+func HighpriSync() {
+	debug.Assert(ctx != highpri, "not allowed in highpri mode")
+
+	flush()
+	for rsp.Signals()&(sigHighpriRequested|sigHighpriRunning) != 0 {
+		// wait
 	}
 }
 
@@ -137,14 +191,8 @@ func Crashed() bool {
 	return instruction == 0x00ba000d // halted in break loop
 }
 
-// switchContexts switches between low and high priority context
-func switchContexts(newctx *context) {
-	ctx = newctx
-}
-
 // nextBuffer switches to the other buffer of the current context
 func nextBuffer() {
-	// TODO if block { ... }
 	for rsp.Signals()&ctx.bufdoneSig == 0 {
 		// wait
 		rsp.Resume()
@@ -154,7 +202,7 @@ func nextBuffer() {
 
 	ctx.ClearBuffer(ctx.bufIdx)
 
-	ctx.Append(1-ctx.bufIdx, CmdWriteStatus, uint32(ctx.bufdoneSig.SetMask()))
+	ctx.Append(1-ctx.bufIdx, CmdWriteStatus, ctx.bufdoneSig.SetMask())
 	ctx.Append(1-ctx.bufIdx, CmdJump, uint32(cpu.PhysicalAddressSlice(ctx.buffers[ctx.bufIdx])))
 
 	rsp.Resume()

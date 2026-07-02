@@ -166,11 +166,13 @@ func exec(volume float32, channels int, dst []byte) {
 	state.Writeback()
 	state.Invalidate()
 
+	rspq.HighpriBegin()
 	rspq.Write(cmdExec|rspq.Command(rspMixerId>>24),
 		uint32(uint16(volume*0xffff)),
 		uint32((len(dst)>>2)<<16|channels),
 		uint32(cpu.PhysicalAddressSlice(dst)),
 		uint32(cpu.PhysicalAddress(state.Value())))
+	rspq.HighpriEnd()
 }
 
 func (b *Reader) Read(p []byte) (n int, err error) {

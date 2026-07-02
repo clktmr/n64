@@ -13,6 +13,12 @@ const (
 	MaxShortCommandSize = 16
 )
 
+const (
+	maxBlockNestingLevel = 8
+	lowpriCallSlot       = (maxBlockNestingLevel + 0) << 2
+	highpriCallSlot      = (maxBlockNestingLevel + 1) << 2
+)
+
 var (
 	rspqData rspQueue
 

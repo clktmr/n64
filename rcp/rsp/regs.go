@@ -92,6 +92,7 @@ func SetInterrupt(en bool) {
 
 func Stopped() bool { return regs().status.LoadBits(halted|dmaBusy) == halted }
 func Broke() bool   { return regs().status.LoadBits(broke) != 0 }
+func Halt()         { regs().status.Store(setHalt) }
 func Resume()       { regs().status.Store(clrBroke | clrHalt) }
 func Step() {
 	regs().status.Store(setSingleStep)
@@ -104,11 +105,13 @@ func Step() {
 type Signal uint8
 
 func Signals() Signal       { return Signal(regs().status.Load() >> 7) }
-func SetSignals(s Signal)   { regs().status.Store(s.SetMask()) }
-func ClearSignals(s Signal) { regs().status.Store(s.ClearMask()) }
+func SetSignals(s Signal)   { regs().status.Store(s.setMask()) }
+func ClearSignals(s Signal) { regs().status.Store(s.clearMask()) }
 
-func (s Signal) SetMask() statusFlags   { return statusFlags(interleave(uint8(s))) << 10 }
-func (s Signal) ClearMask() statusFlags { return statusFlags(interleave(uint8(s))) << 9 }
+func (s Signal) setMask() statusFlags   { return statusFlags(interleave(uint8(s))) << 10 }
+func (s Signal) clearMask() statusFlags { return statusFlags(interleave(uint8(s))) << 9 }
+func (s Signal) SetMask() uint32        { return uint32(s.setMask()) }
+func (s Signal) ClearMask() uint32      { return uint32(s.clearMask()) }
 
 // interleave puts a zero bit before every bit in mask.
 func interleave(mask uint8) (r uint16) {
