@@ -242,15 +242,10 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 	if rspq.Crashed() {
 		panic("rsp crash")
 	}
-	inputsBuf.Free()
+	inputsBuf.Reset()
 	pinner.Unpin()
 
 	return len(p), nil
-}
-
-type buffer struct {
-	buf []byte
-	pos int
 }
 
 var (
@@ -258,18 +253,22 @@ var (
 	pinner    cpu.Pinner
 )
 
-func (v *buffer) Alloc(n int) (b []byte) {
-	if v.pos+n > len(v.buf) || !cpu.IsPadded(v.buf[v.pos:v.pos+n]) {
-		v.buf = cpu.MakePaddedSliceAligned[byte](v.pos+n, 16)
+type buffer []byte
+
+func (p *buffer) Alloc(n int) (b []byte) {
+	pos := len(*p)
+	if pos+n > cap(*p) || !cpu.IsPadded((*p)[pos:pos+n]) {
+		*p = cpu.MakePaddedSliceAligned[byte](pos+n, 16)
 	}
 
-	b = v.buf[v.pos : v.pos+n]
-	v.pos = (v.pos + n + cpu.CacheLineSize - 1) &^ (cpu.CacheLineSize - 1)
+	b = (*p)[pos : pos+n]
+	pos = (pos + n + cpu.CacheLineSize - 1) &^ (cpu.CacheLineSize - 1)
+	*p = (*p)[:pos]
 	return
 }
 
-func (v *buffer) Free() {
-	v.pos = 0
+func (p *buffer) Reset() {
+	*p = (*p)[:0]
 }
 
 // Loop returns a new io.ReadSeeker that loops the underlying io.ReadSeeker. The
