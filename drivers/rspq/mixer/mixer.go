@@ -7,6 +7,7 @@ import (
 	"structs"
 	"sync"
 	"sync/atomic"
+	"unsafe"
 
 	"github.com/clktmr/n64/debug"
 	"github.com/clktmr/n64/drivers/cartfs"
@@ -39,10 +40,7 @@ var (
 
 	sampleRate = uint(48000)
 	volume     = float32(1.0)
-	inputs     = [MaxChannels]struct {
-		buf []byte
-		src *Source
-	}{}
+	inputs     = [MaxChannels]*Source{}
 )
 
 type settings struct {
@@ -112,10 +110,7 @@ func (v *Source) volume() (lvol, rvol int1_15) {
 }
 
 func Init() {
-	inputs = [MaxChannels]struct {
-		buf []byte
-		src *Source
-	}{}
+	inputs = [MaxChannels]*Source{}
 
 	r, err := rspMixerFiles.Open("rsp_mixer.ucode")
 	if err != nil {
@@ -149,7 +144,7 @@ func SetSource(channel int, src *Source) {
 	ch.len = 0
 	ch.flags = channelFlags(bps) | ch16bit
 
-	inputs[channel].src = src
+	inputs[channel] = src
 }
 
 var Output = &Reader{}
@@ -180,60 +175,61 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 	defer mtx.Unlock()
 
 	numChannels := 0
-	for i, input := range inputs {
+	for i, src := range inputs {
 		state := state.Value()
 		ch := &state.channels[i]
 
-		if input.src == nil {
+		if src == nil {
 			ch.len = 0
 			continue
 		}
 
-		state.lvol[i], state.rvol[i] = input.src.volume()
-		ch.step = input.src.step()
+		state.lvol[i], state.rvol[i] = src.volume()
+		ch.step = src.step()
 		outputLen := uint20_12U(uint(len(p) >> 2))
 		inputLen := ch.step.Mul(outputLen).Ceil()
 
 		// seek back unread bytes and align down to cacheline
 		seek := -int64(ch.len.Floor() - ch.pos.Floor()&^(cpu.CacheLineSize-1))
-		_, err := input.src.rs.Seek(seek, io.SeekCurrent)
+		_, err := src.rs.Seek(seek, io.SeekCurrent)
 		if err != nil {
 			panic(err)
 		}
 		// only keep position relative to current cacheline
 		ch.pos &= (cpu.CacheLineSize-1)<<12 | (1<<12 - 1)
 
-		if l, ok := input.src.rs.(*looper); ok {
+		if l, ok := src.rs.(*looper); ok {
 			// Check if we can loop in the rsp
 			if l.Size() <= int64(inputLen) {
-				input.buf = inputsBuf.Alloc(int(l.Size() + loopOverread))
-				_, err := io.ReadFull(input.src.rs, input.buf) // TODO read only once
+				buf := inputsBuf.Alloc(int(l.Size() + loopOverread))
+				_, err := io.ReadFull(src.rs, buf) // TODO read only once
 				if err != nil {
 					panic(err)
 				}
+				pinner.Pin(unsafe.SliceData(buf))
 				ch.len = uint20_12U(uint(l.Size()))
 				ch.loop_len = ch.len
-				ch.ptr = cpu.PhysicalAddressSlice(input.buf)
-				cpu.WritebackSlice(input.buf)
+				ch.ptr = cpu.PhysicalAddressSlice(buf)
+				cpu.WritebackSlice(buf)
 				numChannels = i
 				continue
 			}
 		}
 
-		input.buf = inputsBuf.Alloc(int(inputLen + cpu.CacheLineSize))
+		buf := inputsBuf.Alloc(int(inputLen + cpu.CacheLineSize))
 
-		nn, err := io.ReadFull(input.src.rs, input.buf)
+		nn, err := io.ReadFull(src.rs, buf)
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
-			inputs[i].src = nil
-			inputs[i].buf = nil
+			inputs[i] = nil
 		} else if err != nil {
 			panic(err)
 		}
 
+		pinner.Pin(unsafe.SliceData(buf))
 		ch.len = uint20_12U(uint(nn))
 		ch.loop_len = 0
-		ch.ptr = cpu.PhysicalAddressSlice(input.buf)
-		cpu.WritebackSlice(input.buf)
+		ch.ptr = cpu.PhysicalAddressSlice(buf)
+		cpu.WritebackSlice(buf)
 
 		numChannels = i
 	}
@@ -247,6 +243,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		panic("rsp crash")
 	}
 	inputsBuf.Free()
+	pinner.Unpin()
 
 	return len(p), nil
 }
@@ -256,14 +253,17 @@ type buffer struct {
 	pos int
 }
 
-var inputsBuf buffer // TODO pinner
+var (
+	inputsBuf buffer
+	pinner    cpu.Pinner
+)
 
 func (v *buffer) Alloc(n int) (b []byte) {
 	if v.pos+n > len(v.buf) || !cpu.IsPadded(v.buf[v.pos:v.pos+n]) {
 		v.buf = cpu.MakePaddedSliceAligned[byte](v.pos+n, 16)
 	}
 
-	b = v.buf[v.pos : v.pos+n] // TODO alignUp to fill cacheline
+	b = v.buf[v.pos : v.pos+n]
 	v.pos = (v.pos + n + cpu.CacheLineSize - 1) &^ (cpu.CacheLineSize - 1)
 	return
 }
