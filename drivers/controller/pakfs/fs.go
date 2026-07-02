@@ -406,13 +406,15 @@ func (p *FS) sync() (err error) {
 
 	p.iNodesChecksum(true)
 
-	for _, offsetFunc := range [...]func(uint8) (int64, int64){iNodesOffset, iNodesBakOffset} {
-		offset, _ := offsetFunc(p.id.BankCount)
-		iNodesWriter := io.NewOffsetWriter(dev, offset)
-		err = binary.Write(iNodesWriter, binary.BigEndian, p.inodes)
-		if err != nil {
-			return
-		}
+	offset, _ := iNodesOffset(p.id.BankCount)
+	offsetBak, _ := iNodesBakOffset(p.id.BankCount)
+	iNodesWriter := io.MultiWriter(
+		io.NewOffsetWriter(dev, offset),
+		io.NewOffsetWriter(dev, offsetBak),
+	)
+	err = binary.Write(iNodesWriter, binary.BigEndian, p.inodes)
+	if err != nil {
+		return
 	}
 
 	return
