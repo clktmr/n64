@@ -193,7 +193,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		seek := -int64(ch.len.Floor() - ch.pos.Floor()&^(cpu.CacheLineSize-1))
 		_, err := src.rs.Seek(seek, io.SeekCurrent)
 		if err != nil {
-			panic(err)
+			return 0, err
 		}
 		// only keep position relative to current cacheline
 		ch.pos &= (cpu.CacheLineSize-1)<<12 | (1<<12 - 1)
@@ -204,7 +204,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 				buf := inputsBuf.Alloc(int(l.Size() + loopOverread))
 				_, err := io.ReadFull(src.rs, buf) // TODO read only once
 				if err != nil {
-					panic(err)
+					return 0, err
 				}
 				pinner.Pin(unsafe.SliceData(buf))
 				ch.len = uint20_12U(uint(l.Size()))
@@ -222,7 +222,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			inputs[i] = nil
 		} else if err != nil {
-			panic(err)
+			return 0, err
 		}
 
 		pinner.Pin(unsafe.SliceData(buf))
