@@ -265,14 +265,9 @@ func Register(p *ucode.UCode) (overlayId uint32) {
 	cpu.WritebackSlice(p.Text)
 	cpu.WritebackSlice(p.Data)
 
-	// TODO let rsp do the dma, so we don't have to wait
-	for !rsp.Stopped() {
-		// wait
-	}
-	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, rspqDataAddress), binary.BigEndian, &rspqData)
-	if err != nil {
-		panic(err)
-	}
+	HighpriBegin()
+	DMARead(cpu.Slice(&rspqData.Tables), rspqDataAddress)
+	HighpriEnd()
 
 	return uint32(id << 28)
 }

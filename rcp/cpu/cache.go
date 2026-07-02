@@ -164,6 +164,11 @@ func MMIO[T any](ptr Addr) *T {
 	return (*T)(unsafe.Pointer(uintptr(ptr) | KSEG1))
 }
 
+// Slice returns a byte slice to an arbitrary datatype.
+func Slice[T any](p *T) []byte {
+	return unsafe.Slice((*byte)(unsafe.Pointer(p)), unsafe.Sizeof(*p))
+}
+
 // UncachedSlice returns a new slice with the same underlying data as s, with
 // caching disabled. The returned slice is only valid as long as s exists, as it
 // doesn't prevent the underlying array from being garbage collected.

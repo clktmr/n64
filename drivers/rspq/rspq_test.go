@@ -43,7 +43,7 @@ func TestDMA(t *testing.T) {
 	expected := cpu.MakePaddedSlice[byte](128)
 	rspq.Reset()
 
-	rspq.DMAWrite(got, 256, uint32(len(got)))
+	rspq.DMAWrite(got, 256)
 	for !rsp.Stopped() {
 		// wait
 	}
