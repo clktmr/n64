@@ -13,7 +13,6 @@ import (
 	"github.com/clktmr/n64/drivers/cartfs"
 	"github.com/clktmr/n64/drivers/rspq"
 	"github.com/clktmr/n64/rcp/cpu"
-	"github.com/clktmr/n64/rcp/rsp"
 	"github.com/clktmr/n64/rcp/rsp/ucode"
 )
 
@@ -161,13 +160,11 @@ func exec(volume float32, channels int, dst []byte) {
 	state.Writeback()
 	state.Invalidate()
 
-	rspq.HighpriBegin()
 	rspq.Write(cmdExec|rspq.Command(rspMixerId>>24),
 		uint32(uint16(volume*0xffff)),
 		uint32((len(dst)>>2)<<16|channels),
 		uint32(cpu.PhysicalAddressSlice(dst)),
 		uint32(cpu.PhysicalAddress(state.Value())))
-	rspq.HighpriEnd()
 }
 
 func (b *Reader) Read(p []byte) (n int, err error) {
@@ -235,10 +232,11 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 	}
 
 	cpu.InvalidateSlice(p)
+	rspq.HighpriBegin()
 	exec(volume, numChannels+1, p)
-	for !rsp.Stopped() {
-		// wait
-	}
+	rspq.HighpriEnd()
+	rspq.HighpriSync()
+
 	if rspq.Crashed() {
 		panic("rsp crash")
 	}
