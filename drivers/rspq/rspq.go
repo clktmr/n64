@@ -161,8 +161,6 @@ func nextBuffer() {
 	ctx.cur = 0
 }
 
-var q rspQueue
-
 // ucodes keeps a reference to registered rspq overlays to prevent them being
 // garbage collected, since the RSP will need to load them whenever processing a
 // command
@@ -176,7 +174,7 @@ func Register(p *ucode.UCode) (overlayId uint32) {
 		panic(err)
 	}
 
-	idx := slices.IndexFunc(q.Tables.OverlayDescriptor[1:], func(o overlayDescriptor) bool {
+	idx := slices.IndexFunc(rspqData.Tables.OverlayDescriptor[1:], func(o overlayDescriptor) bool {
 		return o.Code == 0
 	})
 	if idx == -1 {
@@ -186,7 +184,7 @@ func Register(p *ucode.UCode) (overlayId uint32) {
 
 	slotCount := (len(hdr.Commands) + 15) >> 4
 
-	id := bytes.Index(q.Tables.OverlayTable[1:], make([]byte, slotCount))
+	id := bytes.Index(rspqData.Tables.OverlayTable[1:], make([]byte, slotCount))
 	if id == -1 {
 		panic("max command count")
 	}
