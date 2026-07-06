@@ -74,14 +74,15 @@ func Reset() {
 	lowpri.cur = 0
 	highpri.cur = 0
 
-	rspqData = rspQueue{}
+	rspqData := rspqData.Value()
+	*rspqData = rspQueue{}
 	rspqData.RSPQDramLowpriAddr = cpu.PhysicalAddressSlice(lowpri.buffers[lowpri.bufIdx])
 	rspqData.RSPQDramHighpriAddr = cpu.PhysicalAddressSlice(highpri.buffers[highpri.bufIdx])
 	rspqData.RSPQDramAddr = rspqData.RSPQDramLowpriAddr
 	rspqData.Tables.OverlayDescriptor[0].State = cpu.PhysicalAddressSlice(dummyOverlayState)
 	rspqData.Tables.OverlayDescriptor[0].DataSize = uint16(len(dummyOverlayState) * 8)
 
-	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, rspqDataAddress), binary.BigEndian, &rspqData)
+	err = binary.Write(io.NewOffsetWriter(rsp.DMEM, rspqDataAddress), binary.BigEndian, rspqData)
 	if err != nil {
 		panic(err)
 	}
@@ -222,6 +223,7 @@ func Register(p *ucode.UCode) (overlayId uint32) {
 		panic(err)
 	}
 
+	rspqData := rspqData.Value()
 	idx := slices.IndexFunc(rspqData.Tables.OverlayDescriptor[1:], func(o overlayDescriptor) bool {
 		return o.Code == 0
 	})

@@ -3,6 +3,7 @@ package rspq
 import (
 	"encoding/binary"
 	"io"
+	"structs"
 
 	"github.com/clktmr/n64/rcp/cpu"
 	"github.com/clktmr/n64/rcp/rsp"
@@ -20,7 +21,7 @@ const (
 )
 
 var (
-	rspqData rspQueue
+	rspqData = cpu.NewPadded[rspQueue, cpu.Align16]()
 
 	ctx     = lowpri
 	lowpri  = newContext(0x200, sigBufdoneLow)
@@ -52,6 +53,8 @@ func (p *context) ClearBuffer(idx int) {
 }
 
 type overlayDescriptor struct {
+	_ structs.HostLayout
+
 	Code, Data, State  cpu.Addr
 	CodeSize, DataSize uint16
 }
@@ -59,7 +62,11 @@ type overlayDescriptor struct {
 // Struct layout is known by rsp_queue microcode and copied to DMEM. See
 // rsp_queue_s in libdragons's rspq_internal.h
 type rspQueue struct {
+	_ structs.HostLayout
+
 	Tables struct {
+		_ structs.HostLayout
+
 		OverlayTable      [0x10]uint8
 		OverlayDescriptor [8]overlayDescriptor
 	}
@@ -69,6 +76,8 @@ type rspQueue struct {
 	RSPQDramAddr        cpu.Addr
 	RSPQRdpSentinel     uint32
 	RSPQRdpMode         struct {
+		_ structs.HostLayout
+
 		Combiner               uint64
 		CombinerMipMapMask     uint64
 		BlendStep0, BlendStep1 uint32
@@ -87,7 +96,11 @@ type rspQueue struct {
 
 // Struct layout is known by rsp_queue microcode and copied to DMEM.
 type rspqOverlayHeader struct {
+	_ structs.HostLayout
+
 	Fields struct {
+		_ structs.HostLayout
+
 		StateStart  uint16 // Start of the portion of DMEM used as "state"
 		StateSize   uint16 // Size of the portion of DMEM used as "state"
 		CommandBase uint16 // Primary overlay ID used for this overlay
