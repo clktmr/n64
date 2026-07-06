@@ -43,7 +43,7 @@ func testMakePaddedSliceAligned[T cpu.Paddable](t *testing.T) {
 	for i := range 64 {
 		for _, align := range []uintptr{2, 4, 8, 16, 32, 64, 128, 256} {
 			slice := cpu.MakePaddedSliceAligned[T](i, align)
-			assertPadded(t, slice, i, 1)
+			assertPadded(t, slice, i, align)
 		}
 	}
 }
