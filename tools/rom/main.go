@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	_ "embed"
 
@@ -90,8 +91,16 @@ func objcopy(dst io.WriterAt, src *elf.File) error {
 //go:embed ipl3_compat.z64
 var n64IPL3 []byte
 
+func toASCII(r rune) rune {
+	if r > unicode.MaxASCII {
+		return '\x1a'
+	}
+	return r
+}
+
 func n64WriteROMHeader(rom *os.File, gametitle string) error {
-	copy(n64IPL3[0x20:0x34], fmt.Sprintf("%-20s", gametitle)) // TODO encode in ascii
+	gametitle = strings.Map(toASCII, gametitle)
+	copy(n64IPL3[0x20:0x34], gametitle)
 	_, err := rom.WriteAt(n64IPL3, 0)
 	if err != nil {
 		return err
