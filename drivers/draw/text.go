@@ -63,6 +63,7 @@ func (p *TextImage) At(x, y int) color.Color {
 // Reset removes all text from the image.
 func (p *TextImage) Reset() {
 	p.cmds = p.cmds[:0]
+	p.width = 0
 	p.height = int(p.font.Height)
 	p.dot = image.Pt(0, int(p.font.Ascent))
 	p.curTokenOrigin = p.dot
@@ -136,8 +137,8 @@ func (p *TextImage) WriteString(s string) {
 			tex:  uint32(texIdx),
 		})
 
+		p.width = max(p.width, p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X))
 		p.dot.X += int(glyph.Advance)
-		p.width = max(p.width, p.dot.X)
 	}
 }
 
