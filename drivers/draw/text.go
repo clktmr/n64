@@ -94,8 +94,7 @@ func (p *TextImage) WriteString(s string) {
 		}
 
 		// Check if we need to wrap
-		if p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X) > p.Wrap &&
-			p.curTokenOrigin.X != 0 {
+		if p.dot.X+int(glyph.Rect.Max.X-glyph.Origin.X) > p.Wrap && p.curTokenOrigin.X != 0 {
 			if p.lastSpace == lastGlyph { // wrap caused by whitespace
 				p.newline()
 				continue
@@ -108,6 +107,7 @@ func (p *TextImage) WriteString(s string) {
 			for i := range curToken {
 				curToken[i].r = fixed.RectU10_2R(curToken[i].r.Rect().Sub(trans))
 			}
+			p.curTokenOrigin = p.dot
 			p.dot.X += curTokenAdv
 		}
 
