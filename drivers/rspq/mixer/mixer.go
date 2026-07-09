@@ -13,6 +13,7 @@ import (
 	"github.com/clktmr/n64/drivers/cartfs"
 	"github.com/clktmr/n64/drivers/rspq"
 	"github.com/clktmr/n64/rcp/cpu"
+	"github.com/clktmr/n64/rcp/fixed"
 	"github.com/clktmr/n64/rcp/rsp/ucode"
 )
 
@@ -45,16 +46,16 @@ var (
 type settings struct {
 	_ structs.HostLayout
 
-	lvol, rvol [MaxChannels]int1_15
+	lvol, rvol [MaxChannels]fixed.Int1_15
 	channels   [MaxChannels]struct {
 		_ structs.HostLayout
 
-		pos      uint20_12    // Current position within the waveform (in bytes)
-		step     uint20_12    // Step between samples (in bytes) to playback at the correct frequency
-		len      uint20_12    // Length of the waveform (in bytes)
-		loop_len uint20_12    // Length of the loop in the waveform (in bytes)
-		ptr      cpu.Addr     // Pointer to the waveform
-		flags    channelFlags // Misc flags (see CH_FLAGS_*)
+		pos      fixed.UInt20_12 // Current position within the waveform (in bytes)
+		step     fixed.UInt20_12 // Step between samples (in bytes) to playback at the correct frequency
+		len      fixed.UInt20_12 // Length of the waveform (in bytes)
+		loop_len fixed.UInt20_12 // Length of the loop in the waveform (in bytes)
+		ptr      cpu.Addr        // Pointer to the waveform
+		flags    channelFlags    // Misc flags (see CH_FLAGS_*)
 	}
 }
 
@@ -85,7 +86,7 @@ func NewSource(rs io.ReadSeeker, samplerate uint) *Source {
 
 // SetSampleRate sets the playback speed.
 func (v *Source) SetSampleRate(hz uint) {
-	v.hz.Store(uint32(uint20_12U(hz)))
+	v.hz.Store(uint32(fixed.UInt20_12U(int(hz))))
 }
 
 // SetVolume sets the volume and panning of this channel. Both will be clamped
@@ -93,19 +94,19 @@ func (v *Source) SetSampleRate(hz uint) {
 func (v *Source) SetVolume(vol, pan float32) {
 	vol = min(max(0.0, vol), 1.0)
 	pan = min(max(0.0, pan), 1.0)
-	lvol := uint32(int1_15F(vol * (1.0 - pan)))
-	rvol := uint32(int1_15F(vol * pan))
+	lvol := uint32(fixed.Int1_15F(vol * (1.0 - pan)))
+	rvol := uint32(fixed.Int1_15F(vol * pan))
 	v.vol.Store(lvol<<16 | rvol)
 }
 
-func (v *Source) step() uint20_12 {
-	step := uint20_12(v.hz.Load()).Div(uint20_12U(sampleRate))
+func (v *Source) step() fixed.UInt20_12 {
+	step := fixed.UInt20_12(v.hz.Load()).Div(fixed.UInt20_12U(int(sampleRate)))
 	return step << bps
 }
 
-func (v *Source) volume() (lvol, rvol int1_15) {
+func (v *Source) volume() (lvol, rvol fixed.Int1_15) {
 	vol := v.vol.Load()
-	return int1_15(vol >> 16), int1_15(vol)
+	return fixed.Int1_15(vol >> 16), fixed.Int1_15(vol)
 }
 
 func Init() {
@@ -183,7 +184,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 
 		state.lvol[i], state.rvol[i] = src.volume()
 		ch.step = src.step()
-		outputLen := uint20_12U(uint(len(p) >> 2))
+		outputLen := fixed.UInt20_12U(len(p) >> 2)
 		inputLen := ch.step.Mul(outputLen).Ceil()
 
 		// seek back unread bytes and align down to cacheline
@@ -204,7 +205,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 					return 0, err
 				}
 				pinner.Pin(unsafe.SliceData(buf))
-				ch.len = uint20_12U(uint(l.Size()))
+				ch.len = fixed.UInt20_12U(int(l.Size()))
 				ch.loop_len = ch.len
 				ch.ptr = cpu.PhysicalAddressSlice(buf)
 				cpu.WritebackSlice(buf)
@@ -223,7 +224,7 @@ func (b *Reader) Read(p []byte) (n int, err error) {
 		}
 
 		pinner.Pin(unsafe.SliceData(buf))
-		ch.len = uint20_12U(uint(nn))
+		ch.len = fixed.UInt20_12U(nn)
 		ch.loop_len = 0
 		ch.ptr = cpu.PhysicalAddressSlice(buf)
 		cpu.WritebackSlice(buf)

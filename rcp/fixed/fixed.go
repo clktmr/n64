@@ -7,6 +7,8 @@ import "strconv"
 //go:generate go run mkfixed.go UInt14_2 uint16
 //go:generate go run mkfixed.go Int11_5 int16
 //go:generate go run mkfixed.go Int6_10 int16
+//go:generate go run mkfixed.go UInt20_12 uint32
+//go:generate go run mkfixed.go Int1_15 int16
 
 func asString(x, frac int64, ip, fp uint8) string {
 	var mask = int64(1<<frac - 1)
