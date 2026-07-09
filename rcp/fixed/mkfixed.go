@@ -28,7 +28,7 @@ func {{ $castU }}(i int) {{ $I }}     { return {{ $I }}(i<<{{ .Frac }}) }
 func {{ $castF }}(f float32) {{ $I }} { return {{ $I }}(f*(1<<{{ .Frac }})) }
 
 func (x {{ $I }}) Floor() int              { return int(x >> {{ .Frac }}) }
-func (x {{ $I }}) Ceil() int               { return int({{ .MulType }}(x) + (1<<{{ .Frac }} - 1) >> {{ .Frac }}) }
+func (x {{ $I }}) Ceil() int               { return int(({{ .MulType }}(x) + (1<<{{ .Frac }} - 1)) >> {{ .Frac }}) }
 func (x {{ $I }}) Mul(y {{ $I }}) {{ $I }} { return {{ $I }}(({{ .MulType }}(x)*{{ .MulType }}(y))>>{{ .Frac }}) }
 func (x {{ $I }}) Div(y {{ $I }}) {{ $I }} { return {{ $I }}({{ .MulType }}(x)<<{{ .Frac }}/{{ .MulType }}(y)) }
 func (x {{ $I }}) String() string          { return asString(int64(x), {{ .Frac }}, {{ .IntDigits }}, {{ .FracDigits }}) }
